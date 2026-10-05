@@ -439,21 +439,26 @@ class _ToolArtworkPainter extends CustomPainter {
 
   final String kind;
 
-  Paint _paint(
+  Paint _stroke(
     Color color, {
-    PaintingStyle style = PaintingStyle.fill,
-    double strokeWidth = 1,
+    double width = 2.3,
   }) =>
       Paint()
         ..color = color
-        ..style = style
-        ..strokeWidth = strokeWidth
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round;
 
+  Paint _fill(Color color) => Paint()
+    ..color = color
+    ..style = PaintingStyle.fill;
+
   @override
   void paint(Canvas canvas, Size size) {
-    final scale = size.width / 64;
+    // Iconos compactos y planos, con margen interior para que visualmente
+    // tengan el mismo peso que los Material Icons de la aplicación.
+    final scale = size.shortestSide / 48;
     canvas.save();
     canvas.scale(scale, scale);
 
@@ -472,286 +477,191 @@ class _ToolArtworkPainter extends CustomPainter {
   }
 
   void _drawHammer(Canvas canvas) {
+    const dark = Color(0xFF455A64);
+    const accent = Color(0xFF1976D2);
+
     canvas.save();
-    canvas.translate(8, 8);
-    canvas.rotate(-0.48);
+    canvas.translate(24, 24);
+    canvas.rotate(-0.55);
+    canvas.translate(-24, -24);
 
-    final outline = _paint(
-      const Color(0xFF20262D),
-      style: PaintingStyle.stroke,
-      strokeWidth: 2.4,
-    );
-
-    final handle = RRect.fromRectAndRadius(
-      const Rect.fromLTWH(27, 22, 10, 35),
-      const Radius.circular(4),
-    );
-    canvas.drawRRect(handle, _paint(const Color(0xFFD58A31)));
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(28.5, 39, 7, 17),
-        const Radius.circular(3),
+        const Rect.fromLTWH(21, 19, 6, 23),
+        const Radius.circular(2.5),
       ),
-      _paint(const Color(0xFF2F3540)),
+      _fill(accent),
     );
-    canvas.drawRRect(handle, outline);
 
     final head = Path()
-      ..moveTo(8, 15)
-      ..lineTo(31, 10)
-      ..lineTo(44, 13)
-      ..lineTo(50, 8)
-      ..lineTo(54, 12)
-      ..lineTo(45, 20)
-      ..lineTo(31, 19)
-      ..lineTo(9, 23)
+      ..moveTo(10, 13)
+      ..lineTo(27, 13)
+      ..lineTo(31, 17)
+      ..lineTo(41, 11)
+      ..lineTo(43, 14)
+      ..lineTo(33, 21)
+      ..lineTo(27, 19)
+      ..lineTo(10, 19)
       ..close();
-    canvas.drawPath(head, _paint(const Color(0xFFB8C4CE)));
-    canvas.drawPath(head, outline);
 
+    canvas.drawPath(head, _fill(dark));
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(4, 13, 11, 12),
-        const Radius.circular(4),
+        const Rect.fromLTWH(6, 12, 8, 8),
+        const Radius.circular(2),
       ),
-      _paint(const Color(0xFFDDE5EB)),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(4, 13, 11, 12),
-        const Radius.circular(4),
-      ),
-      outline,
-    );
-
-    canvas.drawLine(
-      const Offset(31, 14),
-      const Offset(43, 14),
-      _paint(const Color(0xFFF4F7F9), strokeWidth: 2),
+      _fill(const Color(0xFF90A4AE)),
     );
 
     canvas.restore();
   }
 
   void _drawHandSaw(Canvas canvas) {
-    canvas.save();
-    canvas.translate(2, 12);
-    canvas.rotate(-0.18);
-
-    final outline = _paint(
-      const Color(0xFF20262D),
-      style: PaintingStyle.stroke,
-      strokeWidth: 2.2,
-    );
+    const dark = Color(0xFF455A64);
+    const accent = Color(0xFFF59E0B);
 
     final blade = Path()
-      ..moveTo(5, 19)
-      ..lineTo(47, 8)
-      ..lineTo(49, 28)
-      ..lineTo(8, 31)
+      ..moveTo(8, 18)
+      ..lineTo(34, 13)
+      ..lineTo(35, 29)
+      ..lineTo(9, 31)
       ..close();
-    canvas.drawPath(blade, _paint(const Color(0xFFD9E1E7)));
-    canvas.drawPath(blade, outline);
+    canvas.drawPath(blade, _fill(const Color(0xFFCFD8DC)));
+    canvas.drawPath(blade, _stroke(dark, width: 1.8));
 
-    final teeth = Path()..moveTo(9, 31);
-    for (var i = 0; i < 10; i++) {
-      final x = 11.5 + i * 3.4;
+    final teeth = Path()..moveTo(10, 31);
+    for (var i = 0; i < 7; i++) {
+      final x = 12.5 + i * 3.1;
       teeth
-        ..lineTo(x, i.isEven ? 34 : 31)
-        ..lineTo(x + 1.8, 31);
+        ..lineTo(x, 34)
+        ..lineTo(x + 1.6, 31);
     }
-    canvas.drawPath(
-      teeth,
-      _paint(
-        const Color(0xFF39434C),
-        style: PaintingStyle.stroke,
-        strokeWidth: 1.6,
-      ),
-    );
+    canvas.drawPath(teeth, _stroke(dark, width: 1.4));
 
     final handle = Path()
-      ..moveTo(45, 5)
-      ..quadraticBezierTo(61, 2, 61, 14)
-      ..quadraticBezierTo(61, 27, 50, 30)
-      ..lineTo(44, 25)
-      ..lineTo(48, 18)
-      ..quadraticBezierTo(52, 12, 44, 10)
+      ..moveTo(34, 12)
+      ..quadraticBezierTo(43, 10, 44, 18)
+      ..quadraticBezierTo(44, 27, 36, 29)
+      ..lineTo(32, 25)
+      ..lineTo(35, 20)
+      ..quadraticBezierTo(37, 16, 33, 15)
       ..close();
-    canvas.drawPath(handle, _paint(const Color(0xFFF5A623)));
-    canvas.drawPath(handle, outline);
-
-    final grip = Path()
-      ..moveTo(50, 10)
-      ..quadraticBezierTo(57, 10, 56, 16)
-      ..quadraticBezierTo(55, 22, 49, 22)
-      ..lineTo(47, 18)
-      ..quadraticBezierTo(51, 14, 50, 10)
-      ..close();
-    canvas.drawPath(grip, _paint(const Color(0xFF2E343D)));
-
-    canvas.restore();
+    canvas.drawPath(handle, _fill(accent));
+    canvas.drawPath(handle, _stroke(dark, width: 1.7));
   }
 
   void _drawScrewdriver(Canvas canvas) {
+    const dark = Color(0xFF455A64);
+    const accent = Color(0xFFE53935);
+
     canvas.save();
-    canvas.translate(7, 5);
-    canvas.rotate(-0.58);
-
-    final outline = _paint(
-      const Color(0xFF20262D),
-      style: PaintingStyle.stroke,
-      strokeWidth: 2.2,
-    );
+    canvas.translate(24, 24);
+    canvas.rotate(-0.5);
+    canvas.translate(-24, -24);
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(27, 25, 14, 34),
-        const Radius.circular(6),
+        const Rect.fromLTWH(21, 8, 5, 18),
+        const Radius.circular(1.5),
       ),
-      _paint(const Color(0xFF30343B)),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(28.5, 29, 11, 8),
-        const Radius.circular(4),
-      ),
-      _paint(const Color(0xFFE73A35)),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(28.5, 41, 11, 11),
-        const Radius.circular(4),
-      ),
-      _paint(const Color(0xFFE73A35)),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(27, 25, 14, 34),
-        const Radius.circular(6),
-      ),
-      outline,
+      _fill(const Color(0xFFB0BEC5)),
     );
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(31, 3, 6, 25),
-        const Radius.circular(2),
+        const Rect.fromLTWH(18, 24, 11, 18),
+        const Radius.circular(5),
       ),
-      _paint(const Color(0xFFC8D1D8)),
+      _fill(dark),
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(31, 3, 6, 25),
-        const Radius.circular(2),
+        const Rect.fromLTWH(19.5, 26, 8, 5),
+        const Radius.circular(2.5),
       ),
-      outline,
+      _fill(accent),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(19.5, 34, 8, 5),
+        const Radius.circular(2.5),
+      ),
+      _fill(accent),
     );
 
-    final tip = Path()
-      ..moveTo(31, 3)
-      ..lineTo(34, 0)
-      ..lineTo(37, 3)
-      ..lineTo(35, 7)
-      ..lineTo(33, 7)
-      ..close();
-    canvas.drawPath(tip, _paint(const Color(0xFF39434C)));
+    canvas.drawLine(
+      const Offset(21, 8),
+      const Offset(23.5, 5),
+      _stroke(dark, width: 2),
+    );
+    canvas.drawLine(
+      const Offset(26, 8),
+      const Offset(23.5, 5),
+      _stroke(dark, width: 2),
+    );
 
     canvas.restore();
   }
 
   void _drawDrill(Canvas canvas) {
-    canvas.save();
-    canvas.translate(2, 6);
-
-    final outline = _paint(
-      const Color(0xFF20262D),
-      style: PaintingStyle.stroke,
-      strokeWidth: 2.1,
-    );
+    const dark = Color(0xFF455A64);
+    const accent = Color(0xFFF9A825);
 
     final body = Path()
-      ..moveTo(18, 13)
-      ..lineTo(47, 13)
-      ..quadraticBezierTo(57, 14, 59, 24)
-      ..lineTo(59, 31)
-      ..lineTo(42, 32)
-      ..lineTo(35, 39)
-      ..lineTo(25, 36)
-      ..lineTo(26, 29)
-      ..lineTo(18, 27)
+      ..moveTo(13, 14)
+      ..lineTo(33, 14)
+      ..quadraticBezierTo(40, 14, 42, 20)
+      ..lineTo(42, 26)
+      ..lineTo(31, 27)
+      ..lineTo(27, 31)
+      ..lineTo(19, 29)
+      ..lineTo(19, 24)
+      ..lineTo(13, 23)
       ..close();
-    canvas.drawPath(body, _paint(const Color(0xFFF7B500)));
-    canvas.drawPath(body, outline);
+
+    canvas.drawPath(body, _fill(accent));
+    canvas.drawPath(body, _stroke(dark, width: 1.8));
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(8, 16, 14, 13),
-        const Radius.circular(5),
+        const Rect.fromLTWH(7, 16, 8, 9),
+        const Radius.circular(2.5),
       ),
-      _paint(const Color(0xFF2F3540)),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(8, 16, 14, 13),
-        const Radius.circular(5),
-      ),
-      outline,
+      _fill(dark),
     );
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(2, 19, 8, 7),
-        const Radius.circular(2),
+        const Rect.fromLTWH(3, 19, 5, 3.5),
+        const Radius.circular(1.2),
       ),
-      _paint(const Color(0xFFB9C5CE)),
-    );
-    canvas.drawLine(
-      const Offset(0, 22.5),
-      const Offset(5, 22.5),
-      _paint(const Color(0xFF424A52), strokeWidth: 2),
+      _fill(const Color(0xFFB0BEC5)),
     );
 
-    final handle = Path()
-      ..moveTo(31, 30)
-      ..lineTo(44, 30)
-      ..lineTo(48, 50)
-      ..lineTo(36, 52)
-      ..lineTo(29, 39)
+    final grip = Path()
+      ..moveTo(25, 27)
+      ..lineTo(33, 27)
+      ..lineTo(36, 40)
+      ..lineTo(29, 41)
+      ..lineTo(24, 32)
       ..close();
-    canvas.drawPath(handle, _paint(const Color(0xFF2F3540)));
-    canvas.drawPath(handle, outline);
+    canvas.drawPath(grip, _fill(dark));
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(31, 49, 23, 10),
-        const Radius.circular(4),
-      ),
-      _paint(const Color(0xFF30343B)),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(31, 49, 23, 10),
-        const Radius.circular(4),
-      ),
-      outline,
-    );
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(46, 20, 8, 6),
+        const Rect.fromLTWH(27, 39, 13, 5),
         const Radius.circular(2),
       ),
-      _paint(const Color(0xFF2F3540)),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(35, 34, 7, 6),
-        const Radius.circular(2),
-      ),
-      _paint(const Color(0xFFE53935)),
+      _fill(dark),
     );
 
-    canvas.restore();
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(29, 29, 4, 3),
+        const Radius.circular(1),
+      ),
+      _fill(const Color(0xFFE53935)),
+    );
   }
 
   @override
@@ -1994,7 +1904,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V20',
+          'Mis herramientas · QUILL V21',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -3993,7 +3903,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V20' : 'Nuevo artículo · QUILL V20',
+          _isEditing ? 'Editar artículo · QUILL V21' : 'Nuevo artículo · QUILL V21',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
