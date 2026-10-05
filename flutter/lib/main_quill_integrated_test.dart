@@ -2685,8 +2685,6 @@ class _FieldOptionsManagementPageState
   List<FieldOption> _options = [];
   bool _loading = true;
 
-  String get _title => _fieldKey == 'type' ? 'Tipo' : 'Estado';
-
   @override
   void initState() {
     super.initState();
