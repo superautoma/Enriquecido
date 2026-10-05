@@ -938,7 +938,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     try {
       await BackupManager.restoreBackup(path);
       await _loadItems();
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Copia restaurada correctamente'),
@@ -946,7 +946,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       );
       return true;
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No se pudo restaurar la copia: $error')),
       );
