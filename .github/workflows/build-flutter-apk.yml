@@ -35,12 +35,12 @@ jobs:
           cp lib/main.dart /tmp/flutter_main.dart
           flutter create . \
             --platforms=android \
-            --project-name flutter_richtext_v3 \
+            --project-name gestor_herramientas \
             --org org.gestorherramientas
           cp /tmp/flutter_pubspec.yaml pubspec.yaml
           cp /tmp/flutter_main.dart lib/main.dart
           rm -rf test
-          sed -i 's/android:label="flutter_richtext_v3"/android:label="Flutter Rich Text V3"/' android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:label="gestor_herramientas"/android:label="Gestor de Herramientas"/' android/app/src/main/AndroidManifest.xml
 
       - name: Get packages
         run: flutter pub get
@@ -54,7 +54,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: flutter-richtext-v3-apk
+          name: gestor-herramientas-flutter-apk
           path: flutter/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 14

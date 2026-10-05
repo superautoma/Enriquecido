@@ -1,206 +1,705 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_quill/flutter_quill.dart';
 
 void main() {
-  ErrorWidget.builder = (FlutterErrorDetails details) {
-    return Material(
-      color: Colors.white,
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Text(
-            'ERROR AL CARGAR QUILL\n\n${details.exceptionAsString()}',
-            style: const TextStyle(
-              color: Colors.red,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ),
-    );
-  };
-
-  runApp(const RichTextDiagnosticApp());
+  runApp(const GestorHerramientasApp());
 }
 
-class RichTextDiagnosticApp extends StatelessWidget {
-  const RichTextDiagnosticApp({super.key});
+class GestorHerramientasApp extends StatelessWidget {
+  const GestorHerramientasApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Flutter Rich Text V3',
+      title: 'Gestor de Herramientas',
       theme: ThemeData(
         useMaterial3: true,
-        scaffoldBackgroundColor: Colors.white,
+        scaffoldBackgroundColor: const Color(0xFFF7F9FB),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF168BD2),
           brightness: Brightness.light,
         ),
-      ),
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        FlutterQuillLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('es'),
-        Locale('en'),
-      ],
-      home: const DiagnosticPage(),
-    );
-  }
-}
-
-class DiagnosticPage extends StatefulWidget {
-  const DiagnosticPage({super.key});
-
-  @override
-  State<DiagnosticPage> createState() => _DiagnosticPageState();
-}
-
-class _DiagnosticPageState extends State<DiagnosticPage> {
-  bool _showEditor = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFEAF4FE),
-        title: Text(
-          _showEditor
-              ? 'FLUTTER V3 — QUILL'
-              : 'FLUTTER V3 — DIAGNÓSTICO',
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFEAF4FE),
+          foregroundColor: Color(0xFF20242A),
+          elevation: 0,
+          centerTitle: false,
+        ),
+        inputDecorationTheme: const InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+            borderSide: BorderSide(color: Color(0xFFD7DDE3)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+            borderSide: BorderSide(color: Color(0xFFD7DDE3)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+            borderSide: BorderSide(color: Color(0xFF168BD2), width: 2),
           ),
         ),
       ),
-      body: _showEditor
-          ? const QuillPanel()
-          : Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5E9),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFF81C784),
-                      ),
-                    ),
-                    child: const Text(
-                      'FLUTTER FUNCIONA. AHORA VAMOS A CARGAR QUILL '
-                      'EN ESTA MISMA PANTALLA.',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1B5E20),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  FilledButton(
-                    onPressed: () {
-                      setState(() {
-                        _showEditor = true;
-                      });
-                    },
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF168BD2),
-                      minimumSize: const Size.fromHeight(56),
-                    ),
-                    child: const Text(
-                      'CARGAR EDITOR QUILL',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+      home: const ToolsHomePage(),
     );
   }
 }
 
-class QuillPanel extends StatefulWidget {
-  const QuillPanel({super.key});
+class ToolItem {
+  ToolItem({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.barcode,
+    required this.quantity,
+    required this.unit,
+    required this.minimumStock,
+    required this.purchasePrice,
+    required this.condition,
+  });
 
-  @override
-  State<QuillPanel> createState() => _QuillPanelState();
+  final int id;
+  String name;
+  String description;
+  String barcode;
+  double quantity;
+  String unit;
+  double minimumStock;
+  double purchasePrice;
+  String condition;
+
+  ToolItem copy() => ToolItem(
+        id: id,
+        name: name,
+        description: description,
+        barcode: barcode,
+        quantity: quantity,
+        unit: unit,
+        minimumStock: minimumStock,
+        purchasePrice: purchasePrice,
+        condition: condition,
+      );
 }
 
-class _QuillPanelState extends State<QuillPanel> {
-  late final QuillController _controller;
-  final FocusNode _focusNode = FocusNode();
-  final ScrollController _scrollController = ScrollController();
+class ConditionStyle {
+  const ConditionStyle(this.label, this.color, this.icon);
+
+  final String label;
+  final Color color;
+  final IconData icon;
+}
+
+const conditionStyles = <ConditionStyle>[
+  ConditionStyle('Bueno', Color(0xFF43A047), Icons.check_circle_outline),
+  ConditionStyle('Revisar', Color(0xFFF9A825), Icons.build_circle_outlined),
+  ConditionStyle('Averiado', Color(0xFFE53935), Icons.error_outline),
+  ConditionStyle('Prestado', Color(0xFF7E57C2), Icons.swap_horiz),
+];
+
+ConditionStyle conditionStyleFor(String value) {
+  return conditionStyles.firstWhere(
+    (style) => style.label == value,
+    orElse: () => conditionStyles.first,
+  );
+}
+
+class ToolsHomePage extends StatefulWidget {
+  const ToolsHomePage({super.key});
 
   @override
-  void initState() {
-    super.initState();
-    _controller = QuillController.basic();
+  State<ToolsHomePage> createState() => _ToolsHomePageState();
+}
+
+class _ToolsHomePageState extends State<ToolsHomePage> {
+  final _searchController = TextEditingController();
+
+  final List<ToolItem> _items = [
+    ToolItem(
+      id: 1,
+      name: 'Destornillador aislado',
+      description: 'Destornillador VDE para trabajos eléctricos.',
+      barcode: '841000000001',
+      quantity: 4,
+      unit: 'ud',
+      minimumStock: 1,
+      purchasePrice: 8.50,
+      condition: 'Bueno',
+    ),
+    ToolItem(
+      id: 2,
+      name: 'Multímetro',
+      description: 'Multímetro digital de uso general.',
+      barcode: '841000000002',
+      quantity: 2,
+      unit: 'ud',
+      minimumStock: 1,
+      purchasePrice: 64.90,
+      condition: 'Revisar',
+    ),
+    ToolItem(
+      id: 3,
+      name: 'Taladro',
+      description: 'Taladro con cable para taller.',
+      barcode: '841000000003',
+      quantity: 1,
+      unit: 'ud',
+      minimumStock: 1,
+      purchasePrice: 89.00,
+      condition: 'Bueno',
+    ),
+  ];
+
+  String get _query => _searchController.text.trim().toLowerCase();
+
+  List<ToolItem> get _visibleItems {
+    if (_query.isEmpty) return _items;
+    return _items
+        .where(
+          (item) =>
+              item.name.toLowerCase().contains(_query) ||
+              item.description.toLowerCase().contains(_query) ||
+              item.barcode.toLowerCase().contains(_query),
+        )
+        .toList();
+  }
+
+  Future<void> _openEditor({ToolItem? item}) async {
+    final result = await Navigator.of(context).push<ToolItem>(
+      MaterialPageRoute(
+        builder: (_) => EditToolPage(
+          item: item?.copy(),
+          nextId: _items.isEmpty
+              ? 1
+              : _items.map((e) => e.id).reduce((a, b) => a > b ? a : b) + 1,
+        ),
+      ),
+    );
+
+    if (result == null) return;
+
+    setState(() {
+      final index = _items.indexWhere((element) => element.id == result.id);
+      if (index >= 0) {
+        _items[index] = result;
+      } else {
+        _items.insert(0, result);
+      }
+    });
   }
 
   @override
   void dispose() {
-    _controller.dispose();
-    _focusNode.dispose();
-    _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            color: const Color(0xFFFFF3CD),
-            padding: const EdgeInsets.all(10),
-            child: const Text(
-              'Si ves esta franja y la barra inferior, Quill ha cargado.',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          QuillSimpleToolbar(
-            controller: _controller,
-            config: const QuillSimpleToolbarConfig(),
-          ),
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(
-                  color: const Color(0xFFB0B7BE),
-                ),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: QuillEditor.basic(
-                controller: _controller,
-                focusNode: _focusNode,
-                scrollController: _scrollController,
-                config: const QuillEditorConfig(
-                  placeholder: 'Escribe aquí…',
-                  padding: EdgeInsets.all(12),
-                ),
-              ),
-            ),
+    final visible = _visibleItems;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Mis herramientas',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Opciones',
+            onPressed: () {},
+            icon: const Icon(Icons.more_vert),
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _openEditor(),
+        backgroundColor: const Color(0xFF168BD2),
+        foregroundColor: Colors.white,
+        child: const Icon(Icons.add, size: 30),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'Buscar herramientas',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {});
+                          },
+                          icon: const Icon(Icons.close),
+                        ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
+              child: Row(
+                children: [
+                  Text(
+                    '${visible.length} artículos',
+                    style: const TextStyle(
+                      color: Color(0xFF72777D),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.tune, size: 20),
+                    label: const Text('Filtrar'),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: visible.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No se encontraron herramientas',
+                        style: TextStyle(color: Color(0xFF7A7F85)),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 92),
+                      itemCount: visible.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final item = visible[index];
+                        final style = conditionStyleFor(item.condition);
+
+                        return Material(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () => _openEditor(item: item),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 52,
+                                    height: 52,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEAF4FE),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.handyman_outlined,
+                                      color: Color(0xFF168BD2),
+                                      size: 28,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.name,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                            color: Color(0xFF25292D),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 5),
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 9,
+                                                vertical: 4,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: style.color
+                                                    .withValues(alpha: 0.12),
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    style.icon,
+                                                    size: 15,
+                                                    color: style.color,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    style.label,
+                                                    style: TextStyle(
+                                                      color: style.color,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Text(
+                                              'Cantidad: ${formatNumber(item.quantity)} ${item.unit}',
+                                              style: const TextStyle(
+                                                color: Color(0xFF6F747A),
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.chevron_right,
+                                    color: Color(0xFF9AA0A6),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
+}
+
+class EditToolPage extends StatefulWidget {
+  const EditToolPage({
+    super.key,
+    required this.item,
+    required this.nextId,
+  });
+
+  final ToolItem? item;
+  final int nextId;
+
+  @override
+  State<EditToolPage> createState() => _EditToolPageState();
+}
+
+class _EditToolPageState extends State<EditToolPage> {
+  final _formKey = GlobalKey<FormState>();
+
+  late final TextEditingController _name;
+  late final TextEditingController _description;
+  late final TextEditingController _barcode;
+  late final TextEditingController _quantity;
+  late final TextEditingController _unit;
+  late final TextEditingController _minimumStock;
+  late final TextEditingController _purchasePrice;
+
+  late String _condition;
+
+  bool get _isEditing => widget.item != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final item = widget.item;
+
+    _name = TextEditingController(text: item?.name ?? '');
+    _description = TextEditingController(text: item?.description ?? '');
+    _barcode = TextEditingController(text: item?.barcode ?? '');
+    _quantity = TextEditingController(
+      text: item == null ? '1' : formatNumber(item.quantity),
+    );
+    _unit = TextEditingController(text: item?.unit ?? 'ud');
+    _minimumStock = TextEditingController(
+      text: item == null ? '0' : formatNumber(item.minimumStock),
+    );
+    _purchasePrice = TextEditingController(
+      text: item == null ? '' : item.purchasePrice.toStringAsFixed(2),
+    );
+    _condition = item?.condition ?? conditionStyles.first.label;
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _description.dispose();
+    _barcode.dispose();
+    _quantity.dispose();
+    _unit.dispose();
+    _minimumStock.dispose();
+    _purchasePrice.dispose();
+    super.dispose();
+  }
+
+  double _number(String value) {
+    return double.tryParse(value.replaceAll(',', '.').trim()) ?? 0;
+  }
+
+  void _save() {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final result = ToolItem(
+      id: widget.item?.id ?? widget.nextId,
+      name: _name.text.trim(),
+      description: _description.text.trim(),
+      barcode: _barcode.text.trim(),
+      quantity: _number(_quantity.text),
+      unit: _unit.text.trim().isEmpty ? 'ud' : _unit.text.trim(),
+      minimumStock: _number(_minimumStock.text),
+      purchasePrice: _number(_purchasePrice.text),
+      condition: _condition,
+    );
+
+    Navigator.of(context).pop(result);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final style = conditionStyleFor(_condition);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          _isEditing ? 'Editar artículo' : 'Nuevo artículo',
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _save,
+            child: const Text(
+              'GUARDAR',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+      ),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
+            children: [
+              const SectionTitle('Información básica'),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _name,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre*',
+                  prefixIcon: Icon(Icons.handyman_outlined),
+                ),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Escribe el nombre'
+                    : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _description,
+                minLines: 4,
+                maxLines: 7,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Descripción',
+                  alignLabelWithHint: true,
+                  hintText: 'Notas, características, observaciones…',
+                  prefixIcon: Padding(
+                    padding: EdgeInsets.only(bottom: 72),
+                    child: Icon(Icons.notes),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _barcode,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Código de barras',
+                  prefixIcon: Icon(Icons.qr_code_scanner),
+                ),
+              ),
+              const SizedBox(height: 22),
+              const SectionTitle('Existencias'),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: TextFormField(
+                      controller: _quantity,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Cantidad',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _unit,
+                      decoration: const InputDecoration(
+                        labelText: 'Unidad',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _minimumStock,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Cantidad mínima',
+                  prefixIcon: Icon(Icons.inventory_2_outlined),
+                ),
+              ),
+              const SizedBox(height: 22),
+              const SectionTitle('Estado'),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: _condition,
+                decoration: InputDecoration(
+                  labelText: 'Estado de la herramienta',
+                  prefixIcon: Icon(style.icon, color: style.color),
+                ),
+                items: conditionStyles
+                    .map(
+                      (option) => DropdownMenuItem(
+                        value: option.label,
+                        child: Row(
+                          children: [
+                            Icon(option.icon, color: option.color, size: 20),
+                            const SizedBox(width: 8),
+                            Text(option.label),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _condition = value);
+                },
+              ),
+              const SizedBox(height: 22),
+              const SectionTitle('Compra e imagen'),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _purchasePrice,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Precio de compra (€)',
+                  prefixIcon: Icon(Icons.euro),
+                ),
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'La selección de imagen se añadirá en el siguiente bloque.',
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  height: 126,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFFD7DDE3),
+                    ),
+                  ),
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.add_photo_alternate_outlined,
+                        size: 36,
+                        color: Color(0xFF168BD2),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Añadir imagen',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF168BD2),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _save,
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Guardar artículo'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF168BD2),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(54),
+                  textStyle: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class SectionTitle extends StatelessWidget {
+  const SectionTitle(this.text, {super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w800,
+        color: Color(0xFF5E646A),
+      ),
+    );
+  }
+}
+
+String formatNumber(double value) {
+  if (value == value.roundToDouble()) {
+    return value.toInt().toString();
+  }
+  return value.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
 }

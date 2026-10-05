@@ -1,7 +1,7 @@
-name: flutter_richtext_v3
-description: Prueba diagnostica de Flutter Quill.
+name: gestor_herramientas
+description: Gestor de herramientas en Flutter.
 publish_to: "none"
-version: 0.3.0+4
+version: 1.0.0+1
 
 environment:
   sdk: ">=3.12.0 <4.0.0"
@@ -9,9 +9,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_localizations:
-    sdk: flutter
-  flutter_quill: ^11.6.0
 
 dev_dependencies:
   flutter_test:
