@@ -126,12 +126,47 @@ class ToolImage {
       );
 }
 
-const toolTypes = <String>[
-  'Herramienta manual',
-  'Herramienta eléctrica',
-  'Repuesto',
-  'Consumible',
+class ToolTypeStyle {
+  const ToolTypeStyle(this.label, this.color, this.icon);
+
+  final String label;
+  final Color color;
+  final IconData icon;
+}
+
+const toolTypeStyles = <ToolTypeStyle>[
+  ToolTypeStyle(
+    'Herramienta manual',
+    Color(0xFF1976D2),
+    Icons.handyman_outlined,
+  ),
+  ToolTypeStyle(
+    'Herramienta eléctrica',
+    Color(0xFFF59E0B),
+    Icons.electrical_services_outlined,
+  ),
+  ToolTypeStyle(
+    'Repuesto',
+    Color(0xFF7E57C2),
+    Icons.settings_outlined,
+  ),
+  ToolTypeStyle(
+    'Consumible',
+    Color(0xFF00897B),
+    Icons.inventory_2_outlined,
+  ),
 ];
+
+ToolTypeStyle toolTypeStyleFor(String value) {
+  return toolTypeStyles.firstWhere(
+    (style) => style.label == value,
+    orElse: () => const ToolTypeStyle(
+      '',
+      Color(0xFF7A7F85),
+      Icons.category_outlined,
+    ),
+  );
+}
 
 class ToolItem {
   ToolItem({
@@ -1003,7 +1038,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V12',
+          'Mis herramientas · QUILL V13',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -2104,11 +2139,12 @@ class _EditToolPageState extends State<EditToolPage> {
   @override
   Widget build(BuildContext context) {
     final style = conditionStyleFor(_condition);
+    final typeStyle = toolTypeStyleFor(_type);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V12' : 'Nuevo artículo · QUILL V12',
+          _isEditing ? 'Editar artículo · QUILL V13' : 'Nuevo artículo · QUILL V13',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -2144,21 +2180,35 @@ class _EditToolPageState extends State<EditToolPage> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _type.isEmpty ? null : _type,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Tipo*',
-                  prefixIcon: Icon(Icons.category_outlined),
+                  prefixIcon: Icon(
+                    typeStyle.icon,
+                    color: typeStyle.color,
+                  ),
                 ),
                 hint: const Text('Selecciona el tipo'),
-                items: toolTypes
+                items: toolTypeStyles
                     .map(
-                      (type) => DropdownMenuItem<String>(
-                        value: type,
-                        child: Text(type),
+                      (option) => DropdownMenuItem<String>(
+                        value: option.label,
+                        child: Row(
+                          children: [
+                            Icon(
+                              option.icon,
+                              color: option.color,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(option.label),
+                          ],
+                        ),
                       ),
                     )
                     .toList(),
                 onChanged: (value) {
-                  setState(() => _type = value ?? '');
+                  if (value == null) return;
+                  setState(() => _type = value);
                 },
                 validator: (value) =>
                     value == null || value.isEmpty ? 'Selecciona el tipo' : null,
