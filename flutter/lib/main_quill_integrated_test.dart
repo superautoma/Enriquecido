@@ -127,79 +127,196 @@ class ToolImage {
 }
 
 class AppIconChoice {
-  const AppIconChoice(this.key, this.label, this.icon);
+  const AppIconChoice(
+    this.key,
+    this.label,
+    this.icon,
+    this.category,
+    this.defaultColorValue,
+  );
 
   final String key;
   final String label;
   final IconData icon;
+  final String category;
+  final int defaultColorValue;
+
+  Color get defaultColor => Color(defaultColorValue);
 }
 
-const appIconChoices = <AppIconChoice>[
-  AppIconChoice('handyman', 'Herramientas', Icons.handyman_outlined),
-  AppIconChoice('electrical', 'Eléctrica', Icons.electrical_services_outlined),
-  AppIconChoice('settings', 'Engranaje', Icons.settings_outlined),
-  AppIconChoice('inventory', 'Inventario', Icons.inventory_2_outlined),
-  AppIconChoice('check', 'Correcto', Icons.check_circle_outline),
-  AppIconChoice('build', 'Revisión', Icons.build_circle_outlined),
-  AppIconChoice('error', 'Avería', Icons.error_outline),
-  AppIconChoice('swap', 'Préstamo', Icons.swap_horiz),
-  AppIconChoice('category', 'Categoría', Icons.category_outlined),
-  AppIconChoice('bolt', 'Rayo', Icons.bolt_outlined),
-  AppIconChoice('power', 'Potencia', Icons.power_outlined),
-  AppIconChoice('construction', 'Construcción', Icons.construction_outlined),
-  AppIconChoice('precision', 'Precisión', Icons.precision_manufacturing_outlined),
-  AppIconChoice('memory', 'Electrónica', Icons.memory_outlined),
-  AppIconChoice('plumbing', 'Tubería', Icons.plumbing_outlined),
-  AppIconChoice('hardware', 'Ferretería', Icons.hardware_outlined),
-  AppIconChoice('science', 'Química', Icons.science_outlined),
-  AppIconChoice('cleaning', 'Limpieza', Icons.cleaning_services_outlined),
-  AppIconChoice('local_fire', 'Calor', Icons.local_fire_department_outlined),
-  AppIconChoice('water', 'Líquido', Icons.water_drop_outlined),
-  AppIconChoice('straighten', 'Medida', Icons.straighten_outlined),
-  AppIconChoice('speed', 'Medición', Icons.speed_outlined),
-  AppIconChoice('battery', 'Batería', Icons.battery_charging_full_outlined),
-  AppIconChoice('cable', 'Cable', Icons.cable_outlined),
-  AppIconChoice('lightbulb', 'Iluminación', Icons.lightbulb_outline),
-  AppIconChoice('shield', 'Protección', Icons.shield_outlined),
-  AppIconChoice('warning', 'Aviso', Icons.warning_amber_outlined),
-  AppIconChoice('star', 'Destacado', Icons.star_outline),
-  AppIconChoice('package', 'Paquete', Icons.all_inbox_outlined),
-  AppIconChoice('recycling', 'Reciclable', Icons.recycling_outlined),
-  AppIconChoice('delete_sweep', 'Desechable', Icons.delete_sweep_outlined),
-  AppIconChoice('factory', 'Industrial', Icons.factory_outlined),
+const appIconCategories = <String>[
+  'Todos',
+  'Herramientas',
+  'Eléctrica',
+  'Material',
+  'Estado',
+  'General',
 ];
 
-IconData appIconFor(String key) {
-  return appIconChoices
-      .firstWhere(
-        (choice) => choice.key == key,
-        orElse: () => appIconChoices.first,
-      )
-      .icon;
+const appIconChoices = <AppIconChoice>[
+  // Herramientas
+  AppIconChoice('handyman', 'Herramientas', Icons.handyman_outlined,
+      'Herramientas', 0xFF1976D2),
+  AppIconChoice('construction', 'Construcción', Icons.construction_outlined,
+      'Herramientas', 0xFFF57C00),
+  AppIconChoice('build_tool', 'Reparación', Icons.build_outlined,
+      'Herramientas', 0xFF546E7A),
+  AppIconChoice('repair_service', 'Servicio', Icons.home_repair_service_outlined,
+      'Herramientas', 0xFF6D4C41),
+  AppIconChoice('hardware', 'Ferretería', Icons.hardware_outlined,
+      'Herramientas', 0xFF455A64),
+  AppIconChoice('plumbing', 'Tubería', Icons.plumbing_outlined,
+      'Herramientas', 0xFF00838F),
+  AppIconChoice('precision', 'Precisión', Icons.precision_manufacturing_outlined,
+      'Herramientas', 0xFF5E35B1),
+  AppIconChoice('engineering', 'Ingeniería', Icons.engineering_outlined,
+      'Herramientas', 0xFF3949AB),
+  AppIconChoice('straighten', 'Medida', Icons.straighten_outlined,
+      'Herramientas', 0xFF00897B),
+  AppIconChoice('speed', 'Medición', Icons.speed_outlined,
+      'Herramientas', 0xFF3949AB),
+
+  // Eléctrica
+  AppIconChoice('electrical', 'Eléctrica', Icons.electrical_services_outlined,
+      'Eléctrica', 0xFFF9A825),
+  AppIconChoice('bolt', 'Rayo', Icons.bolt_outlined,
+      'Eléctrica', 0xFFFDD835),
+  AppIconChoice('power', 'Potencia', Icons.power_outlined,
+      'Eléctrica', 0xFFE53935),
+  AppIconChoice('cable', 'Cable', Icons.cable_outlined,
+      'Eléctrica', 0xFF3949AB),
+  AppIconChoice('battery', 'Batería', Icons.battery_charging_full_outlined,
+      'Eléctrica', 0xFF43A047),
+  AppIconChoice('lightbulb', 'Iluminación', Icons.lightbulb_outline,
+      'Eléctrica', 0xFFFBC02D),
+  AppIconChoice('memory', 'Electrónica', Icons.memory_outlined,
+      'Eléctrica', 0xFF7E57C2),
+  AppIconChoice('sensors', 'Sensor', Icons.sensors_outlined,
+      'Eléctrica', 0xFF00897B),
+  AppIconChoice('developer_board', 'Placa', Icons.developer_board_outlined,
+      'Eléctrica', 0xFF5E35B1),
+  AppIconChoice('wifi_signal', 'Señal', Icons.wifi_tethering,
+      'Eléctrica', 0xFF039BE5),
+
+  // Material
+  AppIconChoice('inventory', 'Inventario', Icons.inventory_2_outlined,
+      'Material', 0xFF00897B),
+  AppIconChoice('settings', 'Engranaje', Icons.settings_outlined,
+      'Material', 0xFF7E57C2),
+  AppIconChoice('package', 'Paquete', Icons.all_inbox_outlined,
+      'Material', 0xFF6D4C41),
+  AppIconChoice('extension', 'Pieza', Icons.extension_outlined,
+      'Material', 0xFF5E35B1),
+  AppIconChoice('widgets', 'Componentes', Icons.widgets_outlined,
+      'Material', 0xFF3949AB),
+  AppIconChoice('category', 'Categoría', Icons.category_outlined,
+      'Material', 0xFF1976D2),
+  AppIconChoice('science', 'Química', Icons.science_outlined,
+      'Material', 0xFF8E24AA),
+  AppIconChoice('water', 'Líquido', Icons.water_drop_outlined,
+      'Material', 0xFF039BE5),
+  AppIconChoice('local_fire', 'Calor', Icons.local_fire_department_outlined,
+      'Material', 0xFFEF6C00),
+  AppIconChoice('cleaning', 'Limpieza', Icons.cleaning_services_outlined,
+      'Material', 0xFF00ACC1),
+  AppIconChoice('recycling', 'Reciclable', Icons.recycling_outlined,
+      'Material', 0xFF43A047),
+  AppIconChoice('delete_sweep', 'Desechable', Icons.delete_sweep_outlined,
+      'Material', 0xFFE53935),
+  AppIconChoice('factory', 'Industrial', Icons.factory_outlined,
+      'Material', 0xFF546E7A),
+
+  // Estado
+  AppIconChoice('check', 'Correcto', Icons.check_circle_outline,
+      'Estado', 0xFF43A047),
+  AppIconChoice('build', 'Revisión', Icons.build_circle_outlined,
+      'Estado', 0xFFF9A825),
+  AppIconChoice('error', 'Avería', Icons.error_outline,
+      'Estado', 0xFFE53935),
+  AppIconChoice('swap', 'Préstamo', Icons.swap_horiz,
+      'Estado', 0xFF7E57C2),
+  AppIconChoice('warning', 'Aviso', Icons.warning_amber_outlined,
+      'Estado', 0xFFF57C00),
+  AppIconChoice('blocked', 'Bloqueado', Icons.block,
+      'Estado', 0xFFE53935),
+  AppIconChoice('pause', 'Pausado', Icons.pause_circle_outline,
+      'Estado', 0xFF546E7A),
+  AppIconChoice('schedule', 'Pendiente', Icons.schedule,
+      'Estado', 0xFF5E35B1),
+  AppIconChoice('done_all', 'Finalizado', Icons.done_all,
+      'Estado', 0xFF00897B),
+  AppIconChoice('help', 'Desconocido', Icons.help_outline,
+      'Estado', 0xFF78909C),
+
+  // General
+  AppIconChoice('star', 'Destacado', Icons.star_outline,
+      'General', 0xFFFBC02D),
+  AppIconChoice('favorite', 'Favorito', Icons.favorite_border,
+      'General', 0xFFD81B60),
+  AppIconChoice('label', 'Etiqueta', Icons.label_outline,
+      'General', 0xFF7E57C2),
+  AppIconChoice('bookmark', 'Marcador', Icons.bookmark_border,
+      'General', 0xFF3949AB),
+  AppIconChoice('place', 'Ubicación', Icons.place_outlined,
+      'General', 0xFFE53935),
+  AppIconChoice('info', 'Información', Icons.info_outline,
+      'General', 0xFF1976D2),
+  AppIconChoice('push_pin', 'Fijado', Icons.push_pin_outlined,
+      'General', 0xFFEF6C00),
+  AppIconChoice('person', 'Persona', Icons.person_outline,
+      'General', 0xFF5E35B1),
+  AppIconChoice('groups', 'Grupo', Icons.groups_outlined,
+      'General', 0xFF3949AB),
+  AppIconChoice('event', 'Fecha', Icons.event_outlined,
+      'General', 0xFF00897B),
+  AppIconChoice('qr', 'QR', Icons.qr_code_2,
+      'General', 0xFF455A64),
+  AppIconChoice('camera', 'Cámara', Icons.photo_camera_outlined,
+      'General', 0xFF1976D2),
+  AppIconChoice('attach', 'Adjunto', Icons.attach_file,
+      'General', 0xFF546E7A),
+  AppIconChoice('description', 'Documento', Icons.description_outlined,
+      'General', 0xFF3949AB),
+  AppIconChoice('folder', 'Carpeta', Icons.folder_outlined,
+      'General', 0xFFF9A825),
+  AppIconChoice('shield', 'Protección', Icons.shield_outlined,
+      'General', 0xFF00897B),
+  AppIconChoice('lock', 'Bloqueo', Icons.lock_outline,
+      'General', 0xFF6D4C41),
+];
+
+AppIconChoice appIconChoiceFor(String key) {
+  return appIconChoices.firstWhere(
+    (choice) => choice.key == key,
+    orElse: () => appIconChoices.first,
+  );
 }
 
-String appIconLabel(String key) {
-  return appIconChoices
-      .firstWhere(
-        (choice) => choice.key == key,
-        orElse: () => appIconChoices.first,
-      )
-      .label;
-}
+IconData appIconFor(String key) => appIconChoiceFor(key).icon;
+
+String appIconLabel(String key) => appIconChoiceFor(key).label;
 
 const optionColorPalette = <int>[
   0xFF1976D2,
+  0xFF039BE5,
+  0xFF00838F,
   0xFF00897B,
   0xFF43A047,
+  0xFF7CB342,
+  0xFFFBC02D,
   0xFFF9A825,
+  0xFFF57C00,
   0xFFEF6C00,
   0xFFE53935,
+  0xFFD81B60,
+  0xFF8E24AA,
   0xFF7E57C2,
   0xFF5E35B1,
+  0xFF3949AB,
   0xFF546E7A,
+  0xFF455A64,
   0xFF6D4C41,
-  0xFF00838F,
-  0xFFC2185B,
+  0xFF78909C,
 ];
 
 class FieldOption {
@@ -1437,7 +1554,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V15',
+          'Mis herramientas · QUILL V16',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -1712,82 +1829,140 @@ class _FieldOptionsManagementPageState
   }
 
   Future<String?> _pickIcon(String current) async {
+    var category = appIconChoiceFor(current).category;
+
     return showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (sheetContext) => SafeArea(
-        child: FractionallySizedBox(
-          heightFactor: 0.72,
-          child: Column(
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Seleccionar icono',
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 0.95,
-                  ),
-                  itemCount: appIconChoices.length,
-                  itemBuilder: (context, index) {
-                    final choice = appIconChoices[index];
-                    final selected = choice.key == current;
-                    return Material(
-                      color: selected
-                          ? const Color(0xFFEAF4FE)
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () =>
-                            Navigator.pop(sheetContext, choice.key),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                choice.icon,
-                                size: 30,
-                                color: selected
-                                    ? const Color(0xFF168BD2)
-                                    : const Color(0xFF4B535A),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                choice.label,
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                            ],
-                          ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final visible = category == 'Todos'
+              ? appIconChoices
+              : appIconChoices
+                  .where((choice) => choice.category == category)
+                  .toList();
+
+          return SafeArea(
+            child: FractionallySizedBox(
+              heightFactor: 0.82,
+              child: Column(
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Seleccionar icono',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Los iconos están agrupados por categorías y tienen '
+                        'un color recomendado. Después puedes cambiar el color.',
+                        style: TextStyle(
+                          color: Color(0xFF6F747A),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 44,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: appIconCategories.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 7),
+                      itemBuilder: (context, index) {
+                        final item = appIconCategories[index];
+                        return ChoiceChip(
+                          label: Text(item),
+                          selected: category == item,
+                          onSelected: (_) =>
+                              setSheetState(() => category = item),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: GridView.builder(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        childAspectRatio: 0.95,
+                      ),
+                      itemCount: visible.length,
+                      itemBuilder: (context, index) {
+                        final choice = visible[index];
+                        final selected = choice.key == current;
+
+                        return Material(
+                          color: selected
+                              ? choice.defaultColor.withValues(alpha: 0.12)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () =>
+                                Navigator.pop(sheetContext, choice.key),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: choice.defaultColor
+                                          .withValues(alpha: 0.12),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      choice.icon,
+                                      size: 28,
+                                      color: choice.defaultColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    choice.label,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: selected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1823,7 +1998,11 @@ class _FieldOptionsManagementPageState
                   onPressed: () async {
                     final selected = await _pickIcon(iconKey);
                     if (selected == null) return;
-                    setDialogState(() => iconKey = selected);
+                    final choice = appIconChoiceFor(selected);
+                    setDialogState(() {
+                      iconKey = selected;
+                      colorValue = choice.defaultColorValue;
+                    });
                   },
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(54),
@@ -3109,7 +3288,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V15' : 'Nuevo artículo · QUILL V15',
+          _isEditing ? 'Editar artículo · QUILL V16' : 'Nuevo artículo · QUILL V16',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
