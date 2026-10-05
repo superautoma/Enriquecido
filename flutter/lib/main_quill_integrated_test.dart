@@ -352,7 +352,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V7',
+          'Mis herramientas · QUILL V8',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -892,7 +892,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V7' : 'Nuevo artículo · QUILL V7',
+          _isEditing ? 'Editar artículo · QUILL V8' : 'Nuevo artículo · QUILL V8',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -1021,78 +1021,44 @@ class _EditToolPageState extends State<EditToolPage> {
                 ),
               ),
               const SizedBox(height: 12),
+              const Text(
+                'Imagen',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6F747A),
+                ),
+              ),
+              const SizedBox(height: 6),
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: const Color(0xFFD7DDE3),
                   ),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: _imagePath.isNotEmpty && File(_imagePath).existsSync()
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child: Image.file(
-                              File(_imagePath),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextButton.icon(
-                                  onPressed: _chooseImage,
-                                  icon: const Icon(Icons.sync_alt),
-                                  label: const Text('Cambiar'),
-                                ),
-                              ),
-                              Expanded(
-                                child: TextButton.icon(
-                                  onPressed: _removeImage,
-                                  icon: const Icon(Icons.delete_outline),
-                                  label: const Text('Quitar'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      )
-                    : InkWell(
-                        onTap: _chooseImage,
-                        child: const SizedBox(
-                          height: 146,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.add_photo_alternate_outlined,
-                                size: 36,
-                                color: Color(0xFF168BD2),
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                'Añadir imagen',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF168BD2),
-                                ),
-                              ),
-                              SizedBox(height: 5),
-                              Text(
-                                'Cámara · URL · IA · Galería',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF7A7F85),
-                                ),
-                              ),
-                            ],
-                          ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_imagePath.isNotEmpty && File(_imagePath).existsSync())
+                      AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: Image.file(
+                          File(_imagePath),
+                          fit: BoxFit.cover,
                         ),
                       ),
+                    _CompactImageToolbar(
+                      onCamera: () => _storePickedImage(ImageSource.camera),
+                      onUrl: _downloadImageFromUrl,
+                      onAi: _openAiImageOption,
+                      onGallery: () => _storePickedImage(ImageSource.gallery),
+                      onRemove: _imagePath.isNotEmpty ? _removeImage : null,
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
@@ -1120,48 +1086,98 @@ class _EditToolPageState extends State<EditToolPage> {
   }
 }
 
-class _ImageSourceButton extends StatelessWidget {
-  const _ImageSourceButton({
+class _CompactImageToolbar extends StatelessWidget {
+  const _CompactImageToolbar({
+    required this.onCamera,
+    required this.onUrl,
+    required this.onAi,
+    required this.onGallery,
+    this.onRemove,
+  });
+
+  final VoidCallback onCamera;
+  final VoidCallback onUrl;
+  final VoidCallback onAi;
+  final VoidCallback onGallery;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 58,
+      color: const Color(0xFFF0F1F2),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(
+        children: [
+          _CompactImageAction(
+            icon: Icons.photo_camera,
+            tooltip: 'Cámara',
+            onTap: onCamera,
+          ),
+          _CompactImageAction(
+            icon: Icons.link,
+            tooltip: 'URL',
+            onTap: onUrl,
+          ),
+          _CompactImageAction(
+            icon: Icons.auto_awesome,
+            tooltip: 'IA',
+            onTap: onAi,
+          ),
+          _CompactImageAction(
+            icon: Icons.photo_library_outlined,
+            tooltip: 'Galería',
+            onTap: onGallery,
+          ),
+          const Spacer(),
+          if (onRemove != null)
+            _CompactImageAction(
+              icon: Icons.delete_outline,
+              tooltip: 'Quitar imagen',
+              onTap: onRemove!,
+            ),
+          const Padding(
+            padding: EdgeInsets.only(right: 10, left: 4),
+            child: Text(
+              'IMAGEN',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF7A7F85),
+                letterSpacing: 0.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactImageAction extends StatelessWidget {
+  const _CompactImageAction({
     required this.icon,
-    required this.label,
+    required this.tooltip,
     required this.onTap,
   });
 
   final IconData icon;
-  final String label;
+  final String tooltip;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xFFF1F4F7),
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 28, color: const Color(0xFF39444D)),
-              const SizedBox(height: 7),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF39444D),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onTap,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints(
+        minWidth: 44,
+        minHeight: 44,
       ),
+      iconSize: 25,
+      color: const Color(0xFF39444D),
+      icon: Icon(icon),
     );
   }
 }
