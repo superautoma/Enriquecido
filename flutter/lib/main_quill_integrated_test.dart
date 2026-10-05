@@ -744,8 +744,82 @@ ToolTypeStyle toolTypeStyleFor(String value) {
 }
 
 const toolVoltageOptions = <String>[
-  '230 V', '24 V', '18 V', '12 V', '20 V', '36 V', '48 V', '110 V', '400 V',
+  '12 V', '18 V', '20 V', '24 V', '36 V', '48 V', '110 V', '230 V', '400 V',
 ];
+
+List<String> voltageOptionsFor(String selected) {
+  double numericValue(String value) => double.tryParse(
+        RegExp(r'\d+(?:[.,]\d+)?').firstMatch(value)?.group(0)
+                ?.replaceAll(',', '.') ??
+            '',
+      ) ?? double.infinity;
+  final options = {
+    ...toolVoltageOptions,
+    if (selected.isNotEmpty) selected,
+  }.toList()
+    ..sort((a, b) {
+      final order = numericValue(a).compareTo(numericValue(b));
+      return order == 0 ? a.compareTo(b) : order;
+    });
+  return ['', ...options];
+}
+
+class VoltageBadge extends StatelessWidget {
+  const VoltageBadge({super.key, required this.voltage});
+
+  final String voltage;
+
+  @override
+  Widget build(BuildContext context) {
+    final number = RegExp(r'\d+(?:[.,]\d+)?').firstMatch(voltage)?.group(0);
+    final color = voltage.isEmpty
+        ? const Color(0xFF78909C)
+        : const Color(0xFFB77908);
+    return ExcludeSemantics(
+      child: Container(
+        width: 42,
+        height: 42,
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color.withValues(alpha: 0.12),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: voltage.isEmpty
+            ? Icon(Icons.remove_rounded, color: color, size: 22)
+            : FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      number ?? voltage,
+                      textScaler: TextScaler.noScaling,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 16,
+                        height: 1.05,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (number != null)
+                      Text(
+                        'V',
+                        textScaler: TextScaler.noScaling,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 10,
+                          height: 1.1,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+      ),
+    );
+  }
+}
 
 bool isElectricalToolType(String type) =>
     type.toLowerCase().replaceAll('é', 'e').contains('electric');
@@ -3826,13 +3900,7 @@ class _EditToolPageState extends State<EditToolPage> {
         _conditionOptions.any((option) => option.label == _condition)
             ? _condition
             : null;
-    final voltages = <String>[
-      '',
-      ...{
-        ...toolVoltageOptions,
-        if (_voltage.isNotEmpty) _voltage,
-      },
-    ];
+    final voltages = voltageOptionsFor(_voltage);
 
     return Scaffold(
       appBar: AppBar(
@@ -3935,9 +4003,12 @@ class _EditToolPageState extends State<EditToolPage> {
                   key: const ValueKey('tool_voltage'),
                   initialValue: _voltage.isEmpty ? null : _voltage,
                   isExpanded: true,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Tensión',
-                    prefixIcon: Icon(Icons.bolt_outlined),
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: VoltageBadge(voltage: _voltage),
+                    ),
                   ),
                   hint: const Text('Selecciona la tensión'),
                   items: voltages
@@ -3946,16 +4017,8 @@ class _EditToolPageState extends State<EditToolPage> {
                           value: voltage,
                           child: Row(
                             children: [
-                              Icon(
-                                voltage.isEmpty
-                                    ? Icons.remove_circle_outline
-                                    : Icons.bolt_outlined,
-                                size: 20,
-                                color: voltage.isEmpty
-                                    ? const Color(0xFF78909C)
-                                    : const Color(0xFFF9A825),
-                              ),
-                              const SizedBox(width: 8),
+                              VoltageBadge(voltage: voltage),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
                                   voltage.isEmpty ? 'Sin especificar' : voltage,

@@ -41,6 +41,43 @@ void main() {
     await directory.delete(recursive: true);
   });
 
+  test('Voltages sort numerically and keep a saved custom voltage', () {
+    expect(voltageOptionsFor(''),
+        ['', '12 V', '18 V', '20 V', '24 V', '36 V', '48 V', '110 V', '230 V', '400 V']);
+    expect(voltageOptionsFor('21,6 V'),
+        ['', '12 V', '18 V', '20 V', '21,6 V', '24 V', '36 V', '48 V', '110 V', '230 V', '400 V']);
+    expect(voltageOptionsFor('24 V').where((value) => value == '24 V'),
+        hasLength(1));
+  });
+
+  testWidgets('Voltage badges fit narrow screens with large text',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MaterialApp(
+      home: MediaQuery(
+        data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+        child: Scaffold(
+          body: ListView(children: [
+            for (final voltage in voltageOptionsFor('21,6 V'))
+              ListTile(
+                leading: VoltageBadge(voltage: voltage),
+                title: Text(voltage.isEmpty ? 'Sin especificar' : voltage),
+              ),
+          ]),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final badge = find.widgetWithText(VoltageBadge, '400');
+    await tester.scrollUntilVisible(badge, 200);
+    expect(badge, findsOneWidget);
+    expect(find.descendant(of: badge, matching: find.text('V')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   test('Upgrade from v5 keeps tools, images and descriptions', () async {
     final legacy = sampleTool();
     legacy.images = [
@@ -112,6 +149,11 @@ void main() {
     final voltageField = find.byKey(const ValueKey('tool_voltage'));
     expect(voltageField, findsOneWidget);
     expect(find.text('24 V'), findsOneWidget);
+    expect(find.widgetWithText(VoltageBadge, '24'), findsOneWidget);
+    expect(tester.widget<DropdownButton<String>>(find.descendant(
+      of: voltageField,
+      matching: find.byType(DropdownButton<String>),
+    )).items!.map((item) => item.value).toList(), voltageOptionsFor('24 V'));
 
     await tester.tap(find.byType(DropdownButtonFormField<String>).first);
     await tester.pumpAndSettle();
@@ -128,6 +170,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('230 V').last);
     await tester.pumpAndSettle();
+    expect(find.widgetWithText(VoltageBadge, '230'), findsOneWidget);
     expect(
       tester.state<FormFieldState<String>>(
         find.byKey(const ValueKey('tool_type')),
