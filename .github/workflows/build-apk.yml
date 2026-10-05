@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 90
 
     steps:
@@ -33,11 +33,13 @@ jobs:
           sudo apt-get install -y \
             git zip unzip \
             build-essential \
-            autoconf automake libtool pkg-config \
+            autoconf automake libtool libtool-bin libltdl-dev \
+            pkg-config cmake \
             libffi-dev libssl-dev \
-            zlib1g-dev libncurses-dev \
-            ccache \
-            libsqlite3-dev
+            zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libtinfo5 \
+            autopoint gettext \
+            ccache libsqlite3-dev
 
       - name: Install Buildozer
         run: |
@@ -50,13 +52,13 @@ jobs:
           path: |
             ~/.buildozer
             .buildozer
-          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          key: buildozer-ubuntu22-${{ hashFiles('buildozer.spec') }}
           restore-keys: |
-            buildozer-${{ runner.os }}-
+            buildozer-ubuntu22-
 
       - name: Build debug APK
         run: |
-          yes | buildozer android debug
+          buildozer -v android debug
 
       - name: Show generated files
         if: always()
