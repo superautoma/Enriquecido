@@ -219,7 +219,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V3',
+          'Mis herramientas · QUILL V4',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -510,7 +510,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V3' : 'Nuevo artículo · QUILL V3',
+          _isEditing ? 'Editar artículo · QUILL V4' : 'Nuevo artículo · QUILL V4',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -724,47 +724,27 @@ class DescriptionQuillCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 116),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFD7DDE3)),
+      child: InputDecorator(
+        isEmpty: false,
+        decoration: const InputDecoration(
+          labelText: 'Descripción',
+          suffixIcon: Icon(
+            Icons.edit_outlined,
+            color: Color(0xFF168BD2),
+          ),
+          contentPadding: EdgeInsets.fromLTRB(16, 18, 12, 16),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.format_color_text, color: Color(0xFF168BD2)),
-                SizedBox(width: 8),
-                Text(
-                  'Descripción enriquecida',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF40464C),
-                  ),
-                ),
-                Spacer(),
-                Icon(Icons.edit_outlined, color: Color(0xFF168BD2)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (hasText)
-              _RichDeltaPreview(
-                plainText: text,
-                deltaJson: deltaJson,
-              )
-            else
-              const Text(
-                'Toca aquí para abrir el editor Quill',
-                style: TextStyle(
-                  height: 1.35,
-                  color: Color(0xFF8A9096),
-                ),
-              ),
-          ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 72),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: hasText
+                ? _RichDeltaPreview(
+                    plainText: text,
+                    deltaJson: deltaJson,
+                  )
+                : const SizedBox.shrink(),
+          ),
         ),
       ),
     );
