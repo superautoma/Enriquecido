@@ -525,9 +525,6 @@ class BackupManager {
       await _addDirectoryToArchive(archive, workDir, workDir.path);
 
       final zipBytes = ZipEncoder().encode(archive);
-      if (zipBytes == null) {
-        throw StateError('No se pudo crear el archivo ZIP');
-      }
 
       final output = File(
         p.join(temp.path, 'gestor_herramientas_backup_$stamp.zip'),
