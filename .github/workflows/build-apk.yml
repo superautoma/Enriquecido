@@ -1,11 +1,7 @@
-name: Build Android APK
+name: Build Android APK (Kivy)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-      - master
 
 jobs:
   build-apk:
@@ -46,30 +42,5 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install "cython<3.1" buildozer
 
-      - name: Cache Buildozer downloads
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.buildozer
-            .buildozer
-          key: buildozer-ubuntu22-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            buildozer-ubuntu22-
-
       - name: Build debug APK
-        run: |
-          buildozer -v android debug
-
-      - name: Show generated files
-        if: always()
-        run: |
-          echo "Contenido de bin/:"
-          find bin -maxdepth 2 -type f -print 2>/dev/null || true
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: richtext-kivy-apk
-          path: bin/*.apk
-          if-no-files-found: error
-          retention-days: 14
+        run: buildozer -v android debug
