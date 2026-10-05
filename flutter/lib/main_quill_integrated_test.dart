@@ -1994,7 +1994,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V19',
+          'Mis herramientas · QUILL V20',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -2233,6 +2233,534 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
   }
 }
 
+Future<Directory> customIconsDirectory() async {
+  final docs = await getApplicationDocumentsDirectory();
+  final directory = Directory(
+    p.join(docs.path, 'tool_images', 'custom_icons'),
+  );
+  if (!await directory.exists()) {
+    await directory.create(recursive: true);
+  }
+  return directory;
+}
+
+Future<List<String>> loadCustomIconKeys() async {
+  final directory = await customIconsDirectory();
+  final supported = <String>{'.png', '.jpg', '.jpeg', '.webp', '.svg'};
+  final keys = <String>[];
+
+  await for (final entity in directory.list()) {
+    if (entity is! File) continue;
+    if (!supported.contains(p.extension(entity.path).toLowerCase())) {
+      continue;
+    }
+    keys.add('custom:${entity.path}');
+  }
+
+  keys.sort(
+    (a, b) => appIconLabel(a)
+        .toLowerCase()
+        .compareTo(appIconLabel(b).toLowerCase()),
+  );
+  return keys;
+}
+
+Future<List<String>> importCustomIcons() async {
+  final picked = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp', 'svg'],
+    allowMultiple: true,
+  );
+
+  if (picked == null || picked.files.isEmpty) return const [];
+
+  final directory = await customIconsDirectory();
+  final imported = <String>[];
+
+  for (final item in picked.files) {
+    final sourcePath = item.path;
+    if (sourcePath == null || sourcePath.isEmpty) continue;
+
+    final source = File(sourcePath);
+    if (!await source.exists()) continue;
+
+    final extension = p.extension(sourcePath).toLowerCase();
+    final originalName = p.basenameWithoutExtension(item.name)
+        .replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_');
+    final safeName = originalName.isEmpty ? 'icono' : originalName;
+    final target = p.join(
+      directory.path,
+      '${safeName}_${DateTime.now().microsecondsSinceEpoch}$extension',
+    );
+
+    final stored = await source.copy(target);
+    imported.add('custom:${stored.path}');
+  }
+
+  return imported;
+}
+
+class IconPickerPage extends StatefulWidget {
+  const IconPickerPage({
+    super.key,
+    required this.currentKey,
+  });
+
+  final String currentKey;
+
+  @override
+  State<IconPickerPage> createState() => _IconPickerPageState();
+}
+
+class _IconPickerPageState extends State<IconPickerPage> {
+  List<String> _customKeys = const [];
+  bool _loadingCustom = true;
+  late String _category;
+
+  @override
+  void initState() {
+    super.initState();
+    _category = isCustomIconKey(widget.currentKey)
+        ? 'Mis iconos'
+        : appIconChoiceFor(widget.currentKey).category;
+    _loadCustom();
+  }
+
+  Future<void> _loadCustom() async {
+    final keys = await loadCustomIconKeys();
+    if (!mounted) return;
+    setState(() {
+      _customKeys = keys;
+      _loadingCustom = false;
+    });
+  }
+
+  Future<void> _import() async {
+    final imported = await importCustomIcons();
+    if (!mounted || imported.isEmpty) return;
+
+    final keys = await loadCustomIconKeys();
+    if (!mounted) return;
+
+    setState(() {
+      _customKeys = keys;
+      _loadingCustom = false;
+      _category = 'Mis iconos';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final builtInVisible = _category == 'Todos'
+        ? appIconChoices
+        : appIconChoices
+            .where((choice) => choice.category == _category)
+            .toList();
+    final showingCustom = _category == 'Mis iconos';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Seleccionar icono',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _import,
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('GALERÍA...'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'La generación de iconos con IA la '
+                              'conectaremos en una fase posterior.',
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.auto_awesome),
+                      label: const Text('GENERAR CON IA'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 44,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                scrollDirection: Axis.horizontal,
+                itemCount: appIconCategories.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 7),
+                itemBuilder: (context, index) {
+                  final item = appIconCategories[index];
+                  return ChoiceChip(
+                    label: Text(item),
+                    selected: _category == item,
+                    onSelected: (_) => setState(() => _category = item),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: showingCustom
+                  ? _loadingCustom
+                      ? const Center(child: CircularProgressIndicator())
+                      : _customKeys.isEmpty
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Text(
+                                  'Todavía no hay iconos propios. Pulsa '
+                                  'GALERÍA... para importar PNG, JPG, WEBP '
+                                  'o SVG.',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            )
+                          : GridView.builder(
+                              padding:
+                                  const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 4,
+                                mainAxisSpacing: 8,
+                                crossAxisSpacing: 8,
+                                childAspectRatio: 0.95,
+                              ),
+                              itemCount: _customKeys.length,
+                              itemBuilder: (context, index) {
+                                final key = _customKeys[index];
+                                final selected = key == widget.currentKey;
+
+                                return Material(
+                                  color: selected
+                                      ? const Color(0xFFEAF4FE)
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(12),
+                                    onTap: () => Navigator.pop(context, key),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8),
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Container(
+                                            width: 48,
+                                            height: 48,
+                                            padding: const EdgeInsets.all(4),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF4F5F6),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: iconWidgetForKey(
+                                              key,
+                                              color:
+                                                  const Color(0xFF4B535A),
+                                              size: 40,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            appIconLabel(key),
+                                            textAlign: TextAlign.center,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: selected
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            )
+                  : GridView.builder(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        childAspectRatio: 0.95,
+                      ),
+                      itemCount: builtInVisible.length,
+                      itemBuilder: (context, index) {
+                        final choice = builtInVisible[index];
+                        final selected = choice.key == widget.currentKey;
+
+                        return Material(
+                          color: selected
+                              ? choice.defaultColor.withValues(alpha: 0.12)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => Navigator.pop(context, choice.key),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: choice.defaultColor
+                                          .withValues(alpha: 0.12),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: iconWidgetForKey(
+                                      choice.key,
+                                      color: choice.defaultColor,
+                                      size: 28,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    choice.label,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: selected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class FieldOptionEditPage extends StatefulWidget {
+  const FieldOptionEditPage({
+    super.key,
+    required this.fieldKey,
+    required this.position,
+    this.existing,
+  });
+
+  final String fieldKey;
+  final int position;
+  final FieldOption? existing;
+
+  @override
+  State<FieldOptionEditPage> createState() => _FieldOptionEditPageState();
+}
+
+class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
+  late final TextEditingController _controller;
+  late String _iconKey;
+  late int _colorValue;
+
+  String get _title => widget.fieldKey == 'type' ? 'Tipo' : 'Estado';
+
+  @override
+  void initState() {
+    super.initState();
+    _controller =
+        TextEditingController(text: widget.existing?.label ?? '');
+    _iconKey = widget.existing?.iconKey ??
+        (widget.fieldKey == 'type' ? 'category' : 'check');
+    _colorValue = widget.existing?.colorValue ??
+        (widget.fieldKey == 'type' ? 0xFF1976D2 : 0xFF43A047);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _chooseIcon() async {
+    final selected = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => IconPickerPage(currentKey: _iconKey),
+      ),
+    );
+    if (!mounted || selected == null) return;
+
+    setState(() {
+      _iconKey = selected;
+      if (!isCustomIconKey(selected) && !isToolArtworkKey(selected)) {
+        _colorValue = appIconChoiceFor(selected).defaultColorValue;
+      }
+    });
+  }
+
+  void _save() {
+    final label = _controller.text.trim();
+    if (label.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Escribe un nombre para la opción')),
+      );
+      return;
+    }
+
+    Navigator.pop(
+      context,
+      FieldOption(
+        id: widget.existing?.id,
+        fieldKey: widget.fieldKey,
+        label: label,
+        iconKey: _iconKey,
+        colorValue: _colorValue,
+        position: widget.existing?.position ?? widget.position,
+        active: widget.existing?.active ?? true,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          widget.existing == null ? 'Nueva opción de $_title' : 'Editar $_title',
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _save,
+            child: const Text(
+              'GUARDAR',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
+          children: [
+            TextField(
+              controller: _controller,
+              autofocus: widget.existing == null,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Nombre',
+              ),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton(
+              onPressed: _chooseIcon,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(58),
+              ),
+              child: Row(
+                children: [
+                  iconWidgetForKey(
+                    _iconKey,
+                    color: Color(_colorValue),
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Icono: ${appIconLabel(_iconKey)}',
+                      textAlign: TextAlign.left,
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            if (isCustomIconKey(_iconKey) || isToolArtworkKey(_iconKey))
+              const Text(
+                'Este icono conserva sus colores originales.',
+                style: TextStyle(
+                  color: Color(0xFF6F747A),
+                  fontSize: 13,
+                ),
+              )
+            else ...[
+              const Text(
+                'Color',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final value in optionColorPalette)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(30),
+                      onTap: () => setState(() => _colorValue = value),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Color(value),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: value == _colorValue
+                                ? const Color(0xFF20242A)
+                                : Colors.transparent,
+                            width: 3,
+                          ),
+                        ),
+                        child: value == _colorValue
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 20,
+                              )
+                            : null,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class FieldOptionsManagementPage extends StatefulWidget {
   const FieldOptionsManagementPage({super.key});
 
@@ -2267,494 +2795,17 @@ class _FieldOptionsManagementPageState
     });
   }
 
-  Future<Directory> _customIconsDirectory() async {
-    final docs = await getApplicationDocumentsDirectory();
-    final directory = Directory(
-      p.join(docs.path, 'tool_images', 'custom_icons'),
-    );
-    if (!await directory.exists()) {
-      await directory.create(recursive: true);
-    }
-    return directory;
-  }
-
-  Future<List<String>> _loadCustomIconKeys() async {
-    final directory = await _customIconsDirectory();
-    final supported = <String>{'.png', '.jpg', '.jpeg', '.webp', '.svg'};
-    final keys = <String>[];
-
-    await for (final entity in directory.list()) {
-      if (entity is! File) continue;
-      if (!supported.contains(p.extension(entity.path).toLowerCase())) {
-        continue;
-      }
-      keys.add('custom:${entity.path}');
-    }
-
-    keys.sort(
-      (a, b) => appIconLabel(a)
-          .toLowerCase()
-          .compareTo(appIconLabel(b).toLowerCase()),
-    );
-    return keys;
-  }
-
-  Future<List<String>> _importCustomIcons() async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp', 'svg'],
-      allowMultiple: true,
-    );
-
-    if (picked == null || picked.files.isEmpty) return const [];
-
-    final directory = await _customIconsDirectory();
-    final imported = <String>[];
-
-    for (final item in picked.files) {
-      final sourcePath = item.path;
-      if (sourcePath == null || sourcePath.isEmpty) continue;
-
-      final source = File(sourcePath);
-      if (!await source.exists()) continue;
-
-      final extension = p.extension(sourcePath).toLowerCase();
-      final originalName = p.basenameWithoutExtension(item.name)
-          .replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_');
-      final safeName = originalName.isEmpty ? 'icono' : originalName;
-      final target = p.join(
-        directory.path,
-        '${safeName}_${DateTime.now().microsecondsSinceEpoch}$extension',
-      );
-
-      final stored = await source.copy(target);
-      imported.add('custom:${stored.path}');
-    }
-
-    return imported;
-  }
-
-  Future<String?> _pickIcon(String current) async {
-    // No abrimos FilePicker desde este modal. Android puede desmontar
-    // temporalmente la ruta al abrir el selector de archivos y provocar
-    // aserciones de dependencias en Flutter. El modal se cierra primero
-    // y la importación se hace desde _editOption.
-    final customKeys = await _loadCustomIconKeys();
-    var category = isCustomIconKey(current)
-        ? 'Mis iconos'
-        : appIconChoiceFor(current).category;
-
-    return showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          final builtInVisible = category == 'Todos'
-              ? appIconChoices
-              : appIconChoices
-                  .where((choice) => choice.category == category)
-                  .toList();
-          final showingCustom = category == 'Mis iconos';
-
-          return SafeArea(
-            child: FractionallySizedBox(
-              heightFactor: 0.86,
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.pop(
-                                sheetContext,
-                                '__import_custom__',
-                              );
-                            },
-                            icon: const Icon(Icons.photo_library_outlined),
-                            label: const Text('GALERÍA...'),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(50),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              ScaffoldMessenger.of(sheetContext).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'La generación de iconos con IA la '
-                                    'conectaremos en una fase posterior.',
-                                  ),
-                                ),
-                              );
-                            },
-                            icon: const Icon(Icons.auto_awesome),
-                            label: const Text('GENERAR CON IA'),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(50),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Seleccionar icono',
-                        style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    height: 44,
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      scrollDirection: Axis.horizontal,
-                      itemCount: appIconCategories.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 7),
-                      itemBuilder: (context, index) {
-                        final item = appIconCategories[index];
-                        return ChoiceChip(
-                          label: Text(item),
-                          selected: category == item,
-                          onSelected: (_) =>
-                              setSheetState(() => category = item),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: showingCustom
-                        ? customKeys.isEmpty
-                            ? const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(24),
-                                  child: Text(
-                                    'Todavía no hay iconos propios. Pulsa '
-                                    'GALERÍA... para importar PNG, JPG, WEBP '
-                                    'o SVG.',
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              )
-                            : GridView.builder(
-                                padding:
-                                    const EdgeInsets.fromLTRB(12, 0, 12, 20),
-                                gridDelegate:
-                                    const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 4,
-                                  mainAxisSpacing: 8,
-                                  crossAxisSpacing: 8,
-                                  childAspectRatio: 0.95,
-                                ),
-                                itemCount: customKeys.length,
-                                itemBuilder: (context, index) {
-                                  final key = customKeys[index];
-                                  final selected = key == current;
-
-                                  return Material(
-                                    color: selected
-                                        ? const Color(0xFFEAF4FE)
-                                        : Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(12),
-                                      onTap: () =>
-                                          Navigator.pop(sheetContext, key),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(8),
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Container(
-                                              width: 48,
-                                              height: 48,
-                                              padding:
-                                                  const EdgeInsets.all(4),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFF4F5F6),
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                              ),
-                                              child: iconWidgetForKey(
-                                                key,
-                                                color: const Color(0xFF4B535A),
-                                                size: 40,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Text(
-                                              appIconLabel(key),
-                                              textAlign: TextAlign.center,
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: selected
-                                                    ? FontWeight.w700
-                                                    : FontWeight.w500,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              )
-                        : GridView.builder(
-                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 4,
-                              mainAxisSpacing: 8,
-                              crossAxisSpacing: 8,
-                              childAspectRatio: 0.95,
-                            ),
-                            itemCount: builtInVisible.length,
-                            itemBuilder: (context, index) {
-                              final choice = builtInVisible[index];
-                              final selected = choice.key == current;
-
-                              return Material(
-                                color: selected
-                                    ? choice.defaultColor
-                                        .withValues(alpha: 0.12)
-                                    : Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(12),
-                                  onTap: () =>
-                                      Navigator.pop(sheetContext, choice.key),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(8),
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Container(
-                                          width: 44,
-                                          height: 44,
-                                          decoration: BoxDecoration(
-                                            color: choice.defaultColor
-                                                .withValues(alpha: 0.12),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: iconWidgetForKey(
-                                            choice.key,
-                                            color: choice.defaultColor,
-                                            size: 28,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          choice.label,
-                                          textAlign: TextAlign.center,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: selected
-                                                ? FontWeight.w700
-                                                : FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Future<void> _editOption([FieldOption? existing]) async {
-    final controller = TextEditingController(text: existing?.label ?? '');
-    var iconKey = existing?.iconKey ??
-        (_fieldKey == 'type' ? 'category' : 'check');
-    var colorValue = existing?.colorValue ??
-        (_fieldKey == 'type' ? 0xFF1976D2 : 0xFF43A047);
-
-    final result = await showDialog<FieldOption>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(
-            existing == null ? 'Nueva opción de $_title' : 'Editar $_title',
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: controller,
-                  autofocus: existing == null,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre',
-                  ),
-                ),
-                const SizedBox(height: 14),
-                OutlinedButton(
-                  onPressed: () async {
-                    var selected = await _pickIcon(iconKey);
-                    if (selected == null) return;
-
-                    if (selected == '__import_custom__') {
-                      final imported = await _importCustomIcons();
-                      if (!mounted || imported.isEmpty) return;
-
-                      selected = await _pickIcon(imported.last);
-                      if (selected == null ||
-                          selected == '__import_custom__') {
-                        return;
-                      }
-                    }
-
-                    if (!mounted || !dialogContext.mounted) return;
-                    final selectedKey = selected;
-
-                    setDialogState(() {
-                      iconKey = selectedKey;
-                      if (!isCustomIconKey(selectedKey) &&
-                          !isToolArtworkKey(selectedKey)) {
-                        colorValue =
-                            appIconChoiceFor(selectedKey).defaultColorValue;
-                      }
-                    });
-                  },
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(54),
-                  ),
-                  child: Row(
-                    children: [
-                      iconWidgetForKey(
-                        iconKey,
-                        color: Color(colorValue),
-                        size: 24,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Icono: ${appIconLabel(iconKey)}',
-                          textAlign: TextAlign.left,
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (isCustomIconKey(iconKey) || isToolArtworkKey(iconKey))
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Este icono conserva sus colores originales.',
-                      style: TextStyle(
-                        color: Color(0xFF6F747A),
-                        fontSize: 13,
-                      ),
-                    ),
-                  )
-                else ...[
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Color',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      for (final value in optionColorPalette)
-                        InkWell(
-                          borderRadius: BorderRadius.circular(30),
-                          onTap: () =>
-                              setDialogState(() => colorValue = value),
-                          child: Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: Color(value),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: value == colorValue
-                                    ? const Color(0xFF20242A)
-                                    : Colors.transparent,
-                                width: 3,
-                              ),
-                            ),
-                            child: value == colorValue
-                                ? const Icon(
-                                    Icons.check,
-                                    color: Colors.white,
-                                    size: 20,
-                                  )
-                                : null,
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final label = controller.text.trim();
-                if (label.isEmpty) return;
-                Navigator.pop(
-                  dialogContext,
-                  FieldOption(
-                    id: existing?.id,
-                    fieldKey: _fieldKey,
-                    label: label,
-                    iconKey: iconKey,
-                    colorValue: colorValue,
-                    position: existing?.position ?? _options.length,
-                    active: existing?.active ?? true,
-                  ),
-                );
-              },
-              child: const Text('Guardar'),
-            ),
-          ],
+    final result = await Navigator.of(context).push<FieldOption>(
+      MaterialPageRoute(
+        builder: (_) => FieldOptionEditPage(
+          fieldKey: _fieldKey,
+          position: _options.length,
+          existing: existing,
         ),
       ),
     );
-
-    controller.dispose();
-    if (result == null) return;
+    if (!mounted || result == null) return;
 
     try {
       await ToolsDatabase.instance.saveFieldOption(
@@ -3942,7 +3993,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V19' : 'Nuevo artículo · QUILL V19',
+          _isEditing ? 'Editar artículo · QUILL V20' : 'Nuevo artículo · QUILL V20',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
