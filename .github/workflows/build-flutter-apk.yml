@@ -1,0 +1,61 @@
+name: Build Flutter APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "flutter/**"
+      - ".github/workflows/build-flutter-apk.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    defaults:
+      run:
+        working-directory: flutter
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Generate Android project
+        run: |
+          cp pubspec.yaml /tmp/flutter_pubspec.yaml
+          cp lib/main.dart /tmp/flutter_main.dart
+          flutter create . \
+            --platforms=android \
+            --project-name gestor_richtext_flutter \
+            --org org.gestorherramientas
+          cp /tmp/flutter_pubspec.yaml pubspec.yaml
+          cp /tmp/flutter_main.dart lib/main.dart
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: gestor-richtext-flutter-apk
+          path: flutter/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
