@@ -49,6 +49,7 @@ void main() {
             home: const IconPickerPage(currentKey: 'tool_art_handsaw'),
           ));
           await loadCustomIconKeys();
+          await Future<void>.delayed(const Duration(milliseconds: 100));
         });
         await tester.pumpAndSettle();
         expect(find.text('Sierra de mano'), findsOneWidget);
@@ -75,6 +76,7 @@ void main() {
             home: IconPickerPage(currentKey: 'custom:${file.path}'),
           ));
           await loadCustomIconKeys();
+          await Future<void>.delayed(const Duration(milliseconds: 100));
         });
         await tester.pumpAndSettle();
         expect(find.text('icono_personalizado_nombre_largo'), findsOneWidget);

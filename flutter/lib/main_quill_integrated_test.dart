@@ -3586,9 +3586,7 @@ class _EditToolPageState extends State<EditToolPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                key: const ValueKey('tool_type'),
                 initialValue: selectedType,
-                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Tipo',
                 ),
@@ -3867,7 +3865,9 @@ class _EditToolPageState extends State<EditToolPage> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                key: const ValueKey('tool_type'),
                 initialValue: selectedType,
+                isExpanded: true,
                 decoration: InputDecoration(
                   labelText: 'Tipo*',
                   prefixIcon: Center(
