@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -72,6 +75,7 @@ class ToolItem {
     required this.minimumStock,
     required this.purchasePrice,
     required this.condition,
+    this.imagePath = '',
   });
 
   final int id;
@@ -84,6 +88,7 @@ class ToolItem {
   double minimumStock;
   double purchasePrice;
   String condition;
+  String imagePath;
 
   ToolItem copy() => ToolItem(
         id: id,
@@ -96,6 +101,7 @@ class ToolItem {
         minimumStock: minimumStock,
         purchasePrice: purchasePrice,
         condition: condition,
+        imagePath: imagePath,
       );
 
   Map<String, Object?> toMap() => {
@@ -109,6 +115,7 @@ class ToolItem {
         'minimum_stock': minimumStock,
         'purchase_price': purchasePrice,
         'condition': condition,
+        'image_path': imagePath,
       };
 
   factory ToolItem.fromMap(Map<String, Object?> map) => ToolItem(
@@ -122,6 +129,7 @@ class ToolItem {
         minimumStock: (map['minimum_stock'] as num?)?.toDouble() ?? 0,
         purchasePrice: (map['purchase_price'] as num?)?.toDouble() ?? 0,
         condition: (map['condition'] as String?) ?? 'Bueno',
+        imagePath: (map['image_path'] as String?) ?? '',
       );
 }
 
@@ -139,7 +147,7 @@ class ToolsDatabase {
 
     _database = await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE tools (
@@ -152,9 +160,17 @@ class ToolsDatabase {
             unit TEXT NOT NULL DEFAULT 'ud',
             minimum_stock REAL NOT NULL DEFAULT 0,
             purchase_price REAL NOT NULL DEFAULT 0,
-            condition TEXT NOT NULL DEFAULT 'Bueno'
+            condition TEXT NOT NULL DEFAULT 'Bueno',
+            image_path TEXT NOT NULL DEFAULT ''
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            "ALTER TABLE tools ADD COLUMN image_path TEXT NOT NULL DEFAULT ''",
+          );
+        }
       },
     );
 
@@ -336,7 +352,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V5',
+          'Mis herramientas · QUILL V6',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -427,15 +443,22 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                                   Container(
                                     width: 52,
                                     height: 52,
+                                    clipBehavior: Clip.antiAlias,
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFEAF4FE),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: const Icon(
-                                      Icons.handyman_outlined,
-                                      color: Color(0xFF168BD2),
-                                      size: 28,
-                                    ),
+                                    child: item.imagePath.isNotEmpty &&
+                                            File(item.imagePath).existsSync()
+                                        ? Image.file(
+                                            File(item.imagePath),
+                                            fit: BoxFit.cover,
+                                          )
+                                        : const Icon(
+                                            Icons.handyman_outlined,
+                                            color: Color(0xFF168BD2),
+                                            size: 28,
+                                          ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -546,6 +569,8 @@ class _EditToolPageState extends State<EditToolPage> {
   late final TextEditingController _purchasePrice;
 
   late String _condition;
+  late String _imagePath;
+  final ImagePicker _imagePicker = ImagePicker();
 
   bool get _isEditing => widget.item != null;
 
@@ -569,6 +594,7 @@ class _EditToolPageState extends State<EditToolPage> {
       text: item == null ? '' : item.purchasePrice.toStringAsFixed(2),
     );
     _condition = item?.condition ?? conditionStyles.first.label;
+    _imagePath = item?.imagePath ?? '';
   }
 
   @override
@@ -600,9 +626,77 @@ class _EditToolPageState extends State<EditToolPage> {
       minimumStock: _number(_minimumStock.text),
       purchasePrice: _number(_purchasePrice.text),
       condition: _condition,
+      imagePath: _imagePath,
     );
 
     Navigator.of(context).pop(result);
+  }
+
+  Future<void> _chooseImage() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Elegir de la galería'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Hacer una foto'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    final picked = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 88,
+      maxWidth: 1800,
+    );
+    if (picked == null) return;
+
+    final docs = await getApplicationDocumentsDirectory();
+    final imagesDir = Directory(p.join(docs.path, 'tool_images'));
+    if (!await imagesDir.exists()) {
+      await imagesDir.create(recursive: true);
+    }
+
+    final extension = p.extension(picked.path).isEmpty
+        ? '.jpg'
+        : p.extension(picked.path);
+    final targetPath = p.join(
+      imagesDir.path,
+      'tool_${DateTime.now().millisecondsSinceEpoch}$extension',
+    );
+
+    final stored = await File(picked.path).copy(targetPath);
+
+    if (!mounted) return;
+    setState(() {
+      _imagePath = stored.path;
+    });
+  }
+
+  Future<void> _removeImage() async {
+    final oldPath = _imagePath;
+    setState(() => _imagePath = '');
+
+    if (oldPath.isNotEmpty) {
+      final file = File(oldPath);
+      if (await file.exists()) {
+        try {
+          await file.delete();
+        } catch (_) {}
+      }
+    }
   }
 
   Future<void> _openQuillDescription() async {
@@ -629,7 +723,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V5' : 'Nuevo artículo · QUILL V5',
+          _isEditing ? 'Editar artículo · QUILL V6' : 'Nuevo artículo · QUILL V6',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -758,45 +852,78 @@ class _EditToolPageState extends State<EditToolPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'La selección de imagen se añadirá en el siguiente bloque.',
-                      ),
-                    ),
-                  );
-                },
-                child: Container(
-                  height: 126,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: const Color(0xFFD7DDE3),
-                    ),
-                  ),
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.add_photo_alternate_outlined,
-                        size: 36,
-                        color: Color(0xFF168BD2),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Añadir imagen',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF168BD2),
-                        ),
-                      ),
-                    ],
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: const Color(0xFFD7DDE3),
                   ),
                 ),
+                clipBehavior: Clip.antiAlias,
+                child: _imagePath.isNotEmpty && File(_imagePath).existsSync()
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          AspectRatio(
+                            aspectRatio: 16 / 9,
+                            child: Image.file(
+                              File(_imagePath),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextButton.icon(
+                                  onPressed: _chooseImage,
+                                  icon: const Icon(Icons.sync_alt),
+                                  label: const Text('Cambiar'),
+                                ),
+                              ),
+                              Expanded(
+                                child: TextButton.icon(
+                                  onPressed: _removeImage,
+                                  icon: const Icon(Icons.delete_outline),
+                                  label: const Text('Quitar'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      )
+                    : InkWell(
+                        onTap: _chooseImage,
+                        child: const SizedBox(
+                          height: 126,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.add_photo_alternate_outlined,
+                                size: 36,
+                                color: Color(0xFF168BD2),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'Añadir imagen',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF168BD2),
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Galería o cámara',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF7A7F85),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
