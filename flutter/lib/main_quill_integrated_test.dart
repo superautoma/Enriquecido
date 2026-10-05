@@ -126,6 +126,228 @@ class ToolImage {
       );
 }
 
+class AppIconChoice {
+  const AppIconChoice(this.key, this.label, this.icon);
+
+  final String key;
+  final String label;
+  final IconData icon;
+}
+
+const appIconChoices = <AppIconChoice>[
+  AppIconChoice('handyman', 'Herramientas', Icons.handyman_outlined),
+  AppIconChoice('electrical', 'Eléctrica', Icons.electrical_services_outlined),
+  AppIconChoice('settings', 'Engranaje', Icons.settings_outlined),
+  AppIconChoice('inventory', 'Inventario', Icons.inventory_2_outlined),
+  AppIconChoice('check', 'Correcto', Icons.check_circle_outline),
+  AppIconChoice('build', 'Revisión', Icons.build_circle_outlined),
+  AppIconChoice('error', 'Avería', Icons.error_outline),
+  AppIconChoice('swap', 'Préstamo', Icons.swap_horiz),
+  AppIconChoice('category', 'Categoría', Icons.category_outlined),
+  AppIconChoice('bolt', 'Rayo', Icons.bolt_outlined),
+  AppIconChoice('power', 'Potencia', Icons.power_outlined),
+  AppIconChoice('construction', 'Construcción', Icons.construction_outlined),
+  AppIconChoice('precision', 'Precisión', Icons.precision_manufacturing_outlined),
+  AppIconChoice('memory', 'Electrónica', Icons.memory_outlined),
+  AppIconChoice('plumbing', 'Tubería', Icons.plumbing_outlined),
+  AppIconChoice('hardware', 'Ferretería', Icons.hardware_outlined),
+  AppIconChoice('science', 'Química', Icons.science_outlined),
+  AppIconChoice('cleaning', 'Limpieza', Icons.cleaning_services_outlined),
+  AppIconChoice('local_fire', 'Calor', Icons.local_fire_department_outlined),
+  AppIconChoice('water', 'Líquido', Icons.water_drop_outlined),
+  AppIconChoice('straighten', 'Medida', Icons.straighten_outlined),
+  AppIconChoice('speed', 'Medición', Icons.speed_outlined),
+  AppIconChoice('battery', 'Batería', Icons.battery_charging_full_outlined),
+  AppIconChoice('cable', 'Cable', Icons.cable_outlined),
+  AppIconChoice('lightbulb', 'Iluminación', Icons.lightbulb_outline),
+  AppIconChoice('shield', 'Protección', Icons.shield_outlined),
+  AppIconChoice('warning', 'Aviso', Icons.warning_amber_outlined),
+  AppIconChoice('star', 'Destacado', Icons.star_outline),
+  AppIconChoice('package', 'Paquete', Icons.all_inbox_outlined),
+  AppIconChoice('recycling', 'Reciclable', Icons.recycling_outlined),
+  AppIconChoice('delete_sweep', 'Desechable', Icons.delete_sweep_outlined),
+  AppIconChoice('factory', 'Industrial', Icons.factory_outlined),
+];
+
+IconData appIconFor(String key) {
+  return appIconChoices
+      .firstWhere(
+        (choice) => choice.key == key,
+        orElse: () => appIconChoices.first,
+      )
+      .icon;
+}
+
+String appIconLabel(String key) {
+  return appIconChoices
+      .firstWhere(
+        (choice) => choice.key == key,
+        orElse: () => appIconChoices.first,
+      )
+      .label;
+}
+
+const optionColorPalette = <int>[
+  0xFF1976D2,
+  0xFF00897B,
+  0xFF43A047,
+  0xFFF9A825,
+  0xFFEF6C00,
+  0xFFE53935,
+  0xFF7E57C2,
+  0xFF5E35B1,
+  0xFF546E7A,
+  0xFF6D4C41,
+  0xFF00838F,
+  0xFFC2185B,
+];
+
+class FieldOption {
+  FieldOption({
+    this.id,
+    required this.fieldKey,
+    required this.label,
+    required this.iconKey,
+    required this.colorValue,
+    this.position = 0,
+    this.active = true,
+  });
+
+  int? id;
+  final String fieldKey;
+  String label;
+  String iconKey;
+  int colorValue;
+  int position;
+  bool active;
+
+  IconData get icon => appIconFor(iconKey);
+  Color get color => Color(colorValue);
+
+  FieldOption copyWith({
+    int? id,
+    String? label,
+    String? iconKey,
+    int? colorValue,
+    int? position,
+    bool? active,
+  }) =>
+      FieldOption(
+        id: id ?? this.id,
+        fieldKey: fieldKey,
+        label: label ?? this.label,
+        iconKey: iconKey ?? this.iconKey,
+        colorValue: colorValue ?? this.colorValue,
+        position: position ?? this.position,
+        active: active ?? this.active,
+      );
+
+  Map<String, Object?> toMap({bool includeId = true}) {
+    final map = <String, Object?>{
+      'field_key': fieldKey,
+      'label': label,
+      'icon_key': iconKey,
+      'color_value': colorValue,
+      'position': position,
+      'active': active ? 1 : 0,
+    };
+    if (includeId && id != null) map['id'] = id;
+    return map;
+  }
+
+  factory FieldOption.fromMap(Map<String, Object?> map) => FieldOption(
+        id: map['id'] as int?,
+        fieldKey: (map['field_key'] as String?) ?? '',
+        label: (map['label'] as String?) ?? '',
+        iconKey: (map['icon_key'] as String?) ?? 'handyman',
+        colorValue: (map['color_value'] as num?)?.toInt() ?? 0xFF546E7A,
+        position: (map['position'] as num?)?.toInt() ?? 0,
+        active: ((map['active'] as num?)?.toInt() ?? 1) == 1,
+      );
+}
+
+List<FieldOption> defaultFieldOptions(String fieldKey) {
+  if (fieldKey == 'type') {
+    return [
+      FieldOption(
+        fieldKey: 'type',
+        label: 'Herramienta manual',
+        iconKey: 'handyman',
+        colorValue: 0xFF1976D2,
+        position: 0,
+      ),
+      FieldOption(
+        fieldKey: 'type',
+        label: 'Herramienta eléctrica',
+        iconKey: 'electrical',
+        colorValue: 0xFFF9A825,
+        position: 1,
+      ),
+      FieldOption(
+        fieldKey: 'type',
+        label: 'Repuesto',
+        iconKey: 'settings',
+        colorValue: 0xFF7E57C2,
+        position: 2,
+      ),
+      FieldOption(
+        fieldKey: 'type',
+        label: 'Consumible',
+        iconKey: 'inventory',
+        colorValue: 0xFF00897B,
+        position: 3,
+      ),
+    ];
+  }
+
+  return [
+    FieldOption(
+      fieldKey: 'condition',
+      label: 'Bueno',
+      iconKey: 'check',
+      colorValue: 0xFF43A047,
+      position: 0,
+    ),
+    FieldOption(
+      fieldKey: 'condition',
+      label: 'Revisar',
+      iconKey: 'build',
+      colorValue: 0xFFF9A825,
+      position: 1,
+    ),
+    FieldOption(
+      fieldKey: 'condition',
+      label: 'Averiado',
+      iconKey: 'error',
+      colorValue: 0xFFE53935,
+      position: 2,
+    ),
+    FieldOption(
+      fieldKey: 'condition',
+      label: 'Prestado',
+      iconKey: 'swap',
+      colorValue: 0xFF7E57C2,
+      position: 3,
+    ),
+  ];
+}
+
+FieldOption optionForValue(
+  List<FieldOption> options,
+  String value, {
+  required String fieldKey,
+}) {
+  return options.firstWhere(
+    (option) => option.label == value,
+    orElse: () => FieldOption(
+      fieldKey: fieldKey,
+      label: value,
+      iconKey: fieldKey == 'type' ? 'category' : 'check',
+      colorValue: 0xFF7A7F85,
+    ),
+  );
+}
+
 class ToolTypeStyle {
   const ToolTypeStyle(this.label, this.color, this.icon);
 
@@ -277,7 +499,7 @@ class ToolsDatabase {
 
     _database = await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -300,6 +522,8 @@ class ToolsDatabase {
         ''');
 
         await _createToolImagesTable(db);
+        await _createFieldOptionsTable(db);
+        await _seedDefaultFieldOptions(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -332,10 +556,49 @@ class ToolsDatabase {
             "ALTER TABLE tools ADD COLUMN tool_type TEXT NOT NULL DEFAULT ''",
           );
         }
+
+        if (oldVersion < 5) {
+          await _createFieldOptionsTable(db);
+          await _seedDefaultFieldOptions(db);
+        }
       },
     );
 
     return _database!;
+  }
+
+  static Future<void> _createFieldOptionsTable(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS field_options (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        field_key TEXT NOT NULL,
+        label TEXT NOT NULL,
+        icon_key TEXT NOT NULL DEFAULT 'handyman',
+        color_value INTEGER NOT NULL DEFAULT 4283782485,
+        position INTEGER NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1,
+        UNIQUE(field_key, label)
+      )
+    ''');
+
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_field_options_key_position '
+      'ON field_options(field_key, position)',
+    );
+  }
+
+  static Future<void> _seedDefaultFieldOptions(
+    DatabaseExecutor db,
+  ) async {
+    for (final fieldKey in const ['type', 'condition']) {
+      for (final option in defaultFieldOptions(fieldKey)) {
+        await db.insert(
+          'field_options',
+          option.toMap(includeId: false),
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
+    }
   }
 
   static Future<void> _createToolImagesTable(DatabaseExecutor db) async {
@@ -488,6 +751,127 @@ class ToolsDatabase {
     for (var index = 0; index < item.images.length; index++) {
       item.images[index].isPrimary = index == primaryIndex;
     }
+  }
+
+  Future<List<FieldOption>> loadFieldOptions(
+    String fieldKey, {
+    bool includeInactive = false,
+  }) async {
+    final db = await database;
+    final rows = await db.query(
+      'field_options',
+      where: includeInactive
+          ? 'field_key = ?'
+          : 'field_key = ? AND active = 1',
+      whereArgs: [fieldKey],
+      orderBy: 'position ASC, id ASC',
+    );
+    return rows.map(FieldOption.fromMap).toList();
+  }
+
+  Future<FieldOption> saveFieldOption(
+    FieldOption option, {
+    String? previousLabel,
+  }) async {
+    final db = await database;
+
+    return db.transaction((txn) async {
+      var position = option.position;
+      if (option.id == null) {
+        final result = await txn.rawQuery(
+          'SELECT COALESCE(MAX(position), -1) + 1 AS next_position '
+          'FROM field_options WHERE field_key = ?',
+          [option.fieldKey],
+        );
+        position =
+            (result.first['next_position'] as num?)?.toInt() ?? position;
+      }
+
+      final stored = option.copyWith(position: position);
+
+      int id;
+      if (option.id == null) {
+        id = await txn.insert(
+          'field_options',
+          stored.toMap(includeId: false),
+        );
+      } else {
+        id = option.id!;
+        await txn.update(
+          'field_options',
+          stored.toMap(includeId: false),
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+      }
+
+      final oldLabel = previousLabel?.trim() ?? '';
+      final newLabel = stored.label.trim();
+      if (oldLabel.isNotEmpty && oldLabel != newLabel) {
+        final column =
+            stored.fieldKey == 'type' ? 'tool_type' : 'condition';
+        await txn.update(
+          'tools',
+          {column: newLabel},
+          where: '$column = ?',
+          whereArgs: [oldLabel],
+        );
+      }
+
+      return stored.copyWith(id: id);
+    });
+  }
+
+  Future<int> countFieldOptionUsage(FieldOption option) async {
+    final db = await database;
+    final column = option.fieldKey == 'type' ? 'tool_type' : 'condition';
+    return Sqflite.firstIntValue(
+          await db.rawQuery(
+            'SELECT COUNT(*) FROM tools WHERE $column = ?',
+            [option.label],
+          ),
+        ) ??
+        0;
+  }
+
+  Future<void> deleteFieldOption(
+    FieldOption option, {
+    String? replacementLabel,
+  }) async {
+    if (option.id == null) return;
+    final db = await database;
+
+    await db.transaction((txn) async {
+      final column = option.fieldKey == 'type' ? 'tool_type' : 'condition';
+      final count = Sqflite.firstIntValue(
+            await txn.rawQuery(
+              'SELECT COUNT(*) FROM tools WHERE $column = ?',
+              [option.label],
+            ),
+          ) ??
+          0;
+
+      if (count > 0) {
+        final replacement = replacementLabel?.trim() ?? '';
+        if (replacement.isEmpty) {
+          throw StateError(
+            'La opción está en uso por $count herramientas y necesita un reemplazo.',
+          );
+        }
+        await txn.update(
+          'tools',
+          {column: replacement},
+          where: '$column = ?',
+          whereArgs: [option.label],
+        );
+      }
+
+      await txn.delete(
+        'field_options',
+        where: 'id = ?',
+        whereArgs: [option.id],
+      );
+    });
   }
 
   Future<void> seedIfEmpty(List<ToolItem> defaults) async {
@@ -876,6 +1260,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
   ];
 
   final List<ToolItem> _items = [];
+  List<FieldOption> _conditionOptions = defaultFieldOptions('condition');
   bool _loading = true;
 
   @override
@@ -887,11 +1272,16 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
   Future<void> _loadItems() async {
     await ToolsDatabase.instance.seedIfEmpty(_defaultItems);
     final items = await ToolsDatabase.instance.loadTools();
+    final conditionOptions =
+        await ToolsDatabase.instance.loadFieldOptions('condition');
     if (!mounted) return;
     setState(() {
       _items
         ..clear()
         ..addAll(items);
+      _conditionOptions = conditionOptions.isEmpty
+          ? defaultFieldOptions('condition')
+          : conditionOptions;
       _loading = false;
     });
   }
@@ -936,6 +1326,15 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
         _items.insert(0, result);
       }
     });
+  }
+
+  Future<void> _openFieldOptionsManager() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => const FieldOptionsManagementPage(),
+      ),
+    );
+    await _loadItems();
   }
 
   Future<void> _createBackup() async {
@@ -1038,7 +1437,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V14',
+          'Mis herramientas · QUILL V15',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -1049,6 +1448,8 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
               switch (value) {
                 case 'database':
                   _openDatabaseManager();
+                case 'fields':
+                  _openFieldOptionsManager();
                 case 'backup':
                   _createBackup();
                 case 'restore':
@@ -1062,6 +1463,14 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.storage_outlined),
                   title: Text('Gestión de base de datos'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'fields',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.tune_outlined),
+                  title: Text('Configurar Tipo y Estado'),
                 ),
               ),
               PopupMenuDivider(),
@@ -1150,7 +1559,11 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final item = visible[index];
-                        final style = conditionStyleFor(item.condition);
+                        final style = optionForValue(
+                          _conditionOptions,
+                          item.condition,
+                          fieldKey: 'condition',
+                        );
 
                         return Material(
                           color: Colors.white,
@@ -1256,6 +1669,522 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                         );
                       },
                     ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class FieldOptionsManagementPage extends StatefulWidget {
+  const FieldOptionsManagementPage({super.key});
+
+  @override
+  State<FieldOptionsManagementPage> createState() =>
+      _FieldOptionsManagementPageState();
+}
+
+class _FieldOptionsManagementPageState
+    extends State<FieldOptionsManagementPage> {
+  String _fieldKey = 'type';
+  List<FieldOption> _options = [];
+  bool _loading = true;
+
+  String get _title => _fieldKey == 'type' ? 'Tipo' : 'Estado';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final options = await ToolsDatabase.instance.loadFieldOptions(
+      _fieldKey,
+      includeInactive: true,
+    );
+    if (!mounted) return;
+    setState(() {
+      _options = options;
+      _loading = false;
+    });
+  }
+
+  Future<String?> _pickIcon(String current) async {
+    return showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: FractionallySizedBox(
+          heightFactor: 0.72,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Seleccionar icono',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 0.95,
+                  ),
+                  itemCount: appIconChoices.length,
+                  itemBuilder: (context, index) {
+                    final choice = appIconChoices[index];
+                    final selected = choice.key == current;
+                    return Material(
+                      color: selected
+                          ? const Color(0xFFEAF4FE)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () =>
+                            Navigator.pop(sheetContext, choice.key),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                choice.icon,
+                                size: 30,
+                                color: selected
+                                    ? const Color(0xFF168BD2)
+                                    : const Color(0xFF4B535A),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                choice.label,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editOption([FieldOption? existing]) async {
+    final controller = TextEditingController(text: existing?.label ?? '');
+    var iconKey = existing?.iconKey ??
+        (_fieldKey == 'type' ? 'category' : 'check');
+    var colorValue = existing?.colorValue ??
+        (_fieldKey == 'type' ? 0xFF1976D2 : 0xFF43A047);
+
+    final result = await showDialog<FieldOption>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(
+            existing == null ? 'Nueva opción de $_title' : 'Editar $_title',
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: controller,
+                  autofocus: existing == null,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                OutlinedButton(
+                  onPressed: () async {
+                    final selected = await _pickIcon(iconKey);
+                    if (selected == null) return;
+                    setDialogState(() => iconKey = selected);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(54),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        appIconFor(iconKey),
+                        color: Color(colorValue),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Icono: ${appIconLabel(iconKey)}',
+                          textAlign: TextAlign.left,
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Color',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final value in optionColorPalette)
+                      InkWell(
+                        borderRadius: BorderRadius.circular(30),
+                        onTap: () =>
+                            setDialogState(() => colorValue = value),
+                        child: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: Color(value),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: value == colorValue
+                                  ? const Color(0xFF20242A)
+                                  : Colors.transparent,
+                              width: 3,
+                            ),
+                          ),
+                          child: value == colorValue
+                              ? const Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: 20,
+                                )
+                              : null,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final label = controller.text.trim();
+                if (label.isEmpty) return;
+                Navigator.pop(
+                  dialogContext,
+                  FieldOption(
+                    id: existing?.id,
+                    fieldKey: _fieldKey,
+                    label: label,
+                    iconKey: iconKey,
+                    colorValue: colorValue,
+                    position: existing?.position ?? _options.length,
+                    active: existing?.active ?? true,
+                  ),
+                );
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    controller.dispose();
+    if (result == null) return;
+
+    try {
+      await ToolsDatabase.instance.saveFieldOption(
+        result,
+        previousLabel: existing?.label,
+      );
+      await _load();
+    } on DatabaseException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.isUniqueConstraintError()
+                ? 'Ya existe una opción con ese nombre.'
+                : 'No se pudo guardar la opción.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteOption(FieldOption option) async {
+    final usage = await ToolsDatabase.instance.countFieldOptionUsage(option);
+    if (!mounted) return;
+
+    String? replacement;
+    if (usage > 0) {
+      final alternatives =
+          _options.where((item) => item.id != option.id).toList();
+      if (alternatives.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se puede eliminar la única opción mientras esté en uso.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      replacement = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) {
+          var value = alternatives.first.label;
+          return StatefulBuilder(
+            builder: (context, setDialogState) => AlertDialog(
+              title: const Text('Opción en uso'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Hay $usage herramientas que usan “${option.label}”. '
+                    'Selecciona a qué opción deben pasar.',
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    initialValue: value,
+                    decoration: const InputDecoration(
+                      labelText: 'Reemplazar por',
+                    ),
+                    items: alternatives
+                        .map(
+                          (item) => DropdownMenuItem(
+                            value: item.label,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  item.icon,
+                                  color: item.color,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(item.label),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (newValue) {
+                      if (newValue == null) return;
+                      setDialogState(() => value = newValue);
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, value),
+                  child: const Text('Reemplazar y eliminar'),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      if (replacement == null) return;
+    } else {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Eliminar opción'),
+          content: Text('¿Eliminar “${option.label}”?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
+    await ToolsDatabase.instance.deleteFieldOption(
+      option,
+      replacementLabel: replacement,
+    );
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Configurar Tipo y Estado',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _editOption(),
+        child: const Icon(Icons.add),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ChoiceChip(
+                      label: const SizedBox(
+                        width: double.infinity,
+                        child: Text(
+                          'Tipo',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      selected: _fieldKey == 'type',
+                      onSelected: (_) {
+                        setState(() {
+                          _fieldKey = 'type';
+                          _loading = true;
+                        });
+                        _load();
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ChoiceChip(
+                      label: const SizedBox(
+                        width: double.infinity,
+                        child: Text(
+                          'Estado',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      selected: _fieldKey == 'condition',
+                      onSelected: (_) {
+                        setState(() {
+                          _fieldKey = 'condition';
+                          _loading = true;
+                        });
+                        _load();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(18, 0, 18, 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Puedes crear nuevas opciones y modificar su nombre, icono '
+                  'y color. Si renombras una opción, las herramientas '
+                  'existentes se actualizan automáticamente.',
+                  style: TextStyle(
+                    color: Color(0xFF6F747A),
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _options.isEmpty
+                      ? const Center(child: Text('No hay opciones'))
+                      : ListView.separated(
+                          padding:
+                              const EdgeInsets.fromLTRB(12, 0, 12, 92),
+                          itemCount: _options.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final option = _options[index];
+                            return Material(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: option.color
+                                      .withValues(alpha: 0.14),
+                                  child: Icon(
+                                    option.icon,
+                                    color: option.color,
+                                  ),
+                                ),
+                                title: Text(
+                                  option.label,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'Icono: ${appIconLabel(option.iconKey)}',
+                                ),
+                                onTap: () => _editOption(option),
+                                trailing: PopupMenuButton<String>(
+                                  onSelected: (value) {
+                                    if (value == 'edit') {
+                                      _editOption(option);
+                                    } else if (value == 'delete') {
+                                      _deleteOption(option);
+                                    }
+                                  },
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(
+                                      value: 'edit',
+                                      child: Text('Editar'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('Eliminar'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
             ),
           ],
         ),
@@ -1632,6 +2561,8 @@ class _EditToolPageState extends State<EditToolPage> {
 
   late String _condition;
   late String _type;
+  List<FieldOption> _typeOptions = defaultFieldOptions('type');
+  List<FieldOption> _conditionOptions = defaultFieldOptions('condition');
   late List<ToolImage> _images;
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -1656,10 +2587,30 @@ class _EditToolPageState extends State<EditToolPage> {
     _purchasePrice = TextEditingController(
       text: item == null ? '' : item.purchasePrice.toStringAsFixed(2),
     );
-    _condition = item?.condition ?? conditionStyles.first.label;
+    _condition = item?.condition ?? 'Bueno';
     _type = item?.type ?? '';
     _images = item?.images.map((image) => image.copy()).toList() ??
         <ToolImage>[];
+    _loadFieldOptions();
+  }
+
+  Future<void> _loadFieldOptions() async {
+    final types = await ToolsDatabase.instance.loadFieldOptions('type');
+    final conditions =
+        await ToolsDatabase.instance.loadFieldOptions('condition');
+    if (!mounted) return;
+
+    setState(() {
+      _typeOptions =
+          types.isEmpty ? defaultFieldOptions('type') : types;
+      _conditionOptions = conditions.isEmpty
+          ? defaultFieldOptions('condition')
+          : conditions;
+
+      if (_condition.isEmpty && _conditionOptions.isNotEmpty) {
+        _condition = _conditionOptions.first.label;
+      }
+    });
   }
 
   @override
@@ -2138,13 +3089,27 @@ class _EditToolPageState extends State<EditToolPage> {
 
   @override
   Widget build(BuildContext context) {
-    final style = conditionStyleFor(_condition);
-    final typeStyle = toolTypeStyleFor(_type);
+    final style = optionForValue(
+      _conditionOptions,
+      _condition,
+      fieldKey: 'condition',
+    );
+    final typeStyle = optionForValue(
+      _typeOptions,
+      _type,
+      fieldKey: 'type',
+    );
+    final selectedType =
+        _typeOptions.any((option) => option.label == _type) ? _type : null;
+    final selectedCondition =
+        _conditionOptions.any((option) => option.label == _condition)
+            ? _condition
+            : null;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V14' : 'Nuevo artículo · QUILL V14',
+          _isEditing ? 'Editar artículo · QUILL V15' : 'Nuevo artículo · QUILL V15',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -2179,7 +3144,7 @@ class _EditToolPageState extends State<EditToolPage> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                initialValue: _type.isEmpty ? null : _type,
+                initialValue: selectedType,
                 decoration: InputDecoration(
                   labelText: 'Tipo*',
                   prefixIcon: Icon(
@@ -2188,7 +3153,7 @@ class _EditToolPageState extends State<EditToolPage> {
                   ),
                 ),
                 hint: const Text('Selecciona el tipo'),
-                items: toolTypeStyles
+                items: _typeOptions
                     .map(
                       (option) => DropdownMenuItem<String>(
                         value: option.label,
@@ -2206,7 +3171,7 @@ class _EditToolPageState extends State<EditToolPage> {
                       ),
                     )
                     .toList(),
-                selectedItemBuilder: (context) => toolTypeStyles
+                selectedItemBuilder: (context) => _typeOptions
                     .map(
                       (option) => Align(
                         alignment: Alignment.centerLeft,
@@ -2279,12 +3244,12 @@ class _EditToolPageState extends State<EditToolPage> {
               const SectionTitle('Estado'),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                initialValue: _condition,
+                initialValue: selectedCondition,
                 decoration: InputDecoration(
                   labelText: 'Estado de la herramienta',
                   prefixIcon: Icon(style.icon, color: style.color),
                 ),
-                items: conditionStyles
+                items: _conditionOptions
                     .map(
                       (option) => DropdownMenuItem(
                         value: option.label,
@@ -2298,7 +3263,7 @@ class _EditToolPageState extends State<EditToolPage> {
                       ),
                     )
                     .toList(),
-                selectedItemBuilder: (context) => conditionStyles
+                selectedItemBuilder: (context) => _conditionOptions
                     .map(
                       (option) => Align(
                         alignment: Alignment.centerLeft,
