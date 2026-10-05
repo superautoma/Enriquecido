@@ -352,7 +352,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V6',
+          'Mis herramientas · QUILL V7',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -632,30 +632,16 @@ class _EditToolPageState extends State<EditToolPage> {
     Navigator.of(context).pop(result);
   }
 
-  Future<void> _chooseImage() async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Elegir de la galería'),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Hacer una foto'),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<Directory> _toolImagesDirectory() async {
+    final docs = await getApplicationDocumentsDirectory();
+    final imagesDir = Directory(p.join(docs.path, 'tool_images'));
+    if (!await imagesDir.exists()) {
+      await imagesDir.create(recursive: true);
+    }
+    return imagesDir;
+  }
 
-    if (source == null) return;
-
+  Future<void> _storePickedImage(ImageSource source) async {
     final picked = await _imagePicker.pickImage(
       source: source,
       imageQuality: 88,
@@ -663,12 +649,7 @@ class _EditToolPageState extends State<EditToolPage> {
     );
     if (picked == null) return;
 
-    final docs = await getApplicationDocumentsDirectory();
-    final imagesDir = Directory(p.join(docs.path, 'tool_images'));
-    if (!await imagesDir.exists()) {
-      await imagesDir.create(recursive: true);
-    }
-
+    final imagesDir = await _toolImagesDirectory();
     final extension = p.extension(picked.path).isEmpty
         ? '.jpg'
         : p.extension(picked.path);
@@ -680,9 +661,197 @@ class _EditToolPageState extends State<EditToolPage> {
     final stored = await File(picked.path).copy(targetPath);
 
     if (!mounted) return;
-    setState(() {
-      _imagePath = stored.path;
-    });
+    setState(() => _imagePath = stored.path);
+  }
+
+  Future<void> _downloadImageFromUrl() async {
+    final controller = TextEditingController();
+
+    final url = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Imagen desde URL'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.url,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'URL de la imagen',
+            hintText: 'https://...',
+            prefixIcon: Icon(Icons.link),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.isNotEmpty) Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Descargar'),
+          ),
+        ],
+      ),
+    );
+
+    controller.dispose();
+    if (url == null || url.trim().isEmpty) return;
+
+    try {
+      final uri = Uri.parse(url.trim());
+      if (!(uri.scheme == 'http' || uri.scheme == 'https')) {
+        throw const FormatException('La URL debe comenzar por http:// o https://');
+      }
+
+      final client = HttpClient();
+      final request = await client.getUrl(uri);
+      request.headers.set(
+        HttpHeaders.userAgentHeader,
+        'GestorHerramientas/1.0',
+      );
+      final response = await request.close();
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        client.close(force: true);
+        throw HttpException(
+          'Error HTTP ${response.statusCode}',
+          uri: uri,
+        );
+      }
+
+      final contentType = response.headers.contentType?.mimeType ?? '';
+      if (!contentType.startsWith('image/')) {
+        client.close(force: true);
+        throw const FormatException('La dirección no devuelve una imagen');
+      }
+
+      String extension = p.extension(uri.path).toLowerCase();
+      if (extension.isEmpty || extension.length > 6) {
+        extension = switch (contentType) {
+          'image/png' => '.png',
+          'image/webp' => '.webp',
+          'image/gif' => '.gif',
+          _ => '.jpg',
+        };
+      }
+
+      final imagesDir = await _toolImagesDirectory();
+      final targetPath = p.join(
+        imagesDir.path,
+        'tool_url_${DateTime.now().millisecondsSinceEpoch}$extension',
+      );
+      final file = File(targetPath);
+      await response.pipe(file.openWrite());
+      client.close();
+
+      if (!mounted) return;
+      setState(() => _imagePath = file.path);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo descargar la imagen: $error'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openAiImageOption() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.auto_awesome, size: 34),
+        title: const Text('Imagen con IA'),
+        content: const Text(
+          'La opción de IA ya está incluida en el gestor. '
+          'Para generar imágenes desde la APK falta conectar un servicio de IA '
+          'mediante una API segura; no se debe guardar una clave privada dentro de la aplicación.',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Aceptar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _chooseImage() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: false,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 2, 18, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Imagen',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: _ImageSourceButton(
+                      icon: Icons.photo_camera_outlined,
+                      label: 'Cámara',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _storePickedImage(ImageSource.camera);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ImageSourceButton(
+                      icon: Icons.link,
+                      label: 'URL',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _downloadImageFromUrl();
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ImageSourceButton(
+                      icon: Icons.auto_awesome,
+                      label: 'IA',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openAiImageOption();
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ImageSourceButton(
+                      icon: Icons.photo_library_outlined,
+                      label: 'Galería',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _storePickedImage(ImageSource.gallery);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _removeImage() async {
@@ -723,7 +892,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V6' : 'Nuevo artículo · QUILL V6',
+          _isEditing ? 'Editar artículo · QUILL V7' : 'Nuevo artículo · QUILL V7',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -895,7 +1064,7 @@ class _EditToolPageState extends State<EditToolPage> {
                     : InkWell(
                         onTap: _chooseImage,
                         child: const SizedBox(
-                          height: 126,
+                          height: 146,
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -912,9 +1081,9 @@ class _EditToolPageState extends State<EditToolPage> {
                                   color: Color(0xFF168BD2),
                                 ),
                               ),
-                              SizedBox(height: 4),
+                              SizedBox(height: 5),
                               Text(
-                                'Galería o cámara',
+                                'Cámara · URL · IA · Galería',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Color(0xFF7A7F85),
@@ -940,6 +1109,52 @@ class _EditToolPageState extends State<EditToolPage> {
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ImageSourceButton extends StatelessWidget {
+  const _ImageSourceButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFF1F4F7),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 28, color: const Color(0xFF39444D)),
+              const SizedBox(height: 7),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF39444D),
                   ),
                 ),
               ),
