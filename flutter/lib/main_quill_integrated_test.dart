@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
+import 'package:cross_file/cross_file.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
@@ -8,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
+import 'package:share_plus/share_plus.dart';
 
 void main() {
   runApp(const GestorHerramientasApp());
@@ -204,6 +208,243 @@ class ToolsDatabase {
     }
     await batch.commit(noResult: true);
   }
+
+  Future<String> get databasePath async {
+    final base = await getDatabasesPath();
+    return p.join(base, 'gestor_herramientas.db');
+  }
+
+  Future<void> closeForBackup() async {
+    final db = _database;
+    if (db != null) {
+      try {
+        await db.execute('PRAGMA wal_checkpoint(FULL)');
+      } catch (_) {}
+      await db.close();
+      _database = null;
+    }
+  }
+
+  Future<void> reopen() async {
+    await database;
+  }
+}
+
+class BackupManager {
+  BackupManager._();
+
+  static const int formatVersion = 1;
+
+  static Future<Directory> _imagesDirectory() async {
+    final docs = await getApplicationDocumentsDirectory();
+    return Directory(p.join(docs.path, 'tool_images'));
+  }
+
+  static String _stamp() {
+    final now = DateTime.now();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${now.year}${two(now.month)}${two(now.day)}_'
+        '${two(now.hour)}${two(now.minute)}${two(now.second)}';
+  }
+
+  static Future<File> createBackup() async {
+    final temp = await getTemporaryDirectory();
+    final stamp = _stamp();
+    final workDir = Directory(p.join(temp.path, 'gh_backup_work_$stamp'));
+    if (await workDir.exists()) {
+      await workDir.delete(recursive: true);
+    }
+    await workDir.create(recursive: true);
+
+    final databasePath = await ToolsDatabase.instance.databasePath;
+    final imagesDir = await _imagesDirectory();
+
+    await ToolsDatabase.instance.closeForBackup();
+
+    try {
+      final dbFile = File(databasePath);
+      if (!await dbFile.exists()) {
+        throw StateError('No se ha encontrado la base de datos');
+      }
+
+      final databaseDir = Directory(p.join(workDir.path, 'database'));
+      await databaseDir.create(recursive: true);
+      await dbFile.copy(
+        p.join(databaseDir.path, 'gestor_herramientas.db'),
+      );
+
+      final backupImagesDir = Directory(p.join(workDir.path, 'tool_images'));
+      if (await imagesDir.exists()) {
+        await _copyDirectory(imagesDir, backupImagesDir);
+      } else {
+        await backupImagesDir.create(recursive: true);
+      }
+
+      final manifest = <String, Object?>{
+        'format': 'gestor_herramientas_backup',
+        'format_version': formatVersion,
+        'created_at': DateTime.now().toIso8601String(),
+        'database': 'database/gestor_herramientas.db',
+        'images': 'tool_images',
+        'note':
+            'Copia completa de SQLite e imágenes. Incluye automáticamente campos futuros guardados en la base de datos.',
+      };
+      await File(p.join(workDir.path, 'manifest.json')).writeAsString(
+        const JsonEncoder.withIndent('  ').convert(manifest),
+        flush: true,
+      );
+
+      final archive = Archive();
+      await _addDirectoryToArchive(archive, workDir, workDir.path);
+
+      final zipBytes = ZipEncoder().encode(archive);
+      if (zipBytes == null) {
+        throw StateError('No se pudo crear el archivo ZIP');
+      }
+
+      final output = File(
+        p.join(temp.path, 'gestor_herramientas_backup_$stamp.zip'),
+      );
+      await output.writeAsBytes(zipBytes, flush: true);
+      return output;
+    } finally {
+      await ToolsDatabase.instance.reopen();
+      if (await workDir.exists()) {
+        try {
+          await workDir.delete(recursive: true);
+        } catch (_) {}
+      }
+    }
+  }
+
+  static Future<void> restoreBackup(String zipPath) async {
+    final zipFile = File(zipPath);
+    if (!await zipFile.exists()) {
+      throw StateError('No se encuentra el archivo de copia');
+    }
+
+    final temp = await getTemporaryDirectory();
+    final stamp = _stamp();
+    final restoreDir = Directory(p.join(temp.path, 'gh_restore_$stamp'));
+    if (await restoreDir.exists()) {
+      await restoreDir.delete(recursive: true);
+    }
+    await restoreDir.create(recursive: true);
+
+    try {
+      final bytes = await zipFile.readAsBytes();
+      final archive = ZipDecoder().decodeBytes(bytes, verify: true);
+
+      for (final entry in archive) {
+        final normalized = p.normalize(entry.name);
+        if (p.isAbsolute(normalized) ||
+            normalized == '..' ||
+            normalized.startsWith('../') ||
+            normalized.contains('/../')) {
+          throw const FormatException('La copia contiene una ruta no válida');
+        }
+
+        final targetPath = p.join(restoreDir.path, normalized);
+        if (entry.isFile) {
+          final output = File(targetPath);
+          await output.parent.create(recursive: true);
+          await output.writeAsBytes(entry.content as List<int>, flush: true);
+        } else {
+          await Directory(targetPath).create(recursive: true);
+        }
+      }
+
+      final manifestFile = File(p.join(restoreDir.path, 'manifest.json'));
+      final restoredDb = File(
+        p.join(restoreDir.path, 'database', 'gestor_herramientas.db'),
+      );
+
+      if (!await manifestFile.exists() || !await restoredDb.exists()) {
+        throw const FormatException(
+          'El archivo no es una copia válida del Gestor de Herramientas',
+        );
+      }
+
+      final manifestRaw = jsonDecode(await manifestFile.readAsString());
+      if (manifestRaw is! Map ||
+          manifestRaw['format'] != 'gestor_herramientas_backup') {
+        throw const FormatException('Formato de copia no reconocido');
+      }
+
+      final version = (manifestRaw['format_version'] as num?)?.toInt() ?? 0;
+      if (version > formatVersion) {
+        throw const FormatException(
+          'La copia fue creada por una versión más nueva de la aplicación',
+        );
+      }
+
+      final dbDestination = await ToolsDatabase.instance.databasePath;
+      final imagesDestination = await _imagesDirectory();
+      final restoredImages = Directory(
+        p.join(restoreDir.path, 'tool_images'),
+      );
+
+      await ToolsDatabase.instance.closeForBackup();
+
+      try {
+        final destinationDbFile = File(dbDestination);
+        await destinationDbFile.parent.create(recursive: true);
+        await restoredDb.copy(dbDestination);
+
+        if (await imagesDestination.exists()) {
+          await imagesDestination.delete(recursive: true);
+        }
+
+        if (await restoredImages.exists()) {
+          await _copyDirectory(restoredImages, imagesDestination);
+        } else {
+          await imagesDestination.create(recursive: true);
+        }
+      } finally {
+        await ToolsDatabase.instance.reopen();
+      }
+    } finally {
+      if (await restoreDir.exists()) {
+        try {
+          await restoreDir.delete(recursive: true);
+        } catch (_) {}
+      }
+    }
+  }
+
+  static Future<void> _copyDirectory(
+    Directory source,
+    Directory destination,
+  ) async {
+    await destination.create(recursive: true);
+
+    await for (final entity in source.list(recursive: false)) {
+      final name = p.basename(entity.path);
+      if (entity is Directory) {
+        await _copyDirectory(
+          entity,
+          Directory(p.join(destination.path, name)),
+        );
+      } else if (entity is File) {
+        await entity.copy(p.join(destination.path, name));
+      }
+    }
+  }
+
+  static Future<void> _addDirectoryToArchive(
+    Archive archive,
+    Directory directory,
+    String rootPath,
+  ) async {
+    await for (final entity in directory.list(recursive: true)) {
+      if (entity is! File) continue;
+
+      final relative = p.relative(entity.path, from: rootPath);
+      final archiveName = relative.replaceAll('\\', '/');
+      final data = await entity.readAsBytes();
+      archive.addFile(ArchiveFile(archiveName, data.length, data));
+    }
+  }
 }
 
 class ConditionStyle {
@@ -339,6 +580,76 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     });
   }
 
+  Future<void> _createBackup() async {
+    try {
+      final backup = await BackupManager.createBackup();
+      if (!mounted) return;
+
+      await Share.shareXFiles(
+        [XFile(backup.path)],
+        subject: 'Copia de seguridad · Gestor de Herramientas',
+        text:
+            'Copia completa de la base de datos y las imágenes del Gestor de Herramientas.',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo crear la copia: $error')),
+      );
+    }
+  }
+
+  Future<void> _restoreBackup() async {
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['zip'],
+      allowMultiple: false,
+    );
+
+    final path = picked?.files.single.path;
+    if (path == null || !mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.restore),
+        title: const Text('Restaurar copia'),
+        content: const Text(
+          'Se sustituirán la base de datos y las imágenes actuales por las '
+          'contenidas en la copia. Esta operación no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Restaurar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await BackupManager.restoreBackup(path);
+      await _loadItems();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Copia restaurada correctamente'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo restaurar la copia: $error')),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -352,14 +663,39 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V8',
+          'Mis herramientas · QUILL V9',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
-          IconButton(
+          PopupMenuButton<String>(
             tooltip: 'Opciones',
-            onPressed: () {},
             icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              switch (value) {
+                case 'backup':
+                  _createBackup();
+                case 'restore':
+                  _restoreBackup();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'backup',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.backup_outlined),
+                  title: Text('Crear copia de seguridad'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'restore',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.restore),
+                  title: Text('Restaurar copia'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -818,7 +1154,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V8' : 'Nuevo artículo · QUILL V8',
+          _isEditing ? 'Editar artículo · QUILL V9' : 'Nuevo artículo · QUILL V9',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
