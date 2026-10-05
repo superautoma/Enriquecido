@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:path/path.dart' as p;
+import 'package:sqflite/sqflite.dart';
 
 void main() {
   runApp(const GestorHerramientasApp());
@@ -95,6 +97,97 @@ class ToolItem {
         purchasePrice: purchasePrice,
         condition: condition,
       );
+
+  Map<String, Object?> toMap() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'description_delta': descriptionDelta,
+        'barcode': barcode,
+        'quantity': quantity,
+        'unit': unit,
+        'minimum_stock': minimumStock,
+        'purchase_price': purchasePrice,
+        'condition': condition,
+      };
+
+  factory ToolItem.fromMap(Map<String, Object?> map) => ToolItem(
+        id: map['id'] as int,
+        name: (map['name'] as String?) ?? '',
+        description: (map['description'] as String?) ?? '',
+        descriptionDelta: (map['description_delta'] as String?) ?? '',
+        barcode: (map['barcode'] as String?) ?? '',
+        quantity: (map['quantity'] as num?)?.toDouble() ?? 0,
+        unit: (map['unit'] as String?) ?? 'ud',
+        minimumStock: (map['minimum_stock'] as num?)?.toDouble() ?? 0,
+        purchasePrice: (map['purchase_price'] as num?)?.toDouble() ?? 0,
+        condition: (map['condition'] as String?) ?? 'Bueno',
+      );
+}
+
+class ToolsDatabase {
+  ToolsDatabase._();
+
+  static final ToolsDatabase instance = ToolsDatabase._();
+  Database? _database;
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+
+    final base = await getDatabasesPath();
+    final path = p.join(base, 'gestor_herramientas.db');
+
+    _database = await openDatabase(
+      path,
+      version: 1,
+      onCreate: (db, version) async {
+        await db.execute('''
+          CREATE TABLE tools (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            description_delta TEXT NOT NULL DEFAULT '',
+            barcode TEXT NOT NULL DEFAULT '',
+            quantity REAL NOT NULL DEFAULT 0,
+            unit TEXT NOT NULL DEFAULT 'ud',
+            minimum_stock REAL NOT NULL DEFAULT 0,
+            purchase_price REAL NOT NULL DEFAULT 0,
+            condition TEXT NOT NULL DEFAULT 'Bueno'
+          )
+        ''');
+      },
+    );
+
+    return _database!;
+  }
+
+  Future<List<ToolItem>> loadTools() async {
+    final db = await database;
+    final rows = await db.query('tools', orderBy: 'id DESC');
+    return rows.map(ToolItem.fromMap).toList();
+  }
+
+  Future<void> saveTool(ToolItem item) async {
+    final db = await database;
+    await db.insert(
+      'tools',
+      item.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> seedIfEmpty(List<ToolItem> defaults) async {
+    final db = await database;
+    final countResult =
+        Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM tools'));
+    if ((countResult ?? 0) != 0) return;
+
+    final batch = db.batch();
+    for (final item in defaults) {
+      batch.insert('tools', item.toMap());
+    }
+    await batch.commit(noResult: true);
+  }
 }
 
 class ConditionStyle {
@@ -129,7 +222,7 @@ class ToolsHomePage extends StatefulWidget {
 class _ToolsHomePageState extends State<ToolsHomePage> {
   final _searchController = TextEditingController();
 
-  final List<ToolItem> _items = [
+  final List<ToolItem> _defaultItems = [
     ToolItem(
       id: 1,
       name: 'Destornillador aislado',
@@ -168,6 +261,27 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     ),
   ];
 
+  final List<ToolItem> _items = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadItems();
+  }
+
+  Future<void> _loadItems() async {
+    await ToolsDatabase.instance.seedIfEmpty(_defaultItems);
+    final items = await ToolsDatabase.instance.loadTools();
+    if (!mounted) return;
+    setState(() {
+      _items
+        ..clear()
+        ..addAll(items);
+      _loading = false;
+    });
+  }
+
   String get _query => _searchController.text.trim().toLowerCase();
 
   List<ToolItem> get _visibleItems {
@@ -196,6 +310,9 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
 
     if (result == null) return;
 
+    await ToolsDatabase.instance.saveTool(result);
+
+    if (!mounted) return;
     setState(() {
       final index = _items.indexWhere((element) => element.id == result.id);
       if (index >= 0) {
@@ -219,7 +336,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V4',
+          'Mis herramientas · QUILL V5',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -280,14 +397,16 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
               ),
             ),
             Expanded(
-              child: visible.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No se encontraron herramientas',
-                        style: TextStyle(color: Color(0xFF7A7F85)),
-                      ),
-                    )
-                  : ListView.separated(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : visible.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No se encontraron herramientas',
+                            style: TextStyle(color: Color(0xFF7A7F85)),
+                          ),
+                        )
+                      : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 92),
                       itemCount: visible.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -510,7 +629,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V4' : 'Nuevo artículo · QUILL V4',
+          _isEditing ? 'Editar artículo · QUILL V5' : 'Nuevo artículo · QUILL V5',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
