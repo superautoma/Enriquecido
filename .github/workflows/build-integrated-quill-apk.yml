@@ -9,6 +9,7 @@ on:
       - "flutter/lib/main_quill_integrated_test.dart"
       - "flutter/pubspec.yaml"
       - "flutter/test/**"
+      - "flutter/startup_android/**"
       - ".github/dev-signing/android-debug.keystore.b64"
       - ".github/workflows/build-integrated-quill-apk.yml"
 
@@ -43,6 +44,7 @@ jobs:
           cp /tmp/main_quill_integrated_test.dart lib/main_quill_integrated_test.dart
           rm -f test/widget_test.dart
           sed -i 's/android:label="gestor_herramientas_quill_test"/android:label="Gestor Quill Integrado"/' android/app/src/main/AndroidManifest.xml
+          cp startup_android/MainActivity.kt android/app/src/main/kotlin/org/gestorherramientas/gestor_herramientas_quill_test/MainActivity.kt
 
       - name: Install stable development signing key
         run: |
@@ -80,7 +82,7 @@ jobs:
       - name: Analyze integrated test
         run: flutter analyze --no-fatal-infos lib/main_quill_integrated_test.dart
 
-      - name: Verify layout and voltage persistence
+      - name: Verify layout, startup and voltage persistence
         run: flutter test
 
       - name: Build debug APK
@@ -109,6 +111,30 @@ jobs:
             echo "ERROR: La APK no está firmada con la clave estable."
             exit 1
           fi
+
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Check Android startup and back navigation
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          disable-animations: false
+          working-directory: flutter
+          script: python3 startup_android/smoke_test.py
+
+      - name: Upload startup screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: startup-check
+          path: flutter/startup-check/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

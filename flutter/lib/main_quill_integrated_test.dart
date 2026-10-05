@@ -1657,6 +1657,63 @@ ConditionStyle conditionStyleFor(String value) {
   );
 }
 
+class StartupStatusPage extends StatelessWidget {
+  const StartupStatusPage({super.key, this.hasError = false, this.onRetry});
+
+  final bool hasError;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (hasError)
+                  const Icon(Icons.error_outline, size: 42,
+                      color: Color(0xFF72777D))
+                else
+                  const SizedBox(
+                    width: 42,
+                    height: 42,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      color: Color(0xFF168BD2),
+                      semanticsLabel: 'Cargando la aplicación',
+                    ),
+                  ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Gestor de herramientas',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  hasError
+                      ? 'No se pudieron cargar las herramientas.'
+                      : 'Cargando…',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Color(0xFF72777D)),
+                ),
+                if (hasError) ...[
+                  const SizedBox(height: 16),
+                  FilledButton(onPressed: onRetry,
+                      child: const Text('Reintentar')),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class ToolsHomePage extends StatefulWidget {
   const ToolsHomePage({super.key});
 
@@ -1709,6 +1766,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
   final List<ToolItem> _items = [];
   List<FieldOption> _conditionOptions = defaultFieldOptions('condition');
   bool _loading = true;
+  bool _loadError = false;
 
   @override
   void initState() {
@@ -1717,20 +1775,33 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
   }
 
   Future<void> _loadItems() async {
-    await ToolsDatabase.instance.seedIfEmpty(_defaultItems);
-    final items = await ToolsDatabase.instance.loadTools();
-    final conditionOptions =
-        await ToolsDatabase.instance.loadFieldOptions('condition');
-    if (!mounted) return;
     setState(() {
-      _items
-        ..clear()
-        ..addAll(items);
-      _conditionOptions = conditionOptions.isEmpty
-          ? defaultFieldOptions('condition')
-          : conditionOptions;
-      _loading = false;
+      _loading = true;
+      _loadError = false;
     });
+    try {
+      await ToolsDatabase.instance.seedIfEmpty(_defaultItems);
+      final items = await ToolsDatabase.instance.loadTools();
+      final conditionOptions =
+          await ToolsDatabase.instance.loadFieldOptions('condition');
+      if (!mounted) return;
+      setState(() {
+        _items
+          ..clear()
+          ..addAll(items);
+        _conditionOptions = conditionOptions.isEmpty
+            ? defaultFieldOptions('condition')
+            : conditionOptions;
+        _loading = false;
+      });
+    } catch (error) {
+      debugPrint('No se pudieron cargar las herramientas: $error');
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
+    }
   }
 
   String get _query => _searchController.text.trim().toLowerCase();
@@ -1879,6 +1950,9 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_loading || _loadError) {
+      return StartupStatusPage(hasError: _loadError, onRetry: _loadItems);
+    }
     final visible = _visibleItems;
 
     return Scaffold(
@@ -1991,9 +2065,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
               ),
             ),
             Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : visible.isEmpty
+              child: visible.isEmpty
                       ? const Center(
                           child: Text(
                             'No se encontraron herramientas',
