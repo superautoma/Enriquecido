@@ -98,7 +98,7 @@ void main() {
     expect(tools.single.type, legacy.type);
     expect(tools.single.images.single.path, '/existing/photo.jpg');
     expect(tools.single.voltage, isEmpty);
-    expect(await (await ToolsDatabase.instance.database).getVersion(), 6);
+    expect(await (await ToolsDatabase.instance.database).getVersion(), 7);
   });
 
   test('Each requested voltage survives saving and reopening SQLite', () async {

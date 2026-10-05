@@ -89,15 +89,15 @@ class ToolImage {
   String createdAt;
 
   ToolImage copy() => ToolImage(
-        id: id,
-        toolId: toolId,
-        path: path,
-        description: description,
-        type: type,
-        position: position,
-        isPrimary: isPrimary,
-        createdAt: createdAt,
-      );
+    id: id,
+    toolId: toolId,
+    path: path,
+    description: description,
+    type: type,
+    position: position,
+    isPrimary: isPrimary,
+    createdAt: createdAt,
+  );
 
   Map<String, Object?> toMap({bool includeId = true}) {
     final map = <String, Object?>{
@@ -116,15 +116,15 @@ class ToolImage {
   }
 
   factory ToolImage.fromMap(Map<String, Object?> map) => ToolImage(
-        id: map['id'] as int?,
-        toolId: (map['tool_id'] as num?)?.toInt() ?? 0,
-        path: (map['path'] as String?) ?? '',
-        description: (map['description'] as String?) ?? '',
-        type: (map['type'] as String?) ?? 'General',
-        position: (map['position'] as num?)?.toInt() ?? 0,
-        isPrimary: ((map['is_primary'] as num?)?.toInt() ?? 0) == 1,
-        createdAt: (map['created_at'] as String?) ?? '',
-      );
+    id: map['id'] as int?,
+    toolId: (map['tool_id'] as num?)?.toInt() ?? 0,
+    path: (map['path'] as String?) ?? '',
+    description: (map['description'] as String?) ?? '',
+    type: (map['type'] as String?) ?? 'General',
+    position: (map['position'] as num?)?.toInt() ?? 0,
+    isPrimary: ((map['is_primary'] as num?)?.toInt() ?? 0) == 1,
+    createdAt: (map['created_at'] as String?) ?? '',
+  );
 }
 
 class AppIconChoice {
@@ -156,143 +156,749 @@ const appIconCategories = <String>[
 ];
 
 const appIconChoices = <AppIconChoice>[
+  // Colección vectorial de 50 iconos disponibles sin importar archivos.
+  AppIconChoice(
+    'electric_enchufe_schuko',
+    'Enchufe Schuko',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF34688B,
+  ),
+  AppIconChoice(
+    'electric_bombilla',
+    'Bombilla',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFE6A12B,
+  ),
+  AppIconChoice(
+    'electric_cuadro_electrico',
+    'Cuadro eléctrico',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF42954A,
+  ),
+  AppIconChoice(
+    'electric_conexion',
+    'Conexión',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFCD4945,
+  ),
+  AppIconChoice(
+    'electric_energia_renovable',
+    'Energía renovable',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF6350A5,
+  ),
+  AppIconChoice(
+    'electric_ahorro_energia',
+    'Ahorro de energía',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF087F80,
+  ),
+  AppIconChoice(
+    'electric_casa_conectada',
+    'Casa conectada',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF34688B,
+  ),
+  AppIconChoice(
+    'electric_regleta',
+    'Regleta',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFE6A12B,
+  ),
+  AppIconChoice(
+    'electric_calentador',
+    'Calentador',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF42954A,
+  ),
+  AppIconChoice(
+    'electric_alicates',
+    'Alicates',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFCD4945,
+  ),
+  AppIconChoice(
+    'electric_sobretension',
+    'Sobretensión',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF6350A5,
+  ),
+  AppIconChoice(
+    'electric_distribuidor',
+    'Distribuidor',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF087F80,
+  ),
+  AppIconChoice(
+    'electric_clavija_circular',
+    'Clavija circular',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF34688B,
+  ),
+  AppIconChoice(
+    'electric_cambio_bombilla',
+    'Cambio de bombilla',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFE6A12B,
+  ),
+  AppIconChoice(
+    'electric_clavija',
+    'Clavija',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF42954A,
+  ),
+  AppIconChoice(
+    'electric_bombilla_bajo_consumo',
+    'Bajo consumo',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFCD4945,
+  ),
+  AppIconChoice(
+    'electric_transformador',
+    'Transformador',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF6350A5,
+  ),
+  AppIconChoice(
+    'electric_torre_alta_tension',
+    'Torre de alta tensión',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF087F80,
+  ),
+  AppIconChoice(
+    'electric_medidor',
+    'Medidor',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF34688B,
+  ),
+  AppIconChoice(
+    'electric_alicates_corte',
+    'Alicates de corte',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFE6A12B,
+  ),
+  AppIconChoice(
+    'electric_proteccion_personal',
+    'Protección personal',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF42954A,
+  ),
+  AppIconChoice(
+    'electric_consumo_electrico',
+    'Consumo eléctrico',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFCD4945,
+  ),
+  AppIconChoice(
+    'electric_cargador_vehiculo',
+    'Cargador de vehículo',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF6350A5,
+  ),
+  AppIconChoice(
+    'electric_cable_alimentacion',
+    'Cable de alimentación',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF087F80,
+  ),
+  AppIconChoice(
+    'electric_tubo_led',
+    'Tubo LED',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF34688B,
+  ),
+  AppIconChoice(
+    'electric_conector',
+    'Conector',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFE6A12B,
+  ),
+  AppIconChoice(
+    'electric_seguridad_electrica',
+    'Seguridad eléctrica',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF42954A,
+  ),
+  AppIconChoice(
+    'electric_casa_electrica',
+    'Casa eléctrica',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFCD4945,
+  ),
+  AppIconChoice(
+    'electric_coche_electrico',
+    'Coche eléctrico',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF6350A5,
+  ),
+  AppIconChoice(
+    'electric_foco',
+    'Foco',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF087F80,
+  ),
+  AppIconChoice(
+    'electric_poste_electrico',
+    'Poste eléctrico',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF34688B,
+  ),
+  AppIconChoice(
+    'electric_red_transporte',
+    'Red de transporte',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFE6A12B,
+  ),
+  AppIconChoice(
+    'electric_eficiencia_energetica',
+    'Eficiencia energética',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF42954A,
+  ),
+  AppIconChoice(
+    'electric_cable_multiconductor',
+    'Cable multiconductor',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFCD4945,
+  ),
+  AppIconChoice(
+    'electric_toma_empotrada',
+    'Toma empotrada',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF6350A5,
+  ),
+  AppIconChoice(
+    'electric_magnetotermicos',
+    'Magnetotérmicos',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF087F80,
+  ),
+  AppIconChoice(
+    'electric_bateria',
+    'Batería',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF34688B,
+  ),
+  AppIconChoice(
+    'electric_toma_doble',
+    'Toma doble',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFE6A12B,
+  ),
+  AppIconChoice(
+    'electric_lampara_colgante',
+    'Lámpara colgante',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF42954A,
+  ),
+  AppIconChoice(
+    'electric_enchufe_cuadrado',
+    'Enchufe cuadrado',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFCD4945,
+  ),
+  AppIconChoice(
+    'electric_caja_herramientas',
+    'Caja de herramientas',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF6350A5,
+  ),
+  AppIconChoice(
+    'electric_bombilla_led',
+    'Bombilla LED',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF087F80,
+  ),
+  AppIconChoice(
+    'electric_electricista',
+    'Electricista',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF34688B,
+  ),
+  AppIconChoice(
+    'electric_herramientas',
+    'Herramientas',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFE6A12B,
+  ),
+  AppIconChoice(
+    'electric_cable_enrollado',
+    'Cable enrollado',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF42954A,
+  ),
+  AppIconChoice(
+    'electric_cable_danado',
+    'Cable dañado',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFCD4945,
+  ),
+  AppIconChoice(
+    'electric_multimetro',
+    'Multímetro',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF6350A5,
+  ),
+  AppIconChoice(
+    'electric_peligro_electrico',
+    'Peligro eléctrico',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF087F80,
+  ),
+  AppIconChoice(
+    'electric_casa_encendido',
+    'Casa encendida',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFF34688B,
+  ),
+  AppIconChoice(
+    'electric_interruptor',
+    'Interruptor',
+    Icons.electrical_services_outlined,
+    'Mis iconos',
+    0xFFE6A12B,
+  ),
+
   // Herramientas
-  AppIconChoice('tool_art_hammer', 'Martillo', Icons.hardware_outlined,
-      'Herramientas', 0xFF455A64),
-  AppIconChoice('tool_art_handsaw', 'Sierra de mano', Icons.carpenter_outlined,
-      'Herramientas', 0xFFF57C00),
-  AppIconChoice('tool_art_screwdriver', 'Destornillador', Icons.build_outlined,
-      'Herramientas', 0xFFE53935),
-  AppIconChoice('tool_art_drill', 'Taladro', Icons.precision_manufacturing_outlined,
-      'Herramientas', 0xFF1976D2),
-  AppIconChoice('handyman', 'Herramientas', Icons.handyman_outlined,
-      'Herramientas', 0xFF1976D2),
-  AppIconChoice('construction', 'Construcción', Icons.construction_outlined,
-      'Herramientas', 0xFFF57C00),
-  AppIconChoice('build_tool', 'Reparación', Icons.build_outlined,
-      'Herramientas', 0xFF546E7A),
-  AppIconChoice('repair_service', 'Servicio', Icons.home_repair_service_outlined,
-      'Herramientas', 0xFF6D4C41),
-  AppIconChoice('hardware', 'Ferretería', Icons.hardware_outlined,
-      'Herramientas', 0xFF455A64),
-  AppIconChoice('plumbing', 'Tubería', Icons.plumbing_outlined,
-      'Herramientas', 0xFF00838F),
-  AppIconChoice('precision', 'Precisión', Icons.precision_manufacturing_outlined,
-      'Herramientas', 0xFF5E35B1),
-  AppIconChoice('engineering', 'Ingeniería', Icons.engineering_outlined,
-      'Herramientas', 0xFF3949AB),
-  AppIconChoice('straighten', 'Medida', Icons.straighten_outlined,
-      'Herramientas', 0xFF00897B),
-  AppIconChoice('speed', 'Medición', Icons.speed_outlined,
-      'Herramientas', 0xFF3949AB),
+  AppIconChoice(
+    'tool_art_hammer',
+    'Martillo',
+    Icons.hardware_outlined,
+    'Herramientas',
+    0xFF455A64,
+  ),
+  AppIconChoice(
+    'tool_art_handsaw',
+    'Sierra de mano',
+    Icons.carpenter_outlined,
+    'Herramientas',
+    0xFFF57C00,
+  ),
+  AppIconChoice(
+    'tool_art_screwdriver',
+    'Destornillador',
+    Icons.build_outlined,
+    'Herramientas',
+    0xFFE53935,
+  ),
+  AppIconChoice(
+    'tool_art_drill',
+    'Taladro',
+    Icons.precision_manufacturing_outlined,
+    'Herramientas',
+    0xFF1976D2,
+  ),
+  AppIconChoice(
+    'handyman',
+    'Herramientas',
+    Icons.handyman_outlined,
+    'Herramientas',
+    0xFF1976D2,
+  ),
+  AppIconChoice(
+    'construction',
+    'Construcción',
+    Icons.construction_outlined,
+    'Herramientas',
+    0xFFF57C00,
+  ),
+  AppIconChoice(
+    'build_tool',
+    'Reparación',
+    Icons.build_outlined,
+    'Herramientas',
+    0xFF546E7A,
+  ),
+  AppIconChoice(
+    'repair_service',
+    'Servicio',
+    Icons.home_repair_service_outlined,
+    'Herramientas',
+    0xFF6D4C41,
+  ),
+  AppIconChoice(
+    'hardware',
+    'Ferretería',
+    Icons.hardware_outlined,
+    'Herramientas',
+    0xFF455A64,
+  ),
+  AppIconChoice(
+    'plumbing',
+    'Tubería',
+    Icons.plumbing_outlined,
+    'Herramientas',
+    0xFF00838F,
+  ),
+  AppIconChoice(
+    'precision',
+    'Precisión',
+    Icons.precision_manufacturing_outlined,
+    'Herramientas',
+    0xFF5E35B1,
+  ),
+  AppIconChoice(
+    'engineering',
+    'Ingeniería',
+    Icons.engineering_outlined,
+    'Herramientas',
+    0xFF3949AB,
+  ),
+  AppIconChoice(
+    'straighten',
+    'Medida',
+    Icons.straighten_outlined,
+    'Herramientas',
+    0xFF00897B,
+  ),
+  AppIconChoice(
+    'speed',
+    'Medición',
+    Icons.speed_outlined,
+    'Herramientas',
+    0xFF3949AB,
+  ),
 
   // Eléctrica
-  AppIconChoice('electrical', 'Eléctrica', Icons.electrical_services_outlined,
-      'Eléctrica', 0xFFF9A825),
-  AppIconChoice('bolt', 'Rayo', Icons.bolt_outlined,
-      'Eléctrica', 0xFFFDD835),
-  AppIconChoice('power', 'Potencia', Icons.power_outlined,
-      'Eléctrica', 0xFFE53935),
-  AppIconChoice('cable', 'Cable', Icons.cable_outlined,
-      'Eléctrica', 0xFF3949AB),
-  AppIconChoice('battery', 'Batería', Icons.battery_charging_full_outlined,
-      'Eléctrica', 0xFF43A047),
-  AppIconChoice('lightbulb', 'Iluminación', Icons.lightbulb_outline,
-      'Eléctrica', 0xFFFBC02D),
-  AppIconChoice('memory', 'Electrónica', Icons.memory_outlined,
-      'Eléctrica', 0xFF7E57C2),
-  AppIconChoice('sensors', 'Sensor', Icons.sensors_outlined,
-      'Eléctrica', 0xFF00897B),
-  AppIconChoice('developer_board', 'Placa', Icons.developer_board_outlined,
-      'Eléctrica', 0xFF5E35B1),
-  AppIconChoice('wifi_signal', 'Señal', Icons.wifi_tethering,
-      'Eléctrica', 0xFF039BE5),
+  AppIconChoice(
+    'electrical',
+    'Eléctrica',
+    Icons.electrical_services_outlined,
+    'Eléctrica',
+    0xFFF9A825,
+  ),
+  AppIconChoice('bolt', 'Rayo', Icons.bolt_outlined, 'Eléctrica', 0xFFFDD835),
+  AppIconChoice(
+    'power',
+    'Potencia',
+    Icons.power_outlined,
+    'Eléctrica',
+    0xFFE53935,
+  ),
+  AppIconChoice(
+    'cable',
+    'Cable',
+    Icons.cable_outlined,
+    'Eléctrica',
+    0xFF3949AB,
+  ),
+  AppIconChoice(
+    'battery',
+    'Batería',
+    Icons.battery_charging_full_outlined,
+    'Eléctrica',
+    0xFF43A047,
+  ),
+  AppIconChoice(
+    'lightbulb',
+    'Iluminación',
+    Icons.lightbulb_outline,
+    'Eléctrica',
+    0xFFFBC02D,
+  ),
+  AppIconChoice(
+    'memory',
+    'Electrónica',
+    Icons.memory_outlined,
+    'Eléctrica',
+    0xFF7E57C2,
+  ),
+  AppIconChoice(
+    'sensors',
+    'Sensor',
+    Icons.sensors_outlined,
+    'Eléctrica',
+    0xFF00897B,
+  ),
+  AppIconChoice(
+    'developer_board',
+    'Placa',
+    Icons.developer_board_outlined,
+    'Eléctrica',
+    0xFF5E35B1,
+  ),
+  AppIconChoice(
+    'wifi_signal',
+    'Señal',
+    Icons.wifi_tethering,
+    'Eléctrica',
+    0xFF039BE5,
+  ),
 
   // Material
-  AppIconChoice('inventory', 'Inventario', Icons.inventory_2_outlined,
-      'Material', 0xFF00897B),
-  AppIconChoice('settings', 'Engranaje', Icons.settings_outlined,
-      'Material', 0xFF7E57C2),
-  AppIconChoice('package', 'Paquete', Icons.all_inbox_outlined,
-      'Material', 0xFF6D4C41),
-  AppIconChoice('extension', 'Pieza', Icons.extension_outlined,
-      'Material', 0xFF5E35B1),
-  AppIconChoice('widgets', 'Componentes', Icons.widgets_outlined,
-      'Material', 0xFF3949AB),
-  AppIconChoice('category', 'Categoría', Icons.category_outlined,
-      'Material', 0xFF1976D2),
-  AppIconChoice('science', 'Química', Icons.science_outlined,
-      'Material', 0xFF8E24AA),
-  AppIconChoice('water', 'Líquido', Icons.water_drop_outlined,
-      'Material', 0xFF039BE5),
-  AppIconChoice('local_fire', 'Calor', Icons.local_fire_department_outlined,
-      'Material', 0xFFEF6C00),
-  AppIconChoice('cleaning', 'Limpieza', Icons.cleaning_services_outlined,
-      'Material', 0xFF00ACC1),
-  AppIconChoice('recycling', 'Reciclable', Icons.recycling_outlined,
-      'Material', 0xFF43A047),
-  AppIconChoice('delete_sweep', 'Desechable', Icons.delete_sweep_outlined,
-      'Material', 0xFFE53935),
-  AppIconChoice('factory', 'Industrial', Icons.factory_outlined,
-      'Material', 0xFF546E7A),
+  AppIconChoice(
+    'inventory',
+    'Inventario',
+    Icons.inventory_2_outlined,
+    'Material',
+    0xFF00897B,
+  ),
+  AppIconChoice(
+    'settings',
+    'Engranaje',
+    Icons.settings_outlined,
+    'Material',
+    0xFF7E57C2,
+  ),
+  AppIconChoice(
+    'package',
+    'Paquete',
+    Icons.all_inbox_outlined,
+    'Material',
+    0xFF6D4C41,
+  ),
+  AppIconChoice(
+    'extension',
+    'Pieza',
+    Icons.extension_outlined,
+    'Material',
+    0xFF5E35B1,
+  ),
+  AppIconChoice(
+    'widgets',
+    'Componentes',
+    Icons.widgets_outlined,
+    'Material',
+    0xFF3949AB,
+  ),
+  AppIconChoice(
+    'category',
+    'Categoría',
+    Icons.category_outlined,
+    'Material',
+    0xFF1976D2,
+  ),
+  AppIconChoice(
+    'science',
+    'Química',
+    Icons.science_outlined,
+    'Material',
+    0xFF8E24AA,
+  ),
+  AppIconChoice(
+    'water',
+    'Líquido',
+    Icons.water_drop_outlined,
+    'Material',
+    0xFF039BE5,
+  ),
+  AppIconChoice(
+    'local_fire',
+    'Calor',
+    Icons.local_fire_department_outlined,
+    'Material',
+    0xFFEF6C00,
+  ),
+  AppIconChoice(
+    'cleaning',
+    'Limpieza',
+    Icons.cleaning_services_outlined,
+    'Material',
+    0xFF00ACC1,
+  ),
+  AppIconChoice(
+    'recycling',
+    'Reciclable',
+    Icons.recycling_outlined,
+    'Material',
+    0xFF43A047,
+  ),
+  AppIconChoice(
+    'delete_sweep',
+    'Desechable',
+    Icons.delete_sweep_outlined,
+    'Material',
+    0xFFE53935,
+  ),
+  AppIconChoice(
+    'factory',
+    'Industrial',
+    Icons.factory_outlined,
+    'Material',
+    0xFF546E7A,
+  ),
 
   // Estado
-  AppIconChoice('check', 'Correcto', Icons.check_circle_outline,
-      'Estado', 0xFF43A047),
-  AppIconChoice('build', 'Revisión', Icons.build_circle_outlined,
-      'Estado', 0xFFF9A825),
-  AppIconChoice('error', 'Avería', Icons.error_outline,
-      'Estado', 0xFFE53935),
-  AppIconChoice('swap', 'Préstamo', Icons.swap_horiz,
-      'Estado', 0xFF7E57C2),
-  AppIconChoice('warning', 'Aviso', Icons.warning_amber_outlined,
-      'Estado', 0xFFF57C00),
-  AppIconChoice('blocked', 'Bloqueado', Icons.block,
-      'Estado', 0xFFE53935),
-  AppIconChoice('pause', 'Pausado', Icons.pause_circle_outline,
-      'Estado', 0xFF546E7A),
-  AppIconChoice('schedule', 'Pendiente', Icons.schedule,
-      'Estado', 0xFF5E35B1),
-  AppIconChoice('done_all', 'Finalizado', Icons.done_all,
-      'Estado', 0xFF00897B),
-  AppIconChoice('help', 'Desconocido', Icons.help_outline,
-      'Estado', 0xFF78909C),
+  AppIconChoice(
+    'check',
+    'Correcto',
+    Icons.check_circle_outline,
+    'Estado',
+    0xFF43A047,
+  ),
+  AppIconChoice(
+    'build',
+    'Revisión',
+    Icons.build_circle_outlined,
+    'Estado',
+    0xFFF9A825,
+  ),
+  AppIconChoice('error', 'Avería', Icons.error_outline, 'Estado', 0xFFE53935),
+  AppIconChoice('swap', 'Préstamo', Icons.swap_horiz, 'Estado', 0xFF7E57C2),
+  AppIconChoice(
+    'warning',
+    'Aviso',
+    Icons.warning_amber_outlined,
+    'Estado',
+    0xFFF57C00,
+  ),
+  AppIconChoice('blocked', 'Bloqueado', Icons.block, 'Estado', 0xFFE53935),
+  AppIconChoice(
+    'pause',
+    'Pausado',
+    Icons.pause_circle_outline,
+    'Estado',
+    0xFF546E7A,
+  ),
+  AppIconChoice('schedule', 'Pendiente', Icons.schedule, 'Estado', 0xFF5E35B1),
+  AppIconChoice('done_all', 'Finalizado', Icons.done_all, 'Estado', 0xFF00897B),
+  AppIconChoice(
+    'help',
+    'Desconocido',
+    Icons.help_outline,
+    'Estado',
+    0xFF78909C,
+  ),
 
   // General
-  AppIconChoice('star', 'Destacado', Icons.star_outline,
-      'General', 0xFFFBC02D),
-  AppIconChoice('favorite', 'Favorito', Icons.favorite_border,
-      'General', 0xFFD81B60),
-  AppIconChoice('label', 'Etiqueta', Icons.label_outline,
-      'General', 0xFF7E57C2),
-  AppIconChoice('bookmark', 'Marcador', Icons.bookmark_border,
-      'General', 0xFF3949AB),
-  AppIconChoice('place', 'Ubicación', Icons.place_outlined,
-      'General', 0xFFE53935),
-  AppIconChoice('info', 'Información', Icons.info_outline,
-      'General', 0xFF1976D2),
-  AppIconChoice('push_pin', 'Fijado', Icons.push_pin_outlined,
-      'General', 0xFFEF6C00),
-  AppIconChoice('person', 'Persona', Icons.person_outline,
-      'General', 0xFF5E35B1),
-  AppIconChoice('groups', 'Grupo', Icons.groups_outlined,
-      'General', 0xFF3949AB),
-  AppIconChoice('event', 'Fecha', Icons.event_outlined,
-      'General', 0xFF00897B),
-  AppIconChoice('qr', 'QR', Icons.qr_code_2,
-      'General', 0xFF455A64),
-  AppIconChoice('camera', 'Cámara', Icons.photo_camera_outlined,
-      'General', 0xFF1976D2),
-  AppIconChoice('attach', 'Adjunto', Icons.attach_file,
-      'General', 0xFF546E7A),
-  AppIconChoice('description', 'Documento', Icons.description_outlined,
-      'General', 0xFF3949AB),
-  AppIconChoice('folder', 'Carpeta', Icons.folder_outlined,
-      'General', 0xFFF9A825),
-  AppIconChoice('shield', 'Protección', Icons.shield_outlined,
-      'General', 0xFF00897B),
-  AppIconChoice('lock', 'Bloqueo', Icons.lock_outline,
-      'General', 0xFF6D4C41),
+  AppIconChoice('star', 'Destacado', Icons.star_outline, 'General', 0xFFFBC02D),
+  AppIconChoice(
+    'favorite',
+    'Favorito',
+    Icons.favorite_border,
+    'General',
+    0xFFD81B60,
+  ),
+  AppIconChoice(
+    'label',
+    'Etiqueta',
+    Icons.label_outline,
+    'General',
+    0xFF7E57C2,
+  ),
+  AppIconChoice(
+    'bookmark',
+    'Marcador',
+    Icons.bookmark_border,
+    'General',
+    0xFF3949AB,
+  ),
+  AppIconChoice(
+    'place',
+    'Ubicación',
+    Icons.place_outlined,
+    'General',
+    0xFFE53935,
+  ),
+  AppIconChoice(
+    'info',
+    'Información',
+    Icons.info_outline,
+    'General',
+    0xFF1976D2,
+  ),
+  AppIconChoice(
+    'push_pin',
+    'Fijado',
+    Icons.push_pin_outlined,
+    'General',
+    0xFFEF6C00,
+  ),
+  AppIconChoice(
+    'person',
+    'Persona',
+    Icons.person_outline,
+    'General',
+    0xFF5E35B1,
+  ),
+  AppIconChoice(
+    'groups',
+    'Grupo',
+    Icons.groups_outlined,
+    'General',
+    0xFF3949AB,
+  ),
+  AppIconChoice('event', 'Fecha', Icons.event_outlined, 'General', 0xFF00897B),
+  AppIconChoice('qr', 'QR', Icons.qr_code_2, 'General', 0xFF455A64),
+  AppIconChoice(
+    'camera',
+    'Cámara',
+    Icons.photo_camera_outlined,
+    'General',
+    0xFF1976D2,
+  ),
+  AppIconChoice('attach', 'Adjunto', Icons.attach_file, 'General', 0xFF546E7A),
+  AppIconChoice(
+    'description',
+    'Documento',
+    Icons.description_outlined,
+    'General',
+    0xFF3949AB,
+  ),
+  AppIconChoice(
+    'folder',
+    'Carpeta',
+    Icons.folder_outlined,
+    'General',
+    0xFFF9A825,
+  ),
+  AppIconChoice(
+    'shield',
+    'Protección',
+    Icons.shield_outlined,
+    'General',
+    0xFF00897B,
+  ),
+  AppIconChoice('lock', 'Bloqueo', Icons.lock_outline, 'General', 0xFF6D4C41),
 ];
 
 bool isToolArtworkKey(String key) => const {
@@ -301,6 +907,10 @@ bool isToolArtworkKey(String key) => const {
   'tool_art_screwdriver',
   'tool_art_drill',
 }.contains(key);
+
+bool isElectricCollectionKey(String key) => appIconChoices.any(
+  (choice) => choice.key == key && choice.key.startsWith('electric_'),
+);
 
 bool isCustomIconKey(String key) => key.startsWith('custom:');
 
@@ -332,15 +942,52 @@ Widget iconWidgetForKey(
   double size = 24,
   BoxFit fit = BoxFit.contain,
 }) {
-  if (key == 'tool_art_hammer') {
-    return Icon(Icons.hardware_outlined, color: color, size: size);
+  if (isElectricCollectionKey(key)) {
+    return SvgPicture.asset(
+      'assets/icons/electricos/${key.substring('electric_'.length)}.svg',
+      width: size,
+      height: size,
+      fit: fit,
+      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+    );
   }
-
   if (isToolArtworkKey(key)) {
-    return _ToolArtworkIcon(
-      kind: key,
-      size: size,
-      color: color,
+    // Ventanas de la imagen original: conserva los cuatro dibujos aprobados
+    // sin ampliarlos respecto al tamaño que pide cada pantalla.
+    return Center(
+      widthFactor: 1,
+      heightFactor: 1,
+      child: SizedBox.square(
+        dimension: size,
+        child: ClipOval(
+          child: Stack(
+            children: [
+              Positioned(
+                left:
+                    -const {
+                      'tool_art_hammer': 192.0,
+                      'tool_art_handsaw': 481.0,
+                      'tool_art_screwdriver': 760.0,
+                      'tool_art_drill': 1052.0,
+                    }[key]! *
+                    size /
+                    200,
+                top: -415 * size / 200,
+                width: 1448 * size / 200,
+                height: 1086 * size / 200,
+                child: Image.asset(
+                  'assets/icons/herramientas.png',
+                  fit: BoxFit.fill,
+                  filterQuality: FilterQuality.high,
+                  errorBuilder: (_, _, _) => key == 'tool_art_hammer'
+                      ? Icon(Icons.hardware_outlined, color: color, size: size)
+                      : _ToolArtworkIcon(kind: key, size: size, color: color),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -362,11 +1009,8 @@ Widget iconWidgetForKey(
       child: SvgPicture.file(
         file,
         fit: fit,
-        placeholderBuilder: (_) => Icon(
-          Icons.image_outlined,
-          color: color,
-          size: size,
-        ),
+        placeholderBuilder: (_) =>
+            Icon(Icons.image_outlined, color: color, size: size),
       ),
     );
   }
@@ -377,24 +1021,30 @@ Widget iconWidgetForKey(
     child: Image.file(
       file,
       fit: fit,
-      errorBuilder: (_, _, _) => Icon(
-        Icons.broken_image_outlined,
-        color: color,
-        size: size,
-      ),
+      errorBuilder: (_, _, _) =>
+          Icon(Icons.broken_image_outlined, color: color, size: size),
     ),
   );
 }
 
-Widget fieldOptionIconWidget(
-  FieldOption option, {
-  double size = 24,
-}) =>
-    iconWidgetForKey(
-      option.iconKey,
-      color: option.color,
-      size: size,
-    );
+Widget fieldOptionIconWidget(FieldOption option, {double size = 24}) {
+  final glyph = iconWidgetForKey(
+    option.iconKey,
+    color: option.color,
+    size: isElectricCollectionKey(option.iconKey) ? size * 0.55 : size,
+  );
+  if (!isElectricCollectionKey(option.iconKey)) return glyph;
+  return Container(
+    width: size,
+    height: size,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: option.circleColor,
+      shape: BoxShape.circle,
+    ),
+    child: glyph,
+  );
+}
 
 const optionColorPalette = <int>[
   0xFF1976D2,
@@ -562,6 +1212,7 @@ class FieldOption {
     required this.label,
     required this.iconKey,
     required this.colorValue,
+    this.circleColorValue,
     this.position = 0,
     this.active = true,
   });
@@ -571,29 +1222,34 @@ class FieldOption {
   String label;
   String iconKey;
   int colorValue;
+  int? circleColorValue;
   int position;
   bool active;
 
   IconData get icon => appIconFor(iconKey);
   Color get color => Color(colorValue);
+  Color get circleColor => circleColorValue == null
+      ? color.withValues(alpha: 0.12)
+      : Color(circleColorValue!);
 
   FieldOption copyWith({
     int? id,
     String? label,
     String? iconKey,
     int? colorValue,
+    int? circleColorValue,
     int? position,
     bool? active,
-  }) =>
-      FieldOption(
-        id: id ?? this.id,
-        fieldKey: fieldKey,
-        label: label ?? this.label,
-        iconKey: iconKey ?? this.iconKey,
-        colorValue: colorValue ?? this.colorValue,
-        position: position ?? this.position,
-        active: active ?? this.active,
-      );
+  }) => FieldOption(
+    id: id ?? this.id,
+    fieldKey: fieldKey,
+    label: label ?? this.label,
+    iconKey: iconKey ?? this.iconKey,
+    colorValue: colorValue ?? this.colorValue,
+    circleColorValue: circleColorValue ?? this.circleColorValue,
+    position: position ?? this.position,
+    active: active ?? this.active,
+  );
 
   Map<String, Object?> toMap({bool includeId = true}) {
     final map = <String, Object?>{
@@ -601,6 +1257,7 @@ class FieldOption {
       'label': label,
       'icon_key': iconKey,
       'color_value': colorValue,
+      'circle_color_value': circleColorValue,
       'position': position,
       'active': active ? 1 : 0,
     };
@@ -609,14 +1266,15 @@ class FieldOption {
   }
 
   factory FieldOption.fromMap(Map<String, Object?> map) => FieldOption(
-        id: map['id'] as int?,
-        fieldKey: (map['field_key'] as String?) ?? '',
-        label: (map['label'] as String?) ?? '',
-        iconKey: (map['icon_key'] as String?) ?? 'handyman',
-        colorValue: (map['color_value'] as num?)?.toInt() ?? 0xFF546E7A,
-        position: (map['position'] as num?)?.toInt() ?? 0,
-        active: ((map['active'] as num?)?.toInt() ?? 1) == 1,
-      );
+    id: map['id'] as int?,
+    fieldKey: (map['field_key'] as String?) ?? '',
+    label: (map['label'] as String?) ?? '',
+    iconKey: (map['icon_key'] as String?) ?? 'handyman',
+    colorValue: (map['color_value'] as num?)?.toInt() ?? 0xFF546E7A,
+    circleColorValue: (map['circle_color_value'] as num?)?.toInt(),
+    position: (map['position'] as num?)?.toInt() ?? 0,
+    active: ((map['active'] as num?)?.toInt() ?? 1) == 1,
+  );
 }
 
 List<FieldOption> defaultFieldOptions(String fieldKey) {
@@ -720,47 +1378,45 @@ const toolTypeStyles = <ToolTypeStyle>[
     Color(0xFFF59E0B),
     Icons.electrical_services_outlined,
   ),
-  ToolTypeStyle(
-    'Repuesto',
-    Color(0xFF7E57C2),
-    Icons.settings_outlined,
-  ),
-  ToolTypeStyle(
-    'Consumible',
-    Color(0xFF00897B),
-    Icons.inventory_2_outlined,
-  ),
+  ToolTypeStyle('Repuesto', Color(0xFF7E57C2), Icons.settings_outlined),
+  ToolTypeStyle('Consumible', Color(0xFF00897B), Icons.inventory_2_outlined),
 ];
 
 ToolTypeStyle toolTypeStyleFor(String value) {
   return toolTypeStyles.firstWhere(
     (style) => style.label == value,
-    orElse: () => const ToolTypeStyle(
-      '',
-      Color(0xFF7A7F85),
-      Icons.category_outlined,
-    ),
+    orElse: () =>
+        const ToolTypeStyle('', Color(0xFF7A7F85), Icons.category_outlined),
   );
 }
 
 const toolVoltageOptions = <String>[
-  '12 V', '18 V', '20 V', '24 V', '36 V', '48 V', '110 V', '230 V', '400 V',
+  '12 V',
+  '18 V',
+  '20 V',
+  '24 V',
+  '36 V',
+  '48 V',
+  '110 V',
+  '230 V',
+  '400 V',
 ];
 
 List<String> voltageOptionsFor(String selected) {
-  double numericValue(String value) => double.tryParse(
-        RegExp(r'\d+(?:[.,]\d+)?').firstMatch(value)?.group(0)
-                ?.replaceAll(',', '.') ??
+  double numericValue(String value) =>
+      double.tryParse(
+        RegExp(
+              r'\d+(?:[.,]\d+)?',
+            ).firstMatch(value)?.group(0)?.replaceAll(',', '.') ??
             '',
-      ) ?? double.infinity;
-  final options = {
-    ...toolVoltageOptions,
-    if (selected.isNotEmpty) selected,
-  }.toList()
-    ..sort((a, b) {
-      final order = numericValue(a).compareTo(numericValue(b));
-      return order == 0 ? a.compareTo(b) : order;
-    });
+      ) ??
+      double.infinity;
+  final options =
+      {...toolVoltageOptions, if (selected.isNotEmpty) selected}.toList()
+        ..sort((a, b) {
+          final order = numericValue(a).compareTo(numericValue(b));
+          return order == 0 ? a.compareTo(b) : order;
+        });
   return ['', ...options];
 }
 
@@ -862,52 +1518,52 @@ class ToolItem {
   }
 
   ToolItem copy() => ToolItem(
-        id: id,
-        name: name,
-        description: description,
-        descriptionDelta: descriptionDelta,
-        barcode: barcode,
-        quantity: quantity,
-        unit: unit,
-        minimumStock: minimumStock,
-        purchasePrice: purchasePrice,
-        condition: condition,
-        type: type,
-        voltage: voltage,
-        images: images.map((image) => image.copy()).toList(),
-      );
+    id: id,
+    name: name,
+    description: description,
+    descriptionDelta: descriptionDelta,
+    barcode: barcode,
+    quantity: quantity,
+    unit: unit,
+    minimumStock: minimumStock,
+    purchasePrice: purchasePrice,
+    condition: condition,
+    type: type,
+    voltage: voltage,
+    images: images.map((image) => image.copy()).toList(),
+  );
 
   Map<String, Object?> toMap() => {
-        'id': id,
-        'name': name,
-        'description': description,
-        'description_delta': descriptionDelta,
-        'barcode': barcode,
-        'quantity': quantity,
-        'unit': unit,
-        'minimum_stock': minimumStock,
-        'purchase_price': purchasePrice,
-        'condition': condition,
-        'tool_type': type,
-        'voltage': voltage,
-        // Se conserva para compatibilidad con versiones antiguas.
-        'image_path': imagePath,
-      };
+    'id': id,
+    'name': name,
+    'description': description,
+    'description_delta': descriptionDelta,
+    'barcode': barcode,
+    'quantity': quantity,
+    'unit': unit,
+    'minimum_stock': minimumStock,
+    'purchase_price': purchasePrice,
+    'condition': condition,
+    'tool_type': type,
+    'voltage': voltage,
+    // Se conserva para compatibilidad con versiones antiguas.
+    'image_path': imagePath,
+  };
 
   factory ToolItem.fromMap(Map<String, Object?> map) => ToolItem(
-        id: map['id'] as int,
-        name: (map['name'] as String?) ?? '',
-        description: (map['description'] as String?) ?? '',
-        descriptionDelta: (map['description_delta'] as String?) ?? '',
-        barcode: (map['barcode'] as String?) ?? '',
-        quantity: (map['quantity'] as num?)?.toDouble() ?? 0,
-        unit: (map['unit'] as String?) ?? 'ud',
-        minimumStock: (map['minimum_stock'] as num?)?.toDouble() ?? 0,
-        purchasePrice: (map['purchase_price'] as num?)?.toDouble() ?? 0,
-        condition: (map['condition'] as String?) ?? 'Bueno',
-        type: (map['tool_type'] as String?) ?? '',
-        voltage: (map['voltage'] as String?) ?? '',
-      );
+    id: map['id'] as int,
+    name: (map['name'] as String?) ?? '',
+    description: (map['description'] as String?) ?? '',
+    descriptionDelta: (map['description_delta'] as String?) ?? '',
+    barcode: (map['barcode'] as String?) ?? '',
+    quantity: (map['quantity'] as num?)?.toDouble() ?? 0,
+    unit: (map['unit'] as String?) ?? 'ud',
+    minimumStock: (map['minimum_stock'] as num?)?.toDouble() ?? 0,
+    purchasePrice: (map['purchase_price'] as num?)?.toDouble() ?? 0,
+    condition: (map['condition'] as String?) ?? 'Bueno',
+    type: (map['tool_type'] as String?) ?? '',
+    voltage: (map['voltage'] as String?) ?? '',
+  );
 }
 
 class DatabaseStats {
@@ -938,7 +1594,7 @@ class ToolsDatabase {
 
     _database = await openDatabase(
       path,
-      version: 6,
+      version: 7,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -1007,6 +1663,16 @@ class ToolsDatabase {
             "ALTER TABLE tools ADD COLUMN voltage TEXT NOT NULL DEFAULT ''",
           );
         }
+        if (oldVersion < 7) {
+          final columns = await db.rawQuery('PRAGMA table_info(field_options)');
+          if (!columns.any(
+            (column) => column['name'] == 'circle_color_value',
+          )) {
+            await db.execute(
+              'ALTER TABLE field_options ADD COLUMN circle_color_value INTEGER',
+            );
+          }
+        }
       },
     );
 
@@ -1021,6 +1687,7 @@ class ToolsDatabase {
         label TEXT NOT NULL,
         icon_key TEXT NOT NULL DEFAULT 'handyman',
         color_value INTEGER NOT NULL DEFAULT 4283782485,
+        circle_color_value INTEGER,
         position INTEGER NOT NULL DEFAULT 0,
         active INTEGER NOT NULL DEFAULT 1,
         UNIQUE(field_key, label)
@@ -1033,9 +1700,7 @@ class ToolsDatabase {
     );
   }
 
-  static Future<void> _seedDefaultFieldOptions(
-    DatabaseExecutor db,
-  ) async {
+  static Future<void> _seedDefaultFieldOptions(DatabaseExecutor db) async {
     for (final fieldKey in const ['type', 'condition']) {
       for (final option in defaultFieldOptions(fieldKey)) {
         await db.insert(
@@ -1093,8 +1758,8 @@ class ToolsDatabase {
       if (tool.images.isEmpty) {
         final legacyPath =
             (rows.firstWhere((row) => row['id'] == tool.id)['image_path']
-                    as String?) ??
-                '';
+                as String?) ??
+            '';
         if (legacyPath.trim().isNotEmpty) {
           tool.images = [
             ToolImage(
@@ -1153,10 +1818,7 @@ class ToolsDatabase {
 
       for (final image in item.images) {
         image.toolId = item.id;
-        await txn.insert(
-          'tool_images',
-          image.toMap(includeId: false),
-        );
+        await txn.insert('tool_images', image.toMap(includeId: false));
       }
     });
 
@@ -1164,7 +1826,8 @@ class ToolsDatabase {
     final stalePaths = oldPaths.difference(newPaths);
 
     for (final path in stalePaths) {
-      final count = Sqflite.firstIntValue(
+      final count =
+          Sqflite.firstIntValue(
             await db.rawQuery(
               'SELECT COUNT(*) FROM tool_images WHERE path = ?',
               [path],
@@ -1206,9 +1869,7 @@ class ToolsDatabase {
     final db = await database;
     final rows = await db.query(
       'field_options',
-      where: includeInactive
-          ? 'field_key = ?'
-          : 'field_key = ? AND active = 1',
+      where: includeInactive ? 'field_key = ?' : 'field_key = ? AND active = 1',
       whereArgs: [fieldKey],
       orderBy: 'position ASC, id ASC',
     );
@@ -1229,18 +1890,14 @@ class ToolsDatabase {
           'FROM field_options WHERE field_key = ?',
           [option.fieldKey],
         );
-        position =
-            (result.first['next_position'] as num?)?.toInt() ?? position;
+        position = (result.first['next_position'] as num?)?.toInt() ?? position;
       }
 
       final stored = option.copyWith(position: position);
 
       int id;
       if (option.id == null) {
-        id = await txn.insert(
-          'field_options',
-          stored.toMap(includeId: false),
-        );
+        id = await txn.insert('field_options', stored.toMap(includeId: false));
       } else {
         id = option.id!;
         await txn.update(
@@ -1254,8 +1911,7 @@ class ToolsDatabase {
       final oldLabel = previousLabel?.trim() ?? '';
       final newLabel = stored.label.trim();
       if (oldLabel.isNotEmpty && oldLabel != newLabel) {
-        final column =
-            stored.fieldKey == 'type' ? 'tool_type' : 'condition';
+        final column = stored.fieldKey == 'type' ? 'tool_type' : 'condition';
         await txn.update(
           'tools',
           {column: newLabel},
@@ -1272,10 +1928,9 @@ class ToolsDatabase {
     final db = await database;
     final column = option.fieldKey == 'type' ? 'tool_type' : 'condition';
     return Sqflite.firstIntValue(
-          await db.rawQuery(
-            'SELECT COUNT(*) FROM tools WHERE $column = ?',
-            [option.label],
-          ),
+          await db.rawQuery('SELECT COUNT(*) FROM tools WHERE $column = ?', [
+            option.label,
+          ]),
         ) ??
         0;
   }
@@ -1289,11 +1944,11 @@ class ToolsDatabase {
 
     await db.transaction((txn) async {
       final column = option.fieldKey == 'type' ? 'tool_type' : 'condition';
-      final count = Sqflite.firstIntValue(
-            await txn.rawQuery(
-              'SELECT COUNT(*) FROM tools WHERE $column = ?',
-              [option.label],
-            ),
+      final count =
+          Sqflite.firstIntValue(
+            await txn.rawQuery('SELECT COUNT(*) FROM tools WHERE $column = ?', [
+              option.label,
+            ]),
           ) ??
           0;
 
@@ -1322,8 +1977,9 @@ class ToolsDatabase {
 
   Future<void> seedIfEmpty(List<ToolItem> defaults) async {
     final db = await database;
-    final countResult =
-        Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM tools'));
+    final countResult = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM tools'),
+    );
     if ((countResult ?? 0) != 0) return;
 
     final batch = db.batch();
@@ -1337,9 +1993,12 @@ class ToolsDatabase {
     final db = await database;
 
     final toolsCount =
-        Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM tools')) ??
-            0;
-    final imagesCount = Sqflite.firstIntValue(
+        Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM tools'),
+        ) ??
+        0;
+    final imagesCount =
+        Sqflite.firstIntValue(
           await db.rawQuery('SELECT COUNT(*) FROM tool_images'),
         ) ??
         0;
@@ -1460,9 +2119,7 @@ class BackupManager {
 
       final databaseDir = Directory(p.join(workDir.path, 'database'));
       await databaseDir.create(recursive: true);
-      await dbFile.copy(
-        p.join(databaseDir.path, 'gestor_herramientas.db'),
-      );
+      await dbFile.copy(p.join(databaseDir.path, 'gestor_herramientas.db'));
 
       final backupImagesDir = Directory(p.join(workDir.path, 'tool_images'));
       if (await imagesDir.exists()) {
@@ -1568,9 +2225,7 @@ class BackupManager {
 
       final dbDestination = await ToolsDatabase.instance.databasePath;
       final imagesDestination = await _imagesDirectory();
-      final restoredImages = Directory(
-        p.join(restoreDir.path, 'tool_images'),
-      );
+      final restoredImages = Directory(p.join(restoreDir.path, 'tool_images'));
 
       await ToolsDatabase.instance.closeForBackup();
 
@@ -1609,10 +2264,7 @@ class BackupManager {
     await for (final entity in source.list(recursive: false)) {
       final name = p.basename(entity.path);
       if (entity is Directory) {
-        await _copyDirectory(
-          entity,
-          Directory(p.join(destination.path, name)),
-        );
+        await _copyDirectory(entity, Directory(p.join(destination.path, name)));
       } else if (entity is File) {
         await entity.copy(p.join(destination.path, name));
       }
@@ -1674,8 +2326,11 @@ class StartupStatusPage extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (hasError)
-                  const Icon(Icons.error_outline, size: 42,
-                      color: Color(0xFF72777D))
+                  const Icon(
+                    Icons.error_outline,
+                    size: 42,
+                    color: Color(0xFF72777D),
+                  )
                 else
                   const SizedBox(
                     width: 42,
@@ -1702,8 +2357,10 @@ class StartupStatusPage extends StatelessWidget {
                 ),
                 if (hasError) ...[
                   const SizedBox(height: 16),
-                  FilledButton(onPressed: onRetry,
-                      child: const Text('Reintentar')),
+                  FilledButton(
+                    onPressed: onRetry,
+                    child: const Text('Reintentar'),
+                  ),
                 ],
               ],
             ),
@@ -1782,8 +2439,9 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     try {
       await ToolsDatabase.instance.seedIfEmpty(_defaultItems);
       final items = await ToolsDatabase.instance.loadTools();
-      final conditionOptions =
-          await ToolsDatabase.instance.loadFieldOptions('condition');
+      final conditionOptions = await ToolsDatabase.instance.loadFieldOptions(
+        'condition',
+      );
       if (!mounted) return;
       setState(() {
         _items
@@ -1848,9 +2506,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
 
   Future<void> _openFieldOptionsManager() async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => const FieldOptionsManagementPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const FieldOptionsManagementPage()),
     );
     await _loadItems();
   }
@@ -1913,9 +2569,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       await _loadItems();
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Copia restaurada correctamente'),
-        ),
+        const SnackBar(content: Text('Copia restaurada correctamente')),
       );
       return true;
     } catch (error) {
@@ -2066,13 +2720,13 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
             ),
             Expanded(
               child: visible.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No se encontraron herramientas',
-                            style: TextStyle(color: Color(0xFF7A7F85)),
-                          ),
-                        )
-                      : ListView.separated(
+                  ? const Center(
+                      child: Text(
+                        'No se encontraron herramientas',
+                        style: TextStyle(color: Color(0xFF7A7F85)),
+                      ),
+                    )
+                  : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 92),
                       itemCount: visible.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 8),
@@ -2102,7 +2756,8 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                                       color: const Color(0xFFEAF4FE),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: item.imagePath.isNotEmpty &&
+                                    child:
+                                        item.imagePath.isNotEmpty &&
                                             File(item.imagePath).existsSync()
                                         ? Image.file(
                                             File(item.imagePath),
@@ -2144,12 +2799,13 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                                             Container(
                                               padding:
                                                   const EdgeInsets.symmetric(
-                                                horizontal: 9,
-                                                vertical: 4,
-                                              ),
+                                                    horizontal: 9,
+                                                    vertical: 4,
+                                                  ),
                                               decoration: BoxDecoration(
-                                                color: style.color
-                                                    .withValues(alpha: 0.12),
+                                                color: style.color.withValues(
+                                                  alpha: 0.12,
+                                                ),
                                                 borderRadius:
                                                     BorderRadius.circular(20),
                                               ),
@@ -2207,9 +2863,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
 
 Future<Directory> customIconsDirectory() async {
   final docs = await getApplicationDocumentsDirectory();
-  final directory = Directory(
-    p.join(docs.path, 'tool_images', 'custom_icons'),
-  );
+  final directory = Directory(p.join(docs.path, 'tool_images', 'custom_icons'));
   if (!await directory.exists()) {
     await directory.create(recursive: true);
   }
@@ -2230,14 +2884,47 @@ Future<List<String>> loadCustomIconKeys() async {
   }
 
   keys.sort(
-    (a, b) => appIconLabel(a)
-        .toLowerCase()
-        .compareTo(appIconLabel(b).toLowerCase()),
+    (a, b) =>
+        appIconLabel(a).toLowerCase().compareTo(appIconLabel(b).toLowerCase()),
   );
   return keys;
 }
 
-Future<List<String>> importCustomIcons() async {
+Future<Map<String, String>> loadCustomIconGroups(List<String> keys) async {
+  final groups = <String, String>{};
+  for (final key in keys) {
+    var group = 'Mis iconos';
+    try {
+      final file = File('${customIconPathFromKey(key)}.group.json');
+      if (await file.exists()) {
+        final data = jsonDecode(await file.readAsString());
+        final saved = data is Map ? data['group'] : null;
+        if (saved is String &&
+            saved != 'Todos' &&
+            appIconCategories.contains(saved)) {
+          group = saved;
+        }
+      }
+    } catch (_) {
+      // Los iconos anteriores o sin metadatos siguen en Mis iconos.
+    }
+    groups[key] = group;
+  }
+  return groups;
+}
+
+Future<void> saveCustomIconGroup(String key, String group) async {
+  if (!isCustomIconKey(key) ||
+      group == 'Todos' ||
+      !appIconCategories.contains(group)) {
+    throw ArgumentError('Grupo de iconos no válido');
+  }
+  await File(
+    '${customIconPathFromKey(key)}.group.json',
+  ).writeAsString(jsonEncode({'group': group}), flush: true);
+}
+
+Future<List<String>> importCustomIcons({String group = 'Mis iconos'}) async {
   final picked = await FilePicker.platform.pickFiles(
     type: FileType.custom,
     allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp', 'svg'],
@@ -2257,7 +2944,8 @@ Future<List<String>> importCustomIcons() async {
     if (!await source.exists()) continue;
 
     final extension = p.extension(sourcePath).toLowerCase();
-    final originalName = p.basenameWithoutExtension(item.name)
+    final originalName = p
+        .basenameWithoutExtension(item.name)
         .replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_');
     final safeName = originalName.isEmpty ? 'icono' : originalName;
     final target = p.join(
@@ -2266,17 +2954,16 @@ Future<List<String>> importCustomIcons() async {
     );
 
     final stored = await source.copy(target);
-    imported.add('custom:${stored.path}');
+    final key = 'custom:${stored.path}';
+    await saveCustomIconGroup(key, group);
+    imported.add(key);
   }
 
   return imported;
 }
 
 class IconPickerPage extends StatefulWidget {
-  const IconPickerPage({
-    super.key,
-    required this.currentKey,
-  });
+  const IconPickerPage({super.key, required this.currentKey});
 
   final String currentKey;
 
@@ -2286,6 +2973,7 @@ class IconPickerPage extends StatefulWidget {
 
 class _IconPickerPageState extends State<IconPickerPage> {
   List<String> _customKeys = const [];
+  Map<String, String> _customGroups = const {};
   bool _loadingCustom = true;
   late String _category;
 
@@ -2300,24 +2988,63 @@ class _IconPickerPageState extends State<IconPickerPage> {
 
   Future<void> _loadCustom() async {
     final keys = await loadCustomIconKeys();
+    final groups = await loadCustomIconGroups(keys);
     if (!mounted) return;
     setState(() {
       _customKeys = keys;
+      _customGroups = groups;
+      if (isCustomIconKey(widget.currentKey)) {
+        _category = groups[widget.currentKey] ?? 'Mis iconos';
+      }
       _loadingCustom = false;
     });
   }
 
   Future<void> _import() async {
-    final imported = await importCustomIcons();
+    var selected = _category == 'Todos' ? 'Herramientas' : _category;
+    final group = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Grupo de los iconos'),
+          content: DropdownButtonFormField<String>(
+            initialValue: selected,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Grupo'),
+            items: appIconCategories
+                .where((item) => item != 'Todos')
+                .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                .toList(),
+            onChanged: (value) {
+              if (value != null) setDialogState(() => selected = value);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, selected),
+              child: const Text('Elegir archivos'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || group == null) return;
+    final imported = await importCustomIcons(group: group);
     if (!mounted || imported.isEmpty) return;
 
     final keys = await loadCustomIconKeys();
+    final groups = await loadCustomIconGroups(keys);
     if (!mounted) return;
 
     setState(() {
       _customKeys = keys;
+      _customGroups = groups;
       _loadingCustom = false;
-      _category = 'Mis iconos';
+      _category = group;
     });
   }
 
@@ -2326,9 +3053,19 @@ class _IconPickerPageState extends State<IconPickerPage> {
     final builtInVisible = _category == 'Todos'
         ? appIconChoices
         : appIconChoices
-            .where((choice) => choice.category == _category)
-            .toList();
+              .where((choice) => choice.category == _category)
+              .toList();
     final showingCustom = _category == 'Mis iconos';
+    final visibleKeys = <String>[
+      if (!showingCustom) ...builtInVisible.map((choice) => choice.key),
+      ..._customKeys.where(
+        (key) =>
+            showingCustom ||
+            _category == 'Todos' ||
+            _customGroups[key] == _category,
+      ),
+      if (showingCustom) ...builtInVisible.map((choice) => choice.key),
+    ];
 
     return Scaffold(
       appBar: AppBar(
@@ -2398,146 +3135,104 @@ class _IconPickerPageState extends State<IconPickerPage> {
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final columns = (constraints.maxWidth / 88).floor().clamp(2, 6);
-                  final labelSize = MediaQuery.textScalerOf(context).scale(11);
-                  final gridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: columns,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    // Padding + icono + separación + dos líneas + margen.
-                    mainAxisExtent: 16 + 48 + 6 + labelSize * 2.4 + 8,
+                  final columns = (constraints.maxWidth / 88).floor().clamp(
+                    2,
+                    6,
                   );
-                  return showingCustom
-                  ? _loadingCustom
-                      ? const Center(child: CircularProgressIndicator())
-                      : _customKeys.isEmpty
-                          ? const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(24),
-                                child: Text(
-                                  'Todavía no hay iconos propios. Pulsa '
-                                  'GALERÍA... para importar PNG, JPG, WEBP '
-                                  'o SVG.',
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            )
-                          : GridView.builder(
-                              padding:
-                                  const EdgeInsets.fromLTRB(12, 0, 12, 20),
-                              gridDelegate: gridDelegate,
-                              itemCount: _customKeys.length,
-                              itemBuilder: (context, index) {
-                                final key = _customKeys[index];
-                                final selected = key == widget.currentKey;
-
-                                return Material(
-                                  color: selected
-                                      ? const Color(0xFFEAF4FE)
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(12),
-                                    onTap: () => Navigator.pop(context, key),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(8),
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Container(
-                                            width: 48,
-                                            height: 48,
-                                            padding: const EdgeInsets.all(4),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF4F5F6),
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-                                            child: iconWidgetForKey(
-                                              key,
-                                              color:
-                                                  const Color(0xFF4B535A),
-                                              size: 40,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            appIconLabel(key),
-                                            textAlign: TextAlign.center,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              height: 1.2,
-                                              fontWeight: selected
-                                                  ? FontWeight.w700
-                                                  : FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            )
-                  : GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-                      gridDelegate: gridDelegate,
-                      itemCount: builtInVisible.length,
-                      itemBuilder: (context, index) {
-                        final choice = builtInVisible[index];
-                        final selected = choice.key == widget.currentKey;
-
-                        return Material(
-                          color: selected
-                              ? choice.defaultColor.withValues(alpha: 0.12)
-                              : Colors.white,
+                  final labelSize = MediaQuery.textScalerOf(context).scale(11);
+                  final gridDelegate =
+                      SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        // Padding + icono + separación + dos líneas + margen.
+                        mainAxisExtent: 16 + 48 + 6 + labelSize * 2.4 + 8,
+                      );
+                  if (_loadingCustom && showingCustom) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (visibleKeys.isEmpty) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          'Todavía no hay iconos en este grupo. Pulsa '
+                          'GALERÍA... para importar PNG, JPG, WEBP o SVG.',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    );
+                  }
+                  return GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                    gridDelegate: gridDelegate,
+                    itemCount: visibleKeys.length,
+                    itemBuilder: (context, index) {
+                      final key = visibleKeys[index];
+                      final custom = isCustomIconKey(key);
+                      final selected = key == widget.currentKey;
+                      final color = custom
+                          ? const Color(0xFF4B535A)
+                          : appIconChoiceFor(key).defaultColor;
+                      return Material(
+                        color: selected
+                            ? color.withValues(alpha: 0.12)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
                           borderRadius: BorderRadius.circular(12),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => Navigator.pop(context, choice.key),
-                            child: Padding(
-                              padding: const EdgeInsets.all(8),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color: choice.defaultColor
-                                          .withValues(alpha: 0.12),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: iconWidgetForKey(
-                                      choice.key,
-                                      color: choice.defaultColor,
-                                      size: 28,
-                                    ),
+                          onTap: () => Navigator.pop(context, key),
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: custom ? 48 : 44,
+                                  height: custom ? 48 : 44,
+                                  padding: custom
+                                      ? const EdgeInsets.all(4)
+                                      : EdgeInsets.zero,
+                                  decoration: BoxDecoration(
+                                    color: color.withValues(alpha: 0.12),
+                                    borderRadius: custom
+                                        ? BorderRadius.circular(10)
+                                        : null,
+                                    shape: custom
+                                        ? BoxShape.rectangle
+                                        : BoxShape.circle,
                                   ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    choice.label,
-                                    textAlign: TextAlign.center,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      height: 1.2,
-                                      fontWeight: selected
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                    ),
+                                  child: iconWidgetForKey(
+                                    key,
+                                    color: color,
+                                    size: custom
+                                        ? 40
+                                        : isElectricCollectionKey(key)
+                                        ? 22
+                                        : 28,
                                   ),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  appIconLabel(key),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: custom ? 10 : 11,
+                                    height: 1.2,
+                                    fontWeight: selected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        );
-                      },
-                    );
+                        ),
+                      );
+                    },
+                  );
                 },
               ),
             ),
@@ -2568,17 +3263,20 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
   late final TextEditingController _controller;
   late String _iconKey;
   late int _colorValue;
+  int? _circleColorValue;
 
   String get _title => widget.fieldKey == 'type' ? 'Tipo' : 'Estado';
 
   @override
   void initState() {
     super.initState();
-    _controller =
-        TextEditingController(text: widget.existing?.label ?? '');
-    _iconKey = widget.existing?.iconKey ??
+    _controller = TextEditingController(text: widget.existing?.label ?? '');
+    _iconKey =
+        widget.existing?.iconKey ??
         (widget.fieldKey == 'type' ? 'category' : 'check');
-    _colorValue = widget.existing?.colorValue ??
+    _circleColorValue = widget.existing?.circleColorValue;
+    _colorValue =
+        widget.existing?.colorValue ??
         (widget.fieldKey == 'type' ? 0xFF1976D2 : 0xFF43A047);
   }
 
@@ -2590,9 +3288,7 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
 
   Future<void> _chooseIcon() async {
     final selected = await Navigator.of(context).push<String>(
-      MaterialPageRoute(
-        builder: (_) => IconPickerPage(currentKey: _iconKey),
-      ),
+      MaterialPageRoute(builder: (_) => IconPickerPage(currentKey: _iconKey)),
     );
     if (!mounted || selected == null) return;
 
@@ -2621,6 +3317,7 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
         label: label,
         iconKey: _iconKey,
         colorValue: _colorValue,
+        circleColorValue: _circleColorValue,
         position: widget.existing?.position ?? widget.position,
         active: widget.existing?.active ?? true,
       ),
@@ -2632,7 +3329,9 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.existing == null ? 'Nueva opción de $_title' : 'Editar $_title',
+          widget.existing == null
+              ? 'Nueva opción de $_title'
+              : 'Editar $_title',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -2653,9 +3352,7 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
               controller: _controller,
               autofocus: widget.existing == null,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Nombre',
-              ),
+              decoration: const InputDecoration(labelText: 'Nombre'),
             ),
             const SizedBox(height: 16),
             OutlinedButton(
@@ -2665,10 +3362,15 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
               ),
               child: Row(
                 children: [
-                  iconWidgetForKey(
-                    _iconKey,
-                    color: Color(_colorValue),
-                    size: 28,
+                  fieldOptionIconWidget(
+                    FieldOption(
+                      fieldKey: widget.fieldKey,
+                      label: '',
+                      iconKey: _iconKey,
+                      colorValue: _colorValue,
+                      circleColorValue: _circleColorValue,
+                    ),
+                    size: isElectricCollectionKey(_iconKey) ? 44 : 28,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -2682,17 +3384,64 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
               ),
             ),
             const SizedBox(height: 18),
+            if (isElectricCollectionKey(_iconKey)) ...[
+              const Text(
+                'Color del círculo',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final value in optionColorPalette)
+                    InkWell(
+                      key: ValueKey('circle_color_$value'),
+                      onTap: () => setState(
+                        () => _circleColorValue = Color(
+                          value,
+                        ).withValues(alpha: 0.16).toARGB32(),
+                      ),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Color(value).withValues(alpha: 0.16),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            width: 2,
+                            color:
+                                _circleColorValue ==
+                                    Color(
+                                      value,
+                                    ).withValues(alpha: 0.16).toARGB32()
+                                ? Color(value)
+                                : Colors.transparent,
+                          ),
+                        ),
+                        child:
+                            _circleColorValue ==
+                                Color(value).withValues(alpha: 0.16).toARGB32()
+                            ? Icon(Icons.check, size: 20, color: Color(value))
+                            : null,
+                      ),
+                    ),
+                ],
+              ),
+              TextButton(
+                onPressed: () => setState(() => _circleColorValue = null),
+                child: const Text('Usar círculo del color de las líneas'),
+              ),
+              const SizedBox(height: 18),
+            ],
             if (isCustomIconKey(_iconKey))
               const Text(
                 'Este icono conserva sus colores originales.',
-                style: TextStyle(
-                  color: Color(0xFF6F747A),
-                  fontSize: 13,
-                ),
+                style: TextStyle(color: Color(0xFF6F747A), fontSize: 13),
               )
             else ...[
               const Text(
-                'Color',
+                'Color de las líneas',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 10),
@@ -2806,8 +3555,9 @@ class _FieldOptionsManagementPageState
 
     String? replacement;
     if (usage > 0) {
-      final alternatives =
-          _options.where((item) => item.id != option.id).toList();
+      final alternatives = _options
+          .where((item) => item.id != option.id)
+          .toList();
       if (alternatives.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -2845,10 +3595,7 @@ class _FieldOptionsManagementPageState
                             value: item.label,
                             child: Row(
                               children: [
-                                fieldOptionIconWidget(
-                                  item,
-                                  size: 20,
-                                ),
+                                fieldOptionIconWidget(item, size: 20),
                                 const SizedBox(width: 8),
                                 Text(item.label),
                               ],
@@ -2931,10 +3678,7 @@ class _FieldOptionsManagementPageState
                     child: ChoiceChip(
                       label: const SizedBox(
                         width: double.infinity,
-                        child: Text(
-                          'Tipo',
-                          textAlign: TextAlign.center,
-                        ),
+                        child: Text('Tipo', textAlign: TextAlign.center),
                       ),
                       selected: _fieldKey == 'type',
                       onSelected: (_) {
@@ -2951,10 +3695,7 @@ class _FieldOptionsManagementPageState
                     child: ChoiceChip(
                       label: const SizedBox(
                         width: double.infinity,
-                        child: Text(
-                          'Estado',
-                          textAlign: TextAlign.center,
-                        ),
+                        child: Text('Estado', textAlign: TextAlign.center),
                       ),
                       selected: _fieldKey == 'condition',
                       onSelected: (_) {
@@ -2977,10 +3718,7 @@ class _FieldOptionsManagementPageState
                   'Puedes crear nuevas opciones y modificar su nombre, icono '
                   'y color. Si renombras una opción, las herramientas '
                   'existentes se actualizan automáticamente.',
-                  style: TextStyle(
-                    color: Color(0xFF6F747A),
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: Color(0xFF6F747A), fontSize: 13),
                 ),
               ),
             ),
@@ -2988,60 +3726,59 @@ class _FieldOptionsManagementPageState
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _options.isEmpty
-                      ? const Center(child: Text('No hay opciones'))
-                      : ListView.separated(
-                          padding:
-                              const EdgeInsets.fromLTRB(12, 0, 12, 92),
-                          itemCount: _options.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 8),
-                          itemBuilder: (context, index) {
-                            final option = _options[index];
-                            return Material(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: option.color
-                                      .withValues(alpha: 0.14),
-                                  child: fieldOptionIconWidget(
-                                    option,
-                                    size: 24,
-                                  ),
-                                ),
-                                title: Text(
-                                  option.label,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  'Icono: ${appIconLabel(option.iconKey)}',
-                                ),
-                                onTap: () => _editOption(option),
-                                trailing: PopupMenuButton<String>(
-                                  onSelected: (value) {
-                                    if (value == 'edit') {
-                                      _editOption(option);
-                                    } else if (value == 'delete') {
-                                      _deleteOption(option);
-                                    }
-                                  },
-                                  itemBuilder: (_) => const [
-                                    PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('Editar'),
+                  ? const Center(child: Text('No hay opciones'))
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 92),
+                      itemCount: _options.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final option = _options[index];
+                        return Material(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          child: ListTile(
+                            leading: isElectricCollectionKey(option.iconKey)
+                                ? fieldOptionIconWidget(option, size: 40)
+                                : CircleAvatar(
+                                    backgroundColor: option.circleColor,
+                                    child: fieldOptionIconWidget(
+                                      option,
+                                      size: 24,
                                     ),
-                                    PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('Eliminar'),
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                            title: Text(
+                              option.label,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                            subtitle: Text(
+                              'Icono: ${appIconLabel(option.iconKey)}',
+                            ),
+                            onTap: () => _editOption(option),
+                            trailing: PopupMenuButton<String>(
+                              onSelected: (value) {
+                                if (value == 'edit') {
+                                  _editOption(option);
+                                } else if (value == 'delete') {
+                                  _deleteOption(option);
+                                }
+                              },
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: Text('Editar'),
+                                ),
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: Text('Eliminar'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -3061,8 +3798,7 @@ class DatabaseManagementPage extends StatefulWidget {
   final Future<bool> Function() onRestoreBackup;
 
   @override
-  State<DatabaseManagementPage> createState() =>
-      _DatabaseManagementPageState();
+  State<DatabaseManagementPage> createState() => _DatabaseManagementPageState();
 }
 
 class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
@@ -3107,11 +3843,11 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
             ok ? Icons.check_circle_outline : Icons.warning_amber_rounded,
             size: 36,
           ),
-          title: Text(ok ? 'Base de datos correcta' : 'Resultado de comprobación'),
+          title: Text(
+            ok ? 'Base de datos correcta' : 'Resultado de comprobación',
+          ),
           content: Text(
-            ok
-                ? 'SQLite no ha encontrado errores de integridad.'
-                : result,
+            ok ? 'SQLite no ha encontrado errores de integridad.' : result,
           ),
           actions: [
             FilledButton(
@@ -3124,7 +3860,9 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo comprobar la base de datos: $error')),
+        SnackBar(
+          content: Text('No se pudo comprobar la base de datos: $error'),
+        ),
       );
     }
   }
@@ -3248,9 +3986,7 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
               const SizedBox(height: 20),
               Row(
                 children: [
-                  const Expanded(
-                    child: SectionTitle('Registros guardados'),
-                  ),
+                  const Expanded(child: SectionTitle('Registros guardados')),
                   IconButton(
                     tooltip: 'Actualizar',
                     onPressed: _refreshUi,
@@ -3300,8 +4036,7 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
                               final row = rows[index];
                               final id = row['id'] ?? '';
                               final name = (row['name'] as String?) ?? '';
-                              final barcode =
-                                  (row['barcode'] as String?) ?? '';
+                              final barcode = (row['barcode'] as String?) ?? '';
                               final toolType =
                                   (row['tool_type'] as String?) ?? '';
                               final imageCount =
@@ -3309,9 +4044,7 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
 
                               return ListTile(
                                 dense: true,
-                                leading: CircleAvatar(
-                                  child: Text('$id'),
-                                ),
+                                leading: CircleAvatar(child: Text('$id')),
                                 title: Text(
                                   name.isEmpty ? 'Sin nombre' : name,
                                   maxLines: 1,
@@ -3320,7 +4053,9 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
                                 subtitle: Text(
                                   [
                                     if (toolType.isNotEmpty) toolType,
-                                    if ((row['voltage'] as String?)?.isNotEmpty ?? false)
+                                    if ((row['voltage'] as String?)
+                                            ?.isNotEmpty ??
+                                        false)
                                       row['voltage'] as String,
                                     if (barcode.isNotEmpty) barcode,
                                     '$imageCount imágenes',
@@ -3329,8 +4064,7 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
                               );
                             },
                           ),
-                          if (index < rows.length - 1)
-                            const Divider(height: 1),
+                          if (index < rows.length - 1) const Divider(height: 1),
                         ],
                       ],
                     ),
@@ -3372,10 +4106,7 @@ class _DatabaseStatCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-            ),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 2),
           Text(
@@ -3393,11 +4124,7 @@ class _DatabaseStatCard extends StatelessWidget {
 }
 
 class EditToolPage extends StatefulWidget {
-  const EditToolPage({
-    super.key,
-    required this.item,
-    required this.nextId,
-  });
+  const EditToolPage({super.key, required this.item, required this.nextId});
 
   final ToolItem? item;
   final int nextId;
@@ -3428,7 +4155,8 @@ class _EditToolPageState extends State<EditToolPage> {
 
   bool get _isEditing => widget.item != null;
 
-  bool get _showVoltage => isElectricalToolType(_type) ||
+  bool get _showVoltage =>
+      isElectricalToolType(_type) ||
       _typeOptions.any(
         (option) => option.label == _type && option.iconKey == 'electrical',
       );
@@ -3455,20 +4183,20 @@ class _EditToolPageState extends State<EditToolPage> {
     _condition = item?.condition ?? 'Bueno';
     _type = item?.type ?? '';
     _voltage = item?.voltage ?? '';
-    _images = item?.images.map((image) => image.copy()).toList() ??
-        <ToolImage>[];
+    _images =
+        item?.images.map((image) => image.copy()).toList() ?? <ToolImage>[];
     _loadFieldOptions();
   }
 
   Future<void> _loadFieldOptions() async {
     final types = await ToolsDatabase.instance.loadFieldOptions('type');
-    final conditions =
-        await ToolsDatabase.instance.loadFieldOptions('condition');
+    final conditions = await ToolsDatabase.instance.loadFieldOptions(
+      'condition',
+    );
     if (!mounted) return;
 
     setState(() {
-      _typeOptions =
-          types.isEmpty ? defaultFieldOptions('type') : types;
+      _typeOptions = types.isEmpty ? defaultFieldOptions('type') : types;
       _conditionOptions = conditions.isEmpty
           ? defaultFieldOptions('condition')
           : conditions;
@@ -3617,7 +4345,9 @@ class _EditToolPageState extends State<EditToolPage> {
     try {
       final uri = Uri.parse(url.trim());
       if (!(uri.scheme == 'http' || uri.scheme == 'https')) {
-        throw const FormatException('La URL debe comenzar por http:// o https://');
+        throw const FormatException(
+          'La URL debe comenzar por http:// o https://',
+        );
       }
 
       final client = HttpClient();
@@ -3630,10 +4360,7 @@ class _EditToolPageState extends State<EditToolPage> {
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         client.close(force: true);
-        throw HttpException(
-          'Error HTTP ${response.statusCode}',
-          uri: uri,
-        );
+        throw HttpException('Error HTTP ${response.statusCode}', uri: uri);
       }
 
       final contentType = response.headers.contentType?.mimeType ?? '';
@@ -3666,9 +4393,7 @@ class _EditToolPageState extends State<EditToolPage> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No se pudo descargar la imagen: $error'),
-        ),
+        SnackBar(content: Text('No se pudo descargar la imagen: $error')),
       );
     }
   }
@@ -3719,8 +4444,9 @@ class _EditToolPageState extends State<EditToolPage> {
   }
 
   Future<void> _editImageMetadata(ToolImage image) async {
-    final descriptionController =
-        TextEditingController(text: image.description);
+    final descriptionController = TextEditingController(
+      text: image.description,
+    );
     var selectedType = image.type;
 
     final result = await showDialog<Map<String, String>>(
@@ -3733,9 +4459,7 @@ class _EditToolPageState extends State<EditToolPage> {
             children: [
               DropdownButtonFormField<String>(
                 initialValue: selectedType,
-                decoration: const InputDecoration(
-                  labelText: 'Tipo',
-                ),
+                decoration: const InputDecoration(labelText: 'Tipo'),
                 items: const [
                   DropdownMenuItem(value: 'General', child: Text('General')),
                   DropdownMenuItem(
@@ -3750,10 +4474,7 @@ class _EditToolPageState extends State<EditToolPage> {
                     value: 'Documento',
                     child: Text('Documento / factura'),
                   ),
-                  DropdownMenuItem(
-                    value: 'Detalle',
-                    child: Text('Detalle'),
-                  ),
+                  DropdownMenuItem(value: 'Detalle', child: Text('Detalle')),
                 ],
                 onChanged: (value) {
                   if (value == null) return;
@@ -3777,13 +4498,10 @@ class _EditToolPageState extends State<EditToolPage> {
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(
-                dialogContext,
-                {
-                  'type': selectedType,
-                  'description': descriptionController.text.trim(),
-                },
-              ),
+              onPressed: () => Navigator.pop(dialogContext, {
+                'type': selectedType,
+                'description': descriptionController.text.trim(),
+              }),
               child: const Text('Guardar'),
             ),
           ],
@@ -3816,19 +4534,13 @@ class _EditToolPageState extends State<EditToolPage> {
                 child: InteractiveViewer(
                   minScale: 0.8,
                   maxScale: 4,
-                  child: Image.file(
-                    File(image.path),
-                    fit: BoxFit.contain,
-                  ),
+                  child: Image.file(File(image.path), fit: BoxFit.contain),
                 ),
               ),
               if (image.description.trim().isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: Text(
-                    image.description,
-                    textAlign: TextAlign.center,
-                  ),
+                  child: Text(image.description, textAlign: TextAlign.center),
                 ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
@@ -3961,23 +4673,22 @@ class _EditToolPageState extends State<EditToolPage> {
       _condition,
       fieldKey: 'condition',
     );
-    final typeStyle = optionForValue(
-      _typeOptions,
-      _type,
-      fieldKey: 'type',
-    );
-    final selectedType =
-        _typeOptions.any((option) => option.label == _type) ? _type : null;
+    final typeStyle = optionForValue(_typeOptions, _type, fieldKey: 'type');
+    final selectedType = _typeOptions.any((option) => option.label == _type)
+        ? _type
+        : null;
     final selectedCondition =
         _conditionOptions.any((option) => option.label == _condition)
-            ? _condition
-            : null;
+        ? _condition
+        : null;
     final voltages = voltageOptionsFor(_voltage);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V22' : 'Nuevo artículo · QUILL V22',
+          _isEditing
+              ? 'Editar artículo · QUILL V22'
+              : 'Nuevo artículo · QUILL V22',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -4020,10 +4731,7 @@ class _EditToolPageState extends State<EditToolPage> {
                   prefixIcon: Center(
                     widthFactor: 1,
                     heightFactor: 1,
-                    child: fieldOptionIconWidget(
-                      typeStyle,
-                      size: 24,
-                    ),
+                    child: fieldOptionIconWidget(typeStyle, size: 24),
                   ),
                 ),
                 hint: const Text('Selecciona el tipo'),
@@ -4033,10 +4741,7 @@ class _EditToolPageState extends State<EditToolPage> {
                         value: option.label,
                         child: Row(
                           children: [
-                            fieldOptionIconWidget(
-                              option,
-                              size: 20,
-                            ),
+                            fieldOptionIconWidget(option, size: 20),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -4066,8 +4771,9 @@ class _EditToolPageState extends State<EditToolPage> {
                   if (value == null) return;
                   setState(() => _type = value);
                 },
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'Selecciona el tipo' : null,
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Selecciona el tipo'
+                    : null,
               ),
               if (_showVoltage) ...[
                 const SizedBox(height: 12),
@@ -4148,18 +4854,14 @@ class _EditToolPageState extends State<EditToolPage> {
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Cantidad',
-                      ),
+                      decoration: const InputDecoration(labelText: 'Cantidad'),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: TextFormField(
                       controller: _unit,
-                      decoration: const InputDecoration(
-                        labelText: 'Unidad',
-                      ),
+                      decoration: const InputDecoration(labelText: 'Unidad'),
                     ),
                   ),
                 ],
@@ -4186,10 +4888,7 @@ class _EditToolPageState extends State<EditToolPage> {
                   prefixIcon: Center(
                     widthFactor: 1,
                     heightFactor: 1,
-                    child: fieldOptionIconWidget(
-                      style,
-                      size: 24,
-                    ),
+                    child: fieldOptionIconWidget(style, size: 24),
                   ),
                 ),
                 items: _conditionOptions
@@ -4198,10 +4897,7 @@ class _EditToolPageState extends State<EditToolPage> {
                         value: option.label,
                         child: Row(
                           children: [
-                            fieldOptionIconWidget(
-                              option,
-                              size: 20,
-                            ),
+                            fieldOptionIconWidget(option, size: 20),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -4271,9 +4967,7 @@ class _EditToolPageState extends State<EditToolPage> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: const Color(0xFFD7DDE3),
-                  ),
+                  border: Border.all(color: const Color(0xFFD7DDE3)),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: Column(
@@ -4306,8 +5000,7 @@ class _EditToolPageState extends State<EditToolPage> {
                           padding: const EdgeInsets.all(8),
                           scrollDirection: Axis.horizontal,
                           itemCount: _images.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(width: 8),
+                          separatorBuilder: (_, _) => const SizedBox(width: 8),
                           itemBuilder: (context, index) {
                             final image = _images[index];
                             return _ToolImageThumbnail(
@@ -4373,11 +5066,7 @@ class _CompactImageToolbar extends StatelessWidget {
             tooltip: 'Cámara',
             onTap: onCamera,
           ),
-          _CompactImageAction(
-            icon: Icons.link,
-            tooltip: 'URL',
-            onTap: onUrl,
-          ),
+          _CompactImageAction(icon: Icons.link, tooltip: 'URL', onTap: onUrl),
           _CompactImageAction(
             icon: Icons.auto_awesome,
             tooltip: 'IA',
@@ -4424,10 +5113,7 @@ class _CompactImageAction extends StatelessWidget {
       tooltip: tooltip,
       onPressed: onTap,
       visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints(
-        minWidth: 44,
-        minHeight: 44,
-      ),
+      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
       iconSize: 25,
       color: const Color(0xFF39444D),
       icon: Icon(icon),
@@ -4463,10 +5149,7 @@ class _ToolImageThumbnail extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               if (exists)
-                Image.file(
-                  File(image.path),
-                  fit: BoxFit.cover,
-                )
+                Image.file(File(image.path), fit: BoxFit.cover)
               else
                 const Center(
                   child: Icon(
@@ -4547,10 +5230,7 @@ class DescriptionQuillCard extends StatelessWidget {
         isEmpty: false,
         decoration: const InputDecoration(
           labelText: 'Descripción',
-          suffixIcon: Icon(
-            Icons.edit_outlined,
-            color: Color(0xFF168BD2),
-          ),
+          suffixIcon: Icon(Icons.edit_outlined, color: Color(0xFF168BD2)),
           contentPadding: EdgeInsets.fromLTRB(16, 18, 12, 16),
         ),
         child: ConstrainedBox(
@@ -4558,10 +5238,7 @@ class DescriptionQuillCard extends StatelessWidget {
           child: Align(
             alignment: Alignment.topLeft,
             child: hasText
-                ? _RichDeltaPreview(
-                    plainText: text,
-                    deltaJson: deltaJson,
-                  )
+                ? _RichDeltaPreview(plainText: text, deltaJson: deltaJson)
                 : const SizedBox.shrink(),
           ),
         ),
@@ -4571,10 +5248,7 @@ class DescriptionQuillCard extends StatelessWidget {
 }
 
 class _RichDeltaPreview extends StatelessWidget {
-  const _RichDeltaPreview({
-    required this.plainText,
-    required this.deltaJson,
-  });
+  const _RichDeltaPreview({required this.plainText, required this.deltaJson});
 
   final String plainText;
   final String deltaJson;
@@ -4599,10 +5273,7 @@ class _RichDeltaPreview extends StatelessWidget {
                 : const <String, dynamic>{};
 
             spans.add(
-              TextSpan(
-                text: insert,
-                style: _styleFromAttributes(attributes),
-              ),
+              TextSpan(text: insert, style: _styleFromAttributes(attributes)),
             );
           }
         }
@@ -4640,10 +5311,12 @@ class _RichDeltaPreview extends StatelessWidget {
     }
 
     return TextStyle(
-      fontWeight:
-          attributes['bold'] == true ? FontWeight.w700 : FontWeight.normal,
-      fontStyle:
-          attributes['italic'] == true ? FontStyle.italic : FontStyle.normal,
+      fontWeight: attributes['bold'] == true
+          ? FontWeight.w700
+          : FontWeight.normal,
+      fontStyle: attributes['italic'] == true
+          ? FontStyle.italic
+          : FontStyle.normal,
       decoration: decorations.isEmpty
           ? TextDecoration.none
           : TextDecoration.combine(decorations),
@@ -4743,7 +5416,7 @@ class _QuillDescriptionPageState extends State<QuillDescriptionPage> {
   Document _documentFromPlain(String value) {
     final text = value.trim().isEmpty ? '\n' : '${value.trimRight()}\n';
     return Document.fromJson([
-      {'insert': text}
+      {'insert': text},
     ]);
   }
 
@@ -4847,5 +5520,8 @@ String formatNumber(double value) {
   if (value == value.roundToDouble()) {
     return value.toInt().toString();
   }
-  return value.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+  return value
+      .toStringAsFixed(2)
+      .replaceAll(RegExp(r'0+$'), '')
+      .replaceAll(RegExp(r'\.$'), '');
 }

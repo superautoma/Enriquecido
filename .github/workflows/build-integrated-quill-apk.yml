@@ -5,9 +5,11 @@ on:
   push:
     branches:
       - main
+      - iconos-electricos-50
     paths:
       - "flutter/lib/main_quill_integrated_test.dart"
       - "flutter/pubspec.yaml"
+      - "flutter/assets/**"
       - "flutter/test/**"
       - "flutter/startup_android/**"
       - ".github/dev-signing/android-debug.keystore.b64"
