@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
-import 'package:cross_file/cross_file.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -1131,12 +1130,6 @@ class _EditToolPageState extends State<EditToolPage> {
   late String _condition;
   late List<ToolImage> _images;
   final ImagePicker _imagePicker = ImagePicker();
-
-  String get _primaryImagePath {
-    if (_images.isEmpty) return '';
-    final primary = _images.where((image) => image.isPrimary);
-    return primary.isNotEmpty ? primary.first.path : _images.first.path;
-  }
 
   bool get _isEditing => widget.item != null;
 
