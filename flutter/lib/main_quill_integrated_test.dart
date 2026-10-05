@@ -3826,6 +3826,13 @@ class _EditToolPageState extends State<EditToolPage> {
         _conditionOptions.any((option) => option.label == _condition)
             ? _condition
             : null;
+    final voltages = <String>[
+      '',
+      ...{
+        ...toolVoltageOptions,
+        if (_voltage.isNotEmpty) _voltage,
+      },
+    ];
 
     return Scaffold(
       appBar: AppBar(
@@ -3933,20 +3940,46 @@ class _EditToolPageState extends State<EditToolPage> {
                     prefixIcon: Icon(Icons.bolt_outlined),
                   ),
                   hint: const Text('Selecciona la tensión'),
-                  items: [
-                    const DropdownMenuItem(
-                      value: '',
-                      child: Text('Sin especificar'),
-                    ),
-                    for (final voltage in {
-                      ...toolVoltageOptions,
-                      if (_voltage.isNotEmpty) _voltage,
-                    })
-                      DropdownMenuItem(
-                        value: voltage,
-                        child: Text(voltage),
-                      ),
-                  ],
+                  items: voltages
+                      .map(
+                        (voltage) => DropdownMenuItem<String>(
+                          value: voltage,
+                          child: Row(
+                            children: [
+                              Icon(
+                                voltage.isEmpty
+                                    ? Icons.remove_circle_outline
+                                    : Icons.bolt_outlined,
+                                size: 20,
+                                color: voltage.isEmpty
+                                    ? const Color(0xFF78909C)
+                                    : const Color(0xFFF9A825),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  voltage.isEmpty ? 'Sin especificar' : voltage,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  selectedItemBuilder: (context) => voltages
+                      .map(
+                        (voltage) => Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            voltage.isEmpty ? 'Sin especificar' : voltage,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
                   onChanged: (value) {
                     if (value == null) return;
                     setState(() => _voltage = value);
