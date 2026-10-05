@@ -1627,7 +1627,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V17',
+          'Mis herramientas · QUILL V18',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -1968,7 +1968,11 @@ class _FieldOptionsManagementPageState
   }
 
   Future<String?> _pickIcon(String current) async {
-    var customKeys = await _loadCustomIconKeys();
+    // No abrimos FilePicker desde este modal. Android puede desmontar
+    // temporalmente la ruta al abrir el selector de archivos y provocar
+    // aserciones de dependencias en Flutter. El modal se cierra primero
+    // y la importación se hace desde _editOption.
+    final customKeys = await _loadCustomIconKeys();
     var category = isCustomIconKey(current)
         ? 'Mis iconos'
         : appIconChoiceFor(current).category;
@@ -1997,15 +2001,11 @@ class _FieldOptionsManagementPageState
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: () async {
-                              final imported = await _importCustomIcons();
-                              if (!context.mounted || imported.isEmpty) return;
-
-                              customKeys = await _loadCustomIconKeys();
-                              if (!context.mounted) return;
-                              setSheetState(() {
-                                category = 'Mis iconos';
-                              });
+                            onPressed: () {
+                              Navigator.pop(
+                                sheetContext,
+                                '__import_custom__',
+                              );
                             },
                             icon: const Icon(Icons.photo_library_outlined),
                             label: const Text('GALERÍA...'),
@@ -2252,14 +2252,25 @@ class _FieldOptionsManagementPageState
                 const SizedBox(height: 14),
                 OutlinedButton(
                   onPressed: () async {
-                    final selected = await _pickIcon(iconKey);
+                    var selected = await _pickIcon(iconKey);
                     if (selected == null) return;
 
+                    if (selected == '__import_custom__') {
+                      final imported = await _importCustomIcons();
+                      if (!mounted || imported.isEmpty) return;
+
+                      selected = await _pickIcon(imported.last);
+                      if (selected == null ||
+                          selected == '__import_custom__') {
+                        return;
+                      }
+                    }
+
                     setDialogState(() {
-                      iconKey = selected;
-                      if (!isCustomIconKey(selected)) {
+                      iconKey = selected!;
+                      if (!isCustomIconKey(selected!)) {
                         colorValue =
-                            appIconChoiceFor(selected).defaultColorValue;
+                            appIconChoiceFor(selected!).defaultColorValue;
                       }
                     });
                   },
@@ -3560,7 +3571,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V17' : 'Nuevo artículo · QUILL V17',
+          _isEditing ? 'Editar artículo · QUILL V18' : 'Nuevo artículo · QUILL V18',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
