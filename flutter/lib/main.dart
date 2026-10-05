@@ -237,7 +237,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas',
+          'Mis herramientas · v1.2',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -528,7 +528,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo' : 'Nuevo artículo',
+          _isEditing ? 'Editar artículo · v1.2' : 'Nuevo artículo · v1.2',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
