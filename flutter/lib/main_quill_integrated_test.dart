@@ -157,6 +157,14 @@ const appIconCategories = <String>[
 
 const appIconChoices = <AppIconChoice>[
   // Herramientas
+  AppIconChoice('tool_art_hammer', 'Martillo', Icons.hardware_outlined,
+      'Herramientas', 0xFF455A64),
+  AppIconChoice('tool_art_handsaw', 'Sierra de mano', Icons.carpenter_outlined,
+      'Herramientas', 0xFFF59E0B),
+  AppIconChoice('tool_art_screwdriver', 'Destornillador', Icons.build_outlined,
+      'Herramientas', 0xFFE53935),
+  AppIconChoice('tool_art_drill', 'Taladro', Icons.precision_manufacturing_outlined,
+      'Herramientas', 0xFFFBC02D),
   AppIconChoice('handyman', 'Herramientas', Icons.handyman_outlined,
       'Herramientas', 0xFF1976D2),
   AppIconChoice('construction', 'Construcción', Icons.construction_outlined,
@@ -287,6 +295,13 @@ const appIconChoices = <AppIconChoice>[
       'General', 0xFF6D4C41),
 ];
 
+bool isToolArtworkKey(String key) => const {
+  'tool_art_hammer',
+  'tool_art_handsaw',
+  'tool_art_screwdriver',
+  'tool_art_drill',
+}.contains(key);
+
 bool isCustomIconKey(String key) => key.startsWith('custom:');
 
 String customIconPathFromKey(String key) =>
@@ -317,6 +332,13 @@ Widget iconWidgetForKey(
   double size = 24,
   BoxFit fit = BoxFit.contain,
 }) {
+  if (isToolArtworkKey(key)) {
+    return _ToolArtworkIcon(
+      kind: key,
+      size: size,
+    );
+  }
+
   if (!isCustomIconKey(key)) {
     return Icon(appIconFor(key), color: color, size: size);
   }
@@ -391,6 +413,351 @@ const optionColorPalette = <int>[
   0xFF6D4C41,
   0xFF78909C,
 ];
+
+class _ToolArtworkIcon extends StatelessWidget {
+  const _ToolArtworkIcon({
+    required this.kind,
+    required this.size,
+  });
+
+  final String kind;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: size,
+      child: CustomPaint(
+        painter: _ToolArtworkPainter(kind),
+      ),
+    );
+  }
+}
+
+class _ToolArtworkPainter extends CustomPainter {
+  const _ToolArtworkPainter(this.kind);
+
+  final String kind;
+
+  Paint _paint(
+    Color color, {
+    PaintingStyle style = PaintingStyle.fill,
+    double strokeWidth = 1,
+  }) =>
+      Paint()
+        ..color = color
+        ..style = style
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.width / 64;
+    canvas.save();
+    canvas.scale(scale, scale);
+
+    switch (kind) {
+      case 'tool_art_hammer':
+        _drawHammer(canvas);
+      case 'tool_art_handsaw':
+        _drawHandSaw(canvas);
+      case 'tool_art_screwdriver':
+        _drawScrewdriver(canvas);
+      case 'tool_art_drill':
+        _drawDrill(canvas);
+    }
+
+    canvas.restore();
+  }
+
+  void _drawHammer(Canvas canvas) {
+    canvas.save();
+    canvas.translate(8, 8);
+    canvas.rotate(-0.48);
+
+    final outline = _paint(
+      const Color(0xFF20262D),
+      style: PaintingStyle.stroke,
+      strokeWidth: 2.4,
+    );
+
+    final handle = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(27, 22, 10, 35),
+      const Radius.circular(4),
+    );
+    canvas.drawRRect(handle, _paint(const Color(0xFFD58A31)));
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(28.5, 39, 7, 17),
+        const Radius.circular(3),
+      ),
+      _paint(const Color(0xFF2F3540)),
+    );
+    canvas.drawRRect(handle, outline);
+
+    final head = Path()
+      ..moveTo(8, 15)
+      ..lineTo(31, 10)
+      ..lineTo(44, 13)
+      ..lineTo(50, 8)
+      ..lineTo(54, 12)
+      ..lineTo(45, 20)
+      ..lineTo(31, 19)
+      ..lineTo(9, 23)
+      ..close();
+    canvas.drawPath(head, _paint(const Color(0xFFB8C4CE)));
+    canvas.drawPath(head, outline);
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(4, 13, 11, 12),
+        const Radius.circular(4),
+      ),
+      _paint(const Color(0xFFDDE5EB)),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(4, 13, 11, 12),
+        const Radius.circular(4),
+      ),
+      outline,
+    );
+
+    canvas.drawLine(
+      const Offset(31, 14),
+      const Offset(43, 14),
+      _paint(const Color(0xFFF4F7F9), strokeWidth: 2),
+    );
+
+    canvas.restore();
+  }
+
+  void _drawHandSaw(Canvas canvas) {
+    canvas.save();
+    canvas.translate(2, 12);
+    canvas.rotate(-0.18);
+
+    final outline = _paint(
+      const Color(0xFF20262D),
+      style: PaintingStyle.stroke,
+      strokeWidth: 2.2,
+    );
+
+    final blade = Path()
+      ..moveTo(5, 19)
+      ..lineTo(47, 8)
+      ..lineTo(49, 28)
+      ..lineTo(8, 31)
+      ..close();
+    canvas.drawPath(blade, _paint(const Color(0xFFD9E1E7)));
+    canvas.drawPath(blade, outline);
+
+    final teeth = Path()..moveTo(9, 31);
+    for (var i = 0; i < 10; i++) {
+      final x = 11.5 + i * 3.4;
+      teeth
+        ..lineTo(x, i.isEven ? 34 : 31)
+        ..lineTo(x + 1.8, 31);
+    }
+    canvas.drawPath(
+      teeth,
+      _paint(
+        const Color(0xFF39434C),
+        style: PaintingStyle.stroke,
+        strokeWidth: 1.6,
+      ),
+    );
+
+    final handle = Path()
+      ..moveTo(45, 5)
+      ..quadraticBezierTo(61, 2, 61, 14)
+      ..quadraticBezierTo(61, 27, 50, 30)
+      ..lineTo(44, 25)
+      ..lineTo(48, 18)
+      ..quadraticBezierTo(52, 12, 44, 10)
+      ..close();
+    canvas.drawPath(handle, _paint(const Color(0xFFF5A623)));
+    canvas.drawPath(handle, outline);
+
+    final grip = Path()
+      ..moveTo(50, 10)
+      ..quadraticBezierTo(57, 10, 56, 16)
+      ..quadraticBezierTo(55, 22, 49, 22)
+      ..lineTo(47, 18)
+      ..quadraticBezierTo(51, 14, 50, 10)
+      ..close();
+    canvas.drawPath(grip, _paint(const Color(0xFF2E343D)));
+
+    canvas.restore();
+  }
+
+  void _drawScrewdriver(Canvas canvas) {
+    canvas.save();
+    canvas.translate(7, 5);
+    canvas.rotate(-0.58);
+
+    final outline = _paint(
+      const Color(0xFF20262D),
+      style: PaintingStyle.stroke,
+      strokeWidth: 2.2,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(27, 25, 14, 34),
+        const Radius.circular(6),
+      ),
+      _paint(const Color(0xFF30343B)),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(28.5, 29, 11, 8),
+        const Radius.circular(4),
+      ),
+      _paint(const Color(0xFFE73A35)),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(28.5, 41, 11, 11),
+        const Radius.circular(4),
+      ),
+      _paint(const Color(0xFFE73A35)),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(27, 25, 14, 34),
+        const Radius.circular(6),
+      ),
+      outline,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(31, 3, 6, 25),
+        const Radius.circular(2),
+      ),
+      _paint(const Color(0xFFC8D1D8)),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(31, 3, 6, 25),
+        const Radius.circular(2),
+      ),
+      outline,
+    );
+
+    final tip = Path()
+      ..moveTo(31, 3)
+      ..lineTo(34, 0)
+      ..lineTo(37, 3)
+      ..lineTo(35, 7)
+      ..lineTo(33, 7)
+      ..close();
+    canvas.drawPath(tip, _paint(const Color(0xFF39434C)));
+
+    canvas.restore();
+  }
+
+  void _drawDrill(Canvas canvas) {
+    canvas.save();
+    canvas.translate(2, 6);
+
+    final outline = _paint(
+      const Color(0xFF20262D),
+      style: PaintingStyle.stroke,
+      strokeWidth: 2.1,
+    );
+
+    final body = Path()
+      ..moveTo(18, 13)
+      ..lineTo(47, 13)
+      ..quadraticBezierTo(57, 14, 59, 24)
+      ..lineTo(59, 31)
+      ..lineTo(42, 32)
+      ..lineTo(35, 39)
+      ..lineTo(25, 36)
+      ..lineTo(26, 29)
+      ..lineTo(18, 27)
+      ..close();
+    canvas.drawPath(body, _paint(const Color(0xFFF7B500)));
+    canvas.drawPath(body, outline);
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(8, 16, 14, 13),
+        const Radius.circular(5),
+      ),
+      _paint(const Color(0xFF2F3540)),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(8, 16, 14, 13),
+        const Radius.circular(5),
+      ),
+      outline,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(2, 19, 8, 7),
+        const Radius.circular(2),
+      ),
+      _paint(const Color(0xFFB9C5CE)),
+    );
+    canvas.drawLine(
+      const Offset(0, 22.5),
+      const Offset(5, 22.5),
+      _paint(const Color(0xFF424A52), strokeWidth: 2),
+    );
+
+    final handle = Path()
+      ..moveTo(31, 30)
+      ..lineTo(44, 30)
+      ..lineTo(48, 50)
+      ..lineTo(36, 52)
+      ..lineTo(29, 39)
+      ..close();
+    canvas.drawPath(handle, _paint(const Color(0xFF2F3540)));
+    canvas.drawPath(handle, outline);
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(31, 49, 23, 10),
+        const Radius.circular(4),
+      ),
+      _paint(const Color(0xFF30343B)),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(31, 49, 23, 10),
+        const Radius.circular(4),
+      ),
+      outline,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(46, 20, 8, 6),
+        const Radius.circular(2),
+      ),
+      _paint(const Color(0xFF2F3540)),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(35, 34, 7, 6),
+        const Radius.circular(2),
+      ),
+      _paint(const Color(0xFFE53935)),
+    );
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _ToolArtworkPainter oldDelegate) =>
+      oldDelegate.kind != kind;
+}
 
 class FieldOption {
   FieldOption({
@@ -1627,7 +1994,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V18',
+          'Mis herramientas · QUILL V19',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -2187,10 +2554,10 @@ class _FieldOptionsManagementPageState
                                                 .withValues(alpha: 0.12),
                                             shape: BoxShape.circle,
                                           ),
-                                          child: Icon(
-                                            choice.icon,
-                                            size: 28,
+                                          child: iconWidgetForKey(
+                                            choice.key,
                                             color: choice.defaultColor,
+                                            size: 28,
                                           ),
                                         ),
                                         const SizedBox(height: 6),
@@ -2268,7 +2635,8 @@ class _FieldOptionsManagementPageState
 
                     setDialogState(() {
                       iconKey = selected!;
-                      if (!isCustomIconKey(selected!)) {
+                      if (!isCustomIconKey(selected!) &&
+                          !isToolArtworkKey(selected!)) {
                         colorValue =
                             appIconChoiceFor(selected!).defaultColorValue;
                       }
@@ -2296,7 +2664,7 @@ class _FieldOptionsManagementPageState
                   ),
                 ),
                 const SizedBox(height: 16),
-                if (isCustomIconKey(iconKey))
+                if (isCustomIconKey(iconKey) || isToolArtworkKey(iconKey))
                   const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
@@ -3571,7 +3939,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V18' : 'Nuevo artículo · QUILL V18',
+          _isEditing ? 'Editar artículo · QUILL V19' : 'Nuevo artículo · QUILL V19',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
