@@ -1,0 +1,60 @@
+name: Build Rich Text Test APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "flutter/lib/richtext_fleather_test.dart"
+      - "flutter/pubspec.yaml"
+      - ".github/workflows/build-richtext-test-apk.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    defaults:
+      run:
+        working-directory: flutter
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android project
+        run: |
+          cp pubspec.yaml /tmp/flutter_pubspec.yaml
+          cp lib/richtext_fleather_test.dart /tmp/richtext_fleather_test.dart
+          flutter create . \
+            --platforms=android \
+            --project-name richtext_fleather_test \
+            --org org.gestorherramientas
+          cp /tmp/flutter_pubspec.yaml pubspec.yaml
+          cp /tmp/richtext_fleather_test.dart lib/richtext_fleather_test.dart
+          rm -rf test
+          sed -i 's/android:label="richtext_fleather_test"/android:label="Rich Text Fleather Test"/' android/app/src/main/AndroidManifest.xml
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: Analyze test
+        run: flutter analyze --no-fatal-infos lib/richtext_fleather_test.dart
+
+      - name: Build debug APK
+        run: flutter build apk --debug -t lib/richtext_fleather_test.dart
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: richtext-fleather-test-apk
+          path: flutter/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
