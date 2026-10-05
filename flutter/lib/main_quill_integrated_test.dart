@@ -743,6 +743,13 @@ ToolTypeStyle toolTypeStyleFor(String value) {
   );
 }
 
+const toolVoltageOptions = <String>[
+  '230 V', '24 V', '18 V', '12 V', '20 V', '36 V', '48 V', '110 V', '400 V',
+];
+
+bool isElectricalToolType(String type) =>
+    type.toLowerCase().replaceAll('é', 'e').contains('electric');
+
 class ToolItem {
   ToolItem({
     required this.id,
@@ -756,6 +763,7 @@ class ToolItem {
     required this.purchasePrice,
     required this.condition,
     this.type = '',
+    this.voltage = '',
     List<ToolImage>? images,
   }) : images = images ?? <ToolImage>[];
 
@@ -770,6 +778,7 @@ class ToolItem {
   double purchasePrice;
   String condition;
   String type;
+  String voltage;
   List<ToolImage> images;
 
   String get imagePath {
@@ -790,6 +799,7 @@ class ToolItem {
         purchasePrice: purchasePrice,
         condition: condition,
         type: type,
+        voltage: voltage,
         images: images.map((image) => image.copy()).toList(),
       );
 
@@ -805,6 +815,7 @@ class ToolItem {
         'purchase_price': purchasePrice,
         'condition': condition,
         'tool_type': type,
+        'voltage': voltage,
         // Se conserva para compatibilidad con versiones antiguas.
         'image_path': imagePath,
       };
@@ -821,6 +832,7 @@ class ToolItem {
         purchasePrice: (map['purchase_price'] as num?)?.toDouble() ?? 0,
         condition: (map['condition'] as String?) ?? 'Bueno',
         type: (map['tool_type'] as String?) ?? '',
+        voltage: (map['voltage'] as String?) ?? '',
       );
 }
 
@@ -852,7 +864,7 @@ class ToolsDatabase {
 
     _database = await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -870,6 +882,7 @@ class ToolsDatabase {
             purchase_price REAL NOT NULL DEFAULT 0,
             condition TEXT NOT NULL DEFAULT 'Bueno',
             tool_type TEXT NOT NULL DEFAULT '',
+            voltage TEXT NOT NULL DEFAULT '',
             image_path TEXT NOT NULL DEFAULT ''
           )
         ''');
@@ -913,6 +926,12 @@ class ToolsDatabase {
         if (oldVersion < 5) {
           await _createFieldOptionsTable(db);
           await _seedDefaultFieldOptions(db);
+        }
+
+        if (oldVersion < 6) {
+          await db.execute(
+            "ALTER TABLE tools ADD COLUMN voltage TEXT NOT NULL DEFAULT ''",
+          );
         }
       },
     );
@@ -1284,10 +1303,11 @@ class ToolsDatabase {
         t.name,
         t.barcode,
         t.tool_type,
+        t.voltage,
         COUNT(i.id) AS image_count
       FROM tools t
       LEFT JOIN tool_images i ON i.tool_id = t.id
-      GROUP BY t.id, t.name, t.barcode, t.tool_type
+      GROUP BY t.id, t.name, t.barcode, t.tool_type, t.voltage
       ORDER BY t.id DESC
     ''');
   }
@@ -1962,6 +1982,16 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                                             color: Color(0xFF25292D),
                                           ),
                                         ),
+                                        if (item.voltage.isNotEmpty) ...[
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            item.voltage,
+                                            style: const TextStyle(
+                                              color: Color(0xFF6F747A),
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
                                         const SizedBox(height: 5),
                                         Row(
                                           children: [
@@ -3144,6 +3174,8 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
                                 subtitle: Text(
                                   [
                                     if (toolType.isNotEmpty) toolType,
+                                    if ((row['voltage'] as String?)?.isNotEmpty ?? false)
+                                      row['voltage'] as String,
                                     if (barcode.isNotEmpty) barcode,
                                     '$imageCount imágenes',
                                   ].join(' · '),
@@ -3242,12 +3274,18 @@ class _EditToolPageState extends State<EditToolPage> {
 
   late String _condition;
   late String _type;
+  late String _voltage;
   List<FieldOption> _typeOptions = defaultFieldOptions('type');
   List<FieldOption> _conditionOptions = defaultFieldOptions('condition');
   late List<ToolImage> _images;
   final ImagePicker _imagePicker = ImagePicker();
 
   bool get _isEditing => widget.item != null;
+
+  bool get _showVoltage => isElectricalToolType(_type) ||
+      _typeOptions.any(
+        (option) => option.label == _type && option.iconKey == 'electrical',
+      );
 
   @override
   void initState() {
@@ -3270,6 +3308,7 @@ class _EditToolPageState extends State<EditToolPage> {
     );
     _condition = item?.condition ?? 'Bueno';
     _type = item?.type ?? '';
+    _voltage = item?.voltage ?? '';
     _images = item?.images.map((image) => image.copy()).toList() ??
         <ToolImage>[];
     _loadFieldOptions();
@@ -3324,6 +3363,7 @@ class _EditToolPageState extends State<EditToolPage> {
       purchasePrice: _number(_purchasePrice.text),
       condition: _condition,
       type: _type,
+      voltage: _showVoltage ? _voltage : '',
       images: _images.map((image) => image.copy()).toList(),
     );
 
@@ -3870,6 +3910,37 @@ class _EditToolPageState extends State<EditToolPage> {
                 validator: (value) =>
                     value == null || value.isEmpty ? 'Selecciona el tipo' : null,
               ),
+              if (_showVoltage) ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  key: const ValueKey('tool_voltage'),
+                  initialValue: _voltage.isEmpty ? null : _voltage,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Tensión',
+                    prefixIcon: Icon(Icons.bolt_outlined),
+                  ),
+                  hint: const Text('Selecciona la tensión'),
+                  items: [
+                    const DropdownMenuItem(
+                      value: '',
+                      child: Text('Sin especificar'),
+                    ),
+                    for (final voltage in {
+                      ...toolVoltageOptions,
+                      if (_voltage.isNotEmpty) _voltage,
+                    })
+                      DropdownMenuItem(
+                        value: voltage,
+                        child: Text(voltage),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _voltage = value);
+                  },
+                ),
+              ],
               const SizedBox(height: 12),
               DescriptionQuillCard(
                 text: _descriptionPlain,

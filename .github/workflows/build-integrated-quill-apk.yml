@@ -80,8 +80,8 @@ jobs:
       - name: Analyze integrated test
         run: flutter analyze --no-fatal-infos lib/main_quill_integrated_test.dart
 
-      - name: Verify icon picker layout
-        run: flutter test test/icon_picker_layout_test.dart
+      - name: Verify layout and voltage persistence
+        run: flutter test
 
       - name: Build debug APK
         run: |
