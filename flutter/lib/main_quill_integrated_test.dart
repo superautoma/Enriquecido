@@ -336,6 +336,7 @@ Widget iconWidgetForKey(
     return _ToolArtworkIcon(
       kind: key,
       size: size,
+      color: color,
     );
   }
 
@@ -418,48 +419,58 @@ class _ToolArtworkIcon extends StatelessWidget {
   const _ToolArtworkIcon({
     required this.kind,
     required this.size,
+    required this.color,
   });
 
   final String kind;
   final double size;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox.square(
       dimension: size,
       child: CustomPaint(
-        painter: _ToolArtworkPainter(kind),
+        painter: _ToolArtworkPainter(
+          kind: kind,
+          color: color,
+        ),
       ),
     );
   }
 }
 
 class _ToolArtworkPainter extends CustomPainter {
-  const _ToolArtworkPainter(this.kind);
+  const _ToolArtworkPainter({
+    required this.kind,
+    required this.color,
+  });
 
   final String kind;
+  final Color color;
 
-  Paint _stroke(
-    Color color, {
-    double width = 2.3,
-  }) =>
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = width
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round;
+  Paint _stroke({double width = 2.25}) => Paint()
+    ..color = color
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = width
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
 
-  Paint _fill(Color color) => Paint()
+  Paint _fill() => Paint()
     ..color = color
     ..style = PaintingStyle.fill;
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Iconos compactos y planos, con margen interior para que visualmente
-    // tengan el mismo peso que los Material Icons de la aplicación.
-    final scale = size.shortestSide / 48;
+    // Los iconos Material dejan bastante aire dentro de su caja.
+    // Dibujamos estos cuatro al ~72 % para igualar su peso visual.
+    final iconSide = size.shortestSide * 0.72;
+    final offsetX = (size.width - iconSide) / 2;
+    final offsetY = (size.height - iconSide) / 2;
+    final scale = iconSide / 48;
+
     canvas.save();
+    canvas.translate(offsetX, offsetY);
     canvas.scale(scale, scale);
 
     switch (kind) {
@@ -477,66 +488,59 @@ class _ToolArtworkPainter extends CustomPainter {
   }
 
   void _drawHammer(Canvas canvas) {
-    const dark = Color(0xFF455A64);
-    const accent = Color(0xFF1976D2);
-
     canvas.save();
     canvas.translate(24, 24);
-    canvas.rotate(-0.55);
+    canvas.rotate(-0.52);
     canvas.translate(-24, -24);
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(21, 19, 6, 23),
-        const Radius.circular(2.5),
+        const Rect.fromLTWH(21.5, 20, 5, 22),
+        const Radius.circular(2.4),
       ),
-      _fill(accent),
+      _fill(),
     );
 
     final head = Path()
-      ..moveTo(10, 13)
+      ..moveTo(9, 13)
       ..lineTo(27, 13)
       ..lineTo(31, 17)
       ..lineTo(41, 11)
       ..lineTo(43, 14)
       ..lineTo(33, 21)
       ..lineTo(27, 19)
-      ..lineTo(10, 19)
+      ..lineTo(9, 19)
       ..close();
+    canvas.drawPath(head, _fill());
 
-    canvas.drawPath(head, _fill(dark));
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(6, 12, 8, 8),
-        const Radius.circular(2),
+        const Rect.fromLTWH(5.5, 12, 8.5, 8.5),
+        const Radius.circular(2.2),
       ),
-      _fill(const Color(0xFF90A4AE)),
+      _fill(),
     );
 
     canvas.restore();
   }
 
   void _drawHandSaw(Canvas canvas) {
-    const dark = Color(0xFF455A64);
-    const accent = Color(0xFFF59E0B);
-
     final blade = Path()
-      ..moveTo(8, 18)
-      ..lineTo(34, 13)
-      ..lineTo(35, 29)
+      ..moveTo(7, 17)
+      ..lineTo(34, 12)
+      ..lineTo(35, 28)
       ..lineTo(9, 31)
       ..close();
-    canvas.drawPath(blade, _fill(const Color(0xFFCFD8DC)));
-    canvas.drawPath(blade, _stroke(dark, width: 1.8));
+    canvas.drawPath(blade, _stroke(width: 2.2));
 
     final teeth = Path()..moveTo(10, 31);
     for (var i = 0; i < 7; i++) {
-      final x = 12.5 + i * 3.1;
+      final x = 12.3 + i * 3.1;
       teeth
         ..lineTo(x, 34)
-        ..lineTo(x + 1.6, 31);
+        ..lineTo(x + 1.5, 31);
     }
-    canvas.drawPath(teeth, _stroke(dark, width: 1.4));
+    canvas.drawPath(teeth, _stroke(width: 1.7));
 
     final handle = Path()
       ..moveTo(34, 12)
@@ -546,67 +550,55 @@ class _ToolArtworkPainter extends CustomPainter {
       ..lineTo(35, 20)
       ..quadraticBezierTo(37, 16, 33, 15)
       ..close();
-    canvas.drawPath(handle, _fill(accent));
-    canvas.drawPath(handle, _stroke(dark, width: 1.7));
+    canvas.drawPath(handle, _stroke(width: 2.2));
   }
 
   void _drawScrewdriver(Canvas canvas) {
-    const dark = Color(0xFF455A64);
-    const accent = Color(0xFFE53935);
-
     canvas.save();
     canvas.translate(24, 24);
-    canvas.rotate(-0.5);
+    canvas.rotate(-0.48);
     canvas.translate(-24, -24);
 
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(21, 8, 5, 18),
-        const Radius.circular(1.5),
-      ),
-      _fill(const Color(0xFFB0BEC5)),
+    canvas.drawLine(
+      const Offset(23.5, 7),
+      const Offset(23.5, 26),
+      _stroke(width: 3.2),
+    );
+
+    canvas.drawLine(
+      const Offset(21, 7),
+      const Offset(23.5, 4.5),
+      _stroke(width: 2.2),
+    );
+    canvas.drawLine(
+      const Offset(26, 7),
+      const Offset(23.5, 4.5),
+      _stroke(width: 2.2),
     );
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(18, 24, 11, 18),
-        const Radius.circular(5),
+        const Rect.fromLTWH(17.5, 24, 12, 18),
+        const Radius.circular(5.5),
       ),
-      _fill(dark),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(19.5, 26, 8, 5),
-        const Radius.circular(2.5),
-      ),
-      _fill(accent),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(19.5, 34, 8, 5),
-        const Radius.circular(2.5),
-      ),
-      _fill(accent),
+      _stroke(width: 2.5),
     );
 
     canvas.drawLine(
-      const Offset(21, 8),
-      const Offset(23.5, 5),
-      _stroke(dark, width: 2),
+      const Offset(20.5, 29),
+      const Offset(26.5, 29),
+      _stroke(width: 2),
     );
     canvas.drawLine(
-      const Offset(26, 8),
-      const Offset(23.5, 5),
-      _stroke(dark, width: 2),
+      const Offset(20.5, 36),
+      const Offset(26.5, 36),
+      _stroke(width: 2),
     );
 
     canvas.restore();
   }
 
   void _drawDrill(Canvas canvas) {
-    const dark = Color(0xFF455A64);
-    const accent = Color(0xFFF9A825);
-
     final body = Path()
       ..moveTo(13, 14)
       ..lineTo(33, 14)
@@ -618,24 +610,20 @@ class _ToolArtworkPainter extends CustomPainter {
       ..lineTo(19, 24)
       ..lineTo(13, 23)
       ..close();
-
-    canvas.drawPath(body, _fill(accent));
-    canvas.drawPath(body, _stroke(dark, width: 1.8));
+    canvas.drawPath(body, _stroke(width: 2.4));
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(7, 16, 8, 9),
+        const Rect.fromLTWH(7, 16.5, 8, 8),
         const Radius.circular(2.5),
       ),
-      _fill(dark),
+      _stroke(width: 2.2),
     );
 
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(3, 19, 5, 3.5),
-        const Radius.circular(1.2),
-      ),
-      _fill(const Color(0xFFB0BEC5)),
+    canvas.drawLine(
+      const Offset(3, 20.5),
+      const Offset(7, 20.5),
+      _stroke(width: 2.2),
     );
 
     final grip = Path()
@@ -645,28 +633,31 @@ class _ToolArtworkPainter extends CustomPainter {
       ..lineTo(29, 41)
       ..lineTo(24, 32)
       ..close();
-    canvas.drawPath(grip, _fill(dark));
+    canvas.drawPath(grip, _stroke(width: 2.4));
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         const Rect.fromLTWH(27, 39, 13, 5),
         const Radius.circular(2),
       ),
-      _fill(dark),
+      _stroke(width: 2.2),
     );
 
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(29, 29, 4, 3),
-        const Radius.circular(1),
-      ),
-      _fill(const Color(0xFFE53935)),
+    canvas.drawLine(
+      const Offset(35, 18),
+      const Offset(39, 18),
+      _stroke(width: 1.8),
+    );
+    canvas.drawLine(
+      const Offset(35, 22),
+      const Offset(39, 22),
+      _stroke(width: 1.8),
     );
   }
 
   @override
   bool shouldRepaint(covariant _ToolArtworkPainter oldDelegate) =>
-      oldDelegate.kind != kind;
+      oldDelegate.kind != kind || oldDelegate.color != color;
 }
 
 class FieldOption {
@@ -1904,7 +1895,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V21',
+          'Mis herramientas · QUILL V22',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -2533,7 +2524,7 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
 
     setState(() {
       _iconKey = selected;
-      if (!isCustomIconKey(selected) && !isToolArtworkKey(selected)) {
+      if (!isCustomIconKey(selected)) {
         _colorValue = appIconChoiceFor(selected).defaultColorValue;
       }
     });
@@ -2617,7 +2608,7 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
               ),
             ),
             const SizedBox(height: 18),
-            if (isCustomIconKey(_iconKey) || isToolArtworkKey(_iconKey))
+            if (isCustomIconKey(_iconKey))
               const Text(
                 'Este icono conserva sus colores originales.',
                 style: TextStyle(
@@ -3901,7 +3892,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V21' : 'Nuevo artículo · QUILL V21',
+          _isEditing ? 'Editar artículo · QUILL V22' : 'Nuevo artículo · QUILL V22',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
