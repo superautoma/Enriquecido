@@ -2113,7 +2113,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                       : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 92),
                       itemCount: visible.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final item = visible[index];
                         final style = optionForValue(
@@ -2633,12 +2633,15 @@ class _FieldOptionsManagementPageState
                       }
                     }
 
+                    if (!mounted || !dialogContext.mounted) return;
+                    final selectedKey = selected;
+
                     setDialogState(() {
-                      iconKey = selected!;
-                      if (!isCustomIconKey(selected!) &&
-                          !isToolArtworkKey(selected!)) {
+                      iconKey = selectedKey;
+                      if (!isCustomIconKey(selectedKey) &&
+                          !isToolArtworkKey(selectedKey)) {
                         colorValue =
-                            appIconChoiceFor(selected!).defaultColorValue;
+                            appIconChoiceFor(selectedKey).defaultColorValue;
                       }
                     });
                   },
@@ -4193,7 +4196,7 @@ class _EditToolPageState extends State<EditToolPage> {
                           padding: const EdgeInsets.all(8),
                           scrollDirection: Axis.horizontal,
                           itemCount: _images.length,
-                          separatorBuilder: (_, __) =>
+                          separatorBuilder: (_, _) =>
                               const SizedBox(width: 8),
                           itemBuilder: (context, index) {
                             final image = _images[index];
