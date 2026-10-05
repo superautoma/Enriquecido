@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 
 void main() {
   runApp(const GestorHerramientasApp());
@@ -42,6 +46,13 @@ class GestorHerramientasApp extends StatelessWidget {
           ),
         ),
       ),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        FlutterQuillLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('es'), Locale('en')],
       home: const ToolsHomePage(),
     );
   }
@@ -52,6 +63,7 @@ class ToolItem {
     required this.id,
     required this.name,
     required this.description,
+    required this.descriptionDelta,
     required this.barcode,
     required this.quantity,
     required this.unit,
@@ -63,6 +75,7 @@ class ToolItem {
   final int id;
   String name;
   String description;
+  String descriptionDelta;
   String barcode;
   double quantity;
   String unit;
@@ -74,6 +87,7 @@ class ToolItem {
         id: id,
         name: name,
         description: description,
+        descriptionDelta: descriptionDelta,
         barcode: barcode,
         quantity: quantity,
         unit: unit,
@@ -120,6 +134,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       id: 1,
       name: 'Destornillador aislado',
       description: 'Destornillador VDE para trabajos eléctricos.',
+      descriptionDelta: '',
       barcode: '841000000001',
       quantity: 4,
       unit: 'ud',
@@ -131,6 +146,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       id: 2,
       name: 'Multímetro',
       description: 'Multímetro digital de uso general.',
+      descriptionDelta: '',
       barcode: '841000000002',
       quantity: 2,
       unit: 'ud',
@@ -142,6 +158,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       id: 3,
       name: 'Taladro',
       description: 'Taladro con cable para taller.',
+      descriptionDelta: '',
       barcode: '841000000003',
       quantity: 1,
       unit: 'ud',
@@ -401,7 +418,9 @@ class _EditToolPageState extends State<EditToolPage> {
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _name;
-  late final TextEditingController _description;
+  late final QuillController _descriptionController;
+  final FocusNode _descriptionFocus = FocusNode();
+  final ScrollController _descriptionScroll = ScrollController();
   late final TextEditingController _barcode;
   late final TextEditingController _quantity;
   late final TextEditingController _unit;
@@ -418,7 +437,26 @@ class _EditToolPageState extends State<EditToolPage> {
     final item = widget.item;
 
     _name = TextEditingController(text: item?.name ?? '');
-    _description = TextEditingController(text: item?.description ?? '');
+    final rawDelta = item?.descriptionDelta ?? '';
+    Document descriptionDocument;
+    if (rawDelta.trim().isNotEmpty) {
+      try {
+        descriptionDocument =
+            Document.fromJson(jsonDecode(rawDelta) as List<dynamic>);
+      } catch (_) {
+        descriptionDocument = Document.fromJson([
+          {'insert': '${item?.description ?? ''}\n'}
+        ]);
+      }
+    } else {
+      descriptionDocument = Document.fromJson([
+        {'insert': '${item?.description ?? ''}\n'}
+      ]);
+    }
+    _descriptionController = QuillController(
+      document: descriptionDocument,
+      selection: const TextSelection.collapsed(offset: 0),
+    );
     _barcode = TextEditingController(text: item?.barcode ?? '');
     _quantity = TextEditingController(
       text: item == null ? '1' : formatNumber(item.quantity),
@@ -436,7 +474,9 @@ class _EditToolPageState extends State<EditToolPage> {
   @override
   void dispose() {
     _name.dispose();
-    _description.dispose();
+    _descriptionController.dispose();
+    _descriptionFocus.dispose();
+    _descriptionScroll.dispose();
     _barcode.dispose();
     _quantity.dispose();
     _unit.dispose();
@@ -455,7 +495,10 @@ class _EditToolPageState extends State<EditToolPage> {
     final result = ToolItem(
       id: widget.item?.id ?? widget.nextId,
       name: _name.text.trim(),
-      description: _description.text.trim(),
+      description: _descriptionController.document.toPlainText().trim(),
+      descriptionDelta: jsonEncode(
+        _descriptionController.document.toDelta().toJson(),
+      ),
       barcode: _barcode.text.trim(),
       quantity: _number(_quantity.text),
       unit: _unit.text.trim().isEmpty ? 'ud' : _unit.text.trim(),
@@ -508,20 +551,10 @@ class _EditToolPageState extends State<EditToolPage> {
                     : null,
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _description,
-                minLines: 4,
-                maxLines: 7,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: 'Descripción',
-                  alignLabelWithHint: true,
-                  hintText: 'Notas, características, observaciones…',
-                  prefixIcon: Padding(
-                    padding: EdgeInsets.only(bottom: 72),
-                    child: Icon(Icons.notes),
-                  ),
-                ),
+              RichDescriptionEditor(
+                controller: _descriptionController,
+                focusNode: _descriptionFocus,
+                scrollController: _descriptionScroll,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -674,6 +707,103 @@ class _EditToolPageState extends State<EditToolPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class RichDescriptionEditor extends StatelessWidget {
+  const RichDescriptionEditor({
+    super.key,
+    required this.controller,
+    required this.focusNode,
+    required this.scrollController,
+  });
+
+  final QuillController controller;
+  final FocusNode focusNode;
+  final ScrollController scrollController;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD7DDE3)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(14, 11, 14, 6),
+            child: Text(
+              'Descripción',
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF666C72),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Container(
+            color: const Color(0xFFF7F9FB),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: QuillSimpleToolbar(
+                controller: controller,
+                config: const QuillSimpleToolbarConfig(
+                  axis: Axis.horizontal,
+                  multiRowsDisplay: false,
+                  showDividers: true,
+                  showBoldButton: true,
+                  showItalicButton: true,
+                  showUnderLineButton: true,
+                  showStrikeThrough: true,
+                  showColorButton: true,
+                  showBackgroundColorButton: true,
+                  showFontSize: true,
+                  showAlignmentButtons: true,
+                  showLeftAlignment: true,
+                  showCenterAlignment: true,
+                  showRightAlignment: true,
+                  showJustifyAlignment: true,
+                  showListNumbers: true,
+                  showListBullets: true,
+                  showUndo: true,
+                  showRedo: true,
+                  showClearFormat: true,
+                  showFontFamily: false,
+                  showInlineCode: false,
+                  showHeaderStyle: false,
+                  showListCheck: false,
+                  showCodeBlock: false,
+                  showQuote: false,
+                  showIndent: false,
+                  showLink: false,
+                  showDirection: false,
+                  showSearchButton: false,
+                  showSubscript: false,
+                  showSuperscript: false,
+                ),
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          SizedBox(
+            height: 190,
+            child: QuillEditor.basic(
+              controller: controller,
+              focusNode: focusNode,
+              scrollController: scrollController,
+              config: const QuillEditorConfig(
+                placeholder: 'Notas, características, observaciones…',
+                padding: EdgeInsets.all(14),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
