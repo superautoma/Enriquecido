@@ -1,28 +1,6 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_quill/flutter_quill.dart';
 
 void main() {
-  ErrorWidget.builder = (FlutterErrorDetails details) {
-    return Material(
-      color: const Color(0xFFFFF4F4),
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(18),
-          child: Text(
-            'ERROR DE INTERFAZ\n\n${details.exceptionAsString()}',
-            style: const TextStyle(
-              color: Color(0xFFB3261E),
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ),
-    );
-  };
   runApp(const GestorHerramientasApp());
 }
 
@@ -64,13 +42,6 @@ class GestorHerramientasApp extends StatelessWidget {
           ),
         ),
       ),
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        FlutterQuillLocalizations.delegate,
-      ],
-      supportedLocales: const [Locale('es'), Locale('en')],
       home: const ToolsHomePage(),
     );
   }
@@ -81,7 +52,6 @@ class ToolItem {
     required this.id,
     required this.name,
     required this.description,
-    required this.descriptionDelta,
     required this.barcode,
     required this.quantity,
     required this.unit,
@@ -93,7 +63,6 @@ class ToolItem {
   final int id;
   String name;
   String description;
-  String descriptionDelta;
   String barcode;
   double quantity;
   String unit;
@@ -105,7 +74,6 @@ class ToolItem {
         id: id,
         name: name,
         description: description,
-        descriptionDelta: descriptionDelta,
         barcode: barcode,
         quantity: quantity,
         unit: unit,
@@ -152,7 +120,6 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       id: 1,
       name: 'Destornillador aislado',
       description: 'Destornillador VDE para trabajos eléctricos.',
-      descriptionDelta: '',
       barcode: '841000000001',
       quantity: 4,
       unit: 'ud',
@@ -164,7 +131,6 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       id: 2,
       name: 'Multímetro',
       description: 'Multímetro digital de uso general.',
-      descriptionDelta: '',
       barcode: '841000000002',
       quantity: 2,
       unit: 'ud',
@@ -176,7 +142,6 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       id: 3,
       name: 'Taladro',
       description: 'Taladro con cable para taller.',
-      descriptionDelta: '',
       barcode: '841000000003',
       quantity: 1,
       unit: 'ud',
@@ -237,7 +202,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · v1.2',
+          'Mis herramientas · v1.3 estable',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -436,8 +401,7 @@ class _EditToolPageState extends State<EditToolPage> {
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _name;
-  late String _descriptionPlain;
-  late String _descriptionDelta;
+  late final TextEditingController _description;
   late final TextEditingController _barcode;
   late final TextEditingController _quantity;
   late final TextEditingController _unit;
@@ -454,8 +418,7 @@ class _EditToolPageState extends State<EditToolPage> {
     final item = widget.item;
 
     _name = TextEditingController(text: item?.name ?? '');
-    _descriptionPlain = item?.description ?? '';
-    _descriptionDelta = item?.descriptionDelta ?? '';
+    _description = TextEditingController(text: item?.description ?? '');
     _barcode = TextEditingController(text: item?.barcode ?? '');
     _quantity = TextEditingController(
       text: item == null ? '1' : formatNumber(item.quantity),
@@ -473,6 +436,7 @@ class _EditToolPageState extends State<EditToolPage> {
   @override
   void dispose() {
     _name.dispose();
+    _description.dispose();
     _barcode.dispose();
     _quantity.dispose();
     _unit.dispose();
@@ -491,8 +455,7 @@ class _EditToolPageState extends State<EditToolPage> {
     final result = ToolItem(
       id: widget.item?.id ?? widget.nextId,
       name: _name.text.trim(),
-      description: _descriptionPlain,
-      descriptionDelta: _descriptionDelta,
+      description: _description.text.trim(),
       barcode: _barcode.text.trim(),
       quantity: _number(_quantity.text),
       unit: _unit.text.trim().isEmpty ? 'ud' : _unit.text.trim(),
@@ -504,23 +467,6 @@ class _EditToolPageState extends State<EditToolPage> {
     Navigator.of(context).pop(result);
   }
 
-  Future<void> _editDescription() async {
-    final result = await Navigator.of(context).push<RichTextResult>(
-      MaterialPageRoute(
-        builder: (_) => RichTextEditorPage(
-          initialPlainText: _descriptionPlain,
-          initialDelta: _descriptionDelta,
-        ),
-      ),
-    );
-
-    if (result == null) return;
-    setState(() {
-      _descriptionPlain = result.plainText;
-      _descriptionDelta = result.deltaJson;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final style = conditionStyleFor(_condition);
@@ -528,7 +474,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · v1.2' : 'Nuevo artículo · v1.2',
+          _isEditing ? 'Editar artículo · v1.3' : 'Nuevo artículo · v1.3',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -562,9 +508,20 @@ class _EditToolPageState extends State<EditToolPage> {
                     : null,
               ),
               const SizedBox(height: 12),
-              DescriptionFieldCard(
-                text: _descriptionPlain,
-                onTap: _editDescription,
+              TextFormField(
+                controller: _description,
+                minLines: 4,
+                maxLines: 7,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Descripción',
+                  alignLabelWithHint: true,
+                  hintText: 'Notas, características, observaciones…',
+                  prefixIcon: Padding(
+                    padding: EdgeInsets.only(bottom: 72),
+                    child: Icon(Icons.notes),
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -716,239 +673,6 @@ class _EditToolPageState extends State<EditToolPage> {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class DescriptionFieldCard extends StatelessWidget {
-  const DescriptionFieldCard({
-    super.key,
-    required this.text,
-    required this.onTap,
-  });
-
-  final String text;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final hasText = text.trim().isNotEmpty;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: onTap,
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 118),
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFD7DDE3)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.format_color_text, color: Color(0xFF168BD2)),
-                SizedBox(width: 8),
-                Text(
-                  'Descripción enriquecida',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF666C72),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Spacer(),
-                Icon(Icons.chevron_right, color: Color(0xFF899097)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              hasText ? text : 'Toca aquí para escribir y dar formato al texto…',
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 15,
-                height: 1.35,
-                color: hasText
-                    ? const Color(0xFF2B3035)
-                    : const Color(0xFF8A9096),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class RichTextResult {
-  const RichTextResult({
-    required this.plainText,
-    required this.deltaJson,
-  });
-
-  final String plainText;
-  final String deltaJson;
-}
-
-class RichTextEditorPage extends StatefulWidget {
-  const RichTextEditorPage({
-    super.key,
-    required this.initialPlainText,
-    required this.initialDelta,
-  });
-
-  final String initialPlainText;
-  final String initialDelta;
-
-  @override
-  State<RichTextEditorPage> createState() => _RichTextEditorPageState();
-}
-
-class _RichTextEditorPageState extends State<RichTextEditorPage> {
-  late final QuillController _controller;
-  final FocusNode _focusNode = FocusNode();
-  final ScrollController _scrollController = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-
-    Document document;
-    if (widget.initialDelta.trim().isNotEmpty) {
-      try {
-        document = Document.fromJson(
-          jsonDecode(widget.initialDelta) as List<dynamic>,
-        );
-      } catch (_) {
-        document = _plainDocument(widget.initialPlainText);
-      }
-    } else {
-      document = _plainDocument(widget.initialPlainText);
-    }
-
-    _controller = QuillController(
-      document: document,
-      selection: const TextSelection.collapsed(offset: 0),
-    );
-  }
-
-  Document _plainDocument(String text) {
-    final normalized = text.trim().isEmpty ? '\n' : '${text.trimRight()}\n';
-    return Document.fromJson([
-      {'insert': normalized}
-    ]);
-  }
-
-  void _accept() {
-    Navigator.of(context).pop(
-      RichTextResult(
-        plainText: _controller.document.toPlainText().trim(),
-        deltaJson: jsonEncode(_controller.document.toDelta().toJson()),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _focusNode.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Editar descripción',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _accept,
-            child: const Text(
-              'ACEPTAR',
-              style: TextStyle(fontWeight: FontWeight.w800),
-            ),
-          ),
-          const SizedBox(width: 6),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              color: Colors.white,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: QuillSimpleToolbar(
-                  controller: _controller,
-                  config: const QuillSimpleToolbarConfig(
-                    axis: Axis.horizontal,
-                    multiRowsDisplay: false,
-                    showDividers: true,
-                    showBoldButton: true,
-                    showItalicButton: true,
-                    showUnderLineButton: true,
-                    showStrikeThrough: true,
-                    showColorButton: true,
-                    showBackgroundColorButton: true,
-                    showFontSize: true,
-                    showAlignmentButtons: true,
-                    showLeftAlignment: true,
-                    showCenterAlignment: true,
-                    showRightAlignment: true,
-                    showJustifyAlignment: true,
-                    showListNumbers: true,
-                    showListBullets: true,
-                    showUndo: true,
-                    showRedo: true,
-                    showClearFormat: true,
-                    showFontFamily: false,
-                    showInlineCode: false,
-                    showHeaderStyle: false,
-                    showListCheck: false,
-                    showCodeBlock: false,
-                    showQuote: false,
-                    showIndent: false,
-                    showLink: false,
-                    showDirection: false,
-                    showSearchButton: false,
-                    showSubscript: false,
-                    showSuperscript: false,
-                  ),
-                ),
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFD7DDE3)),
-                ),
-                child: QuillEditor.basic(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  scrollController: _scrollController,
-                  config: const QuillEditorConfig(
-                    placeholder: 'Escribe aquí la descripción…',
-                    padding: EdgeInsets.all(16),
-                  ),
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );

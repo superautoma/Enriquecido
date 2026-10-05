@@ -1,7 +1,7 @@
 name: gestor_herramientas
 description: Gestor de herramientas en Flutter.
 publish_to: "none"
-version: 1.1.0+2
+version: 1.3.0+3
 
 environment:
   sdk: ">=3.12.0 <4.0.0"
@@ -9,9 +9,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_localizations:
-    sdk: flutter
-  flutter_quill: ^11.6.0
 
 dev_dependencies:
   flutter_test:
