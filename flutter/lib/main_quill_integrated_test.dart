@@ -67,6 +67,66 @@ class GestorHerramientasApp extends StatelessWidget {
   }
 }
 
+class ToolImage {
+  ToolImage({
+    this.id,
+    required this.toolId,
+    required this.path,
+    this.description = '',
+    this.type = 'General',
+    this.position = 0,
+    this.isPrimary = false,
+    String? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now().toIso8601String();
+
+  int? id;
+  int toolId;
+  String path;
+  String description;
+  String type;
+  int position;
+  bool isPrimary;
+  String createdAt;
+
+  ToolImage copy() => ToolImage(
+        id: id,
+        toolId: toolId,
+        path: path,
+        description: description,
+        type: type,
+        position: position,
+        isPrimary: isPrimary,
+        createdAt: createdAt,
+      );
+
+  Map<String, Object?> toMap({bool includeId = true}) {
+    final map = <String, Object?>{
+      'tool_id': toolId,
+      'path': path,
+      'description': description,
+      'type': type,
+      'position': position,
+      'is_primary': isPrimary ? 1 : 0,
+      'created_at': createdAt,
+    };
+    if (includeId && id != null) {
+      map['id'] = id;
+    }
+    return map;
+  }
+
+  factory ToolImage.fromMap(Map<String, Object?> map) => ToolImage(
+        id: map['id'] as int?,
+        toolId: (map['tool_id'] as num?)?.toInt() ?? 0,
+        path: (map['path'] as String?) ?? '',
+        description: (map['description'] as String?) ?? '',
+        type: (map['type'] as String?) ?? 'General',
+        position: (map['position'] as num?)?.toInt() ?? 0,
+        isPrimary: ((map['is_primary'] as num?)?.toInt() ?? 0) == 1,
+        createdAt: (map['created_at'] as String?) ?? '',
+      );
+}
+
 class ToolItem {
   ToolItem({
     required this.id,
@@ -79,8 +139,8 @@ class ToolItem {
     required this.minimumStock,
     required this.purchasePrice,
     required this.condition,
-    this.imagePath = '',
-  });
+    List<ToolImage>? images,
+  }) : images = images ?? <ToolImage>[];
 
   final int id;
   String name;
@@ -92,7 +152,13 @@ class ToolItem {
   double minimumStock;
   double purchasePrice;
   String condition;
-  String imagePath;
+  List<ToolImage> images;
+
+  String get imagePath {
+    if (images.isEmpty) return '';
+    final primary = images.where((image) => image.isPrimary);
+    return primary.isNotEmpty ? primary.first.path : images.first.path;
+  }
 
   ToolItem copy() => ToolItem(
         id: id,
@@ -105,7 +171,7 @@ class ToolItem {
         minimumStock: minimumStock,
         purchasePrice: purchasePrice,
         condition: condition,
-        imagePath: imagePath,
+        images: images.map((image) => image.copy()).toList(),
       );
 
   Map<String, Object?> toMap() => {
@@ -119,6 +185,7 @@ class ToolItem {
         'minimum_stock': minimumStock,
         'purchase_price': purchasePrice,
         'condition': condition,
+        // Se conserva para compatibilidad con versiones antiguas.
         'image_path': imagePath,
       };
 
@@ -133,7 +200,6 @@ class ToolItem {
         minimumStock: (map['minimum_stock'] as num?)?.toDouble() ?? 0,
         purchasePrice: (map['purchase_price'] as num?)?.toDouble() ?? 0,
         condition: (map['condition'] as String?) ?? 'Bueno',
-        imagePath: (map['image_path'] as String?) ?? '',
       );
 }
 
@@ -151,7 +217,10 @@ class ToolsDatabase {
 
     _database = await openDatabase(
       path,
-      version: 2,
+      version: 3,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE tools (
@@ -168,6 +237,8 @@ class ToolsDatabase {
             image_path TEXT NOT NULL DEFAULT ''
           )
         ''');
+
+        await _createToolImagesTable(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -175,25 +246,181 @@ class ToolsDatabase {
             "ALTER TABLE tools ADD COLUMN image_path TEXT NOT NULL DEFAULT ''",
           );
         }
+
+        if (oldVersion < 3) {
+          await _createToolImagesTable(db);
+          await db.execute('''
+            INSERT INTO tool_images (
+              tool_id, path, description, type, position, is_primary, created_at
+            )
+            SELECT
+              id,
+              image_path,
+              '',
+              'General',
+              0,
+              1,
+              datetime('now')
+            FROM tools
+            WHERE TRIM(COALESCE(image_path, '')) <> ''
+          ''');
+        }
       },
     );
 
     return _database!;
   }
 
+  static Future<void> _createToolImagesTable(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS tool_images (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tool_id INTEGER NOT NULL,
+        path TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        type TEXT NOT NULL DEFAULT 'General',
+        position INTEGER NOT NULL DEFAULT 0,
+        is_primary INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT '',
+        FOREIGN KEY (tool_id) REFERENCES tools(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_tool_images_tool_id '
+      'ON tool_images(tool_id)',
+    );
+  }
+
   Future<List<ToolItem>> loadTools() async {
     final db = await database;
     final rows = await db.query('tools', orderBy: 'id DESC');
-    return rows.map(ToolItem.fromMap).toList();
+    final tools = rows.map(ToolItem.fromMap).toList();
+
+    if (tools.isEmpty) return tools;
+
+    final imageRows = await db.query(
+      'tool_images',
+      orderBy: 'tool_id ASC, is_primary DESC, position ASC, id ASC',
+    );
+
+    final byTool = <int, List<ToolImage>>{};
+    for (final row in imageRows) {
+      final image = ToolImage.fromMap(row);
+      byTool.putIfAbsent(image.toolId, () => <ToolImage>[]).add(image);
+    }
+
+    for (final tool in tools) {
+      tool.images = byTool[tool.id] ?? <ToolImage>[];
+
+      // Protección extra para bases antiguas que no hubieran migrado la foto.
+      if (tool.images.isEmpty) {
+        final legacyPath =
+            (rows.firstWhere((row) => row['id'] == tool.id)['image_path']
+                    as String?) ??
+                '';
+        if (legacyPath.trim().isNotEmpty) {
+          tool.images = [
+            ToolImage(
+              toolId: tool.id,
+              path: legacyPath,
+              position: 0,
+              isPrimary: true,
+            ),
+          ];
+        }
+      }
+    }
+
+    return tools;
+  }
+
+  Future<List<ToolImage>> loadImages(int toolId) async {
+    final db = await database;
+    final rows = await db.query(
+      'tool_images',
+      where: 'tool_id = ?',
+      whereArgs: [toolId],
+      orderBy: 'is_primary DESC, position ASC, id ASC',
+    );
+    return rows.map(ToolImage.fromMap).toList();
   }
 
   Future<void> saveTool(ToolItem item) async {
     final db = await database;
-    await db.insert(
-      'tools',
-      item.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
+
+    final oldRows = await db.query(
+      'tool_images',
+      columns: ['path'],
+      where: 'tool_id = ?',
+      whereArgs: [item.id],
     );
+    final oldPaths = oldRows
+        .map((row) => (row['path'] as String?) ?? '')
+        .where((path) => path.isNotEmpty)
+        .toSet();
+
+    _normalizeImages(item);
+
+    await db.transaction((txn) async {
+      await txn.insert(
+        'tools',
+        item.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+
+      await txn.delete(
+        'tool_images',
+        where: 'tool_id = ?',
+        whereArgs: [item.id],
+      );
+
+      for (final image in item.images) {
+        image.toolId = item.id;
+        await txn.insert(
+          'tool_images',
+          image.toMap(includeId: false),
+        );
+      }
+    });
+
+    final newPaths = item.images.map((image) => image.path).toSet();
+    final stalePaths = oldPaths.difference(newPaths);
+
+    for (final path in stalePaths) {
+      final count = Sqflite.firstIntValue(
+            await db.rawQuery(
+              'SELECT COUNT(*) FROM tool_images WHERE path = ?',
+              [path],
+            ),
+          ) ??
+          0;
+      if (count == 0) {
+        final file = File(path);
+        if (await file.exists()) {
+          try {
+            await file.delete();
+          } catch (_) {}
+        }
+      }
+    }
+  }
+
+  void _normalizeImages(ToolItem item) {
+    for (var index = 0; index < item.images.length; index++) {
+      final image = item.images[index];
+      image.toolId = item.id;
+      image.position = index;
+    }
+
+    if (item.images.isEmpty) return;
+
+    var primaryIndex = item.images.indexWhere((image) => image.isPrimary);
+    if (primaryIndex < 0) primaryIndex = 0;
+
+    for (var index = 0; index < item.images.length; index++) {
+      item.images[index].isPrimary = index == primaryIndex;
+    }
   }
 
   Future<void> seedIfEmpty(List<ToolItem> defaults) async {
@@ -663,7 +890,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V9',
+          'Mis herramientas · QUILL V10',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -905,8 +1132,14 @@ class _EditToolPageState extends State<EditToolPage> {
   late final TextEditingController _purchasePrice;
 
   late String _condition;
-  late String _imagePath;
+  late List<ToolImage> _images;
   final ImagePicker _imagePicker = ImagePicker();
+
+  String get _primaryImagePath {
+    if (_images.isEmpty) return '';
+    final primary = _images.where((image) => image.isPrimary);
+    return primary.isNotEmpty ? primary.first.path : _images.first.path;
+  }
 
   bool get _isEditing => widget.item != null;
 
@@ -930,7 +1163,8 @@ class _EditToolPageState extends State<EditToolPage> {
       text: item == null ? '' : item.purchasePrice.toStringAsFixed(2),
     );
     _condition = item?.condition ?? conditionStyles.first.label;
-    _imagePath = item?.imagePath ?? '';
+    _images = item?.images.map((image) => image.copy()).toList() ??
+        <ToolImage>[];
   }
 
   @override
@@ -962,7 +1196,7 @@ class _EditToolPageState extends State<EditToolPage> {
       minimumStock: _number(_minimumStock.text),
       purchasePrice: _number(_purchasePrice.text),
       condition: _condition,
-      imagePath: _imagePath,
+      images: _images.map((image) => image.copy()).toList(),
     );
 
     Navigator.of(context).pop(result);
@@ -977,7 +1211,47 @@ class _EditToolPageState extends State<EditToolPage> {
     return imagesDir;
   }
 
+  void _appendStoredImage(String path) {
+    setState(() {
+      final image = ToolImage(
+        toolId: widget.item?.id ?? widget.nextId,
+        path: path,
+        position: _images.length,
+        isPrimary: _images.isEmpty,
+      );
+      _images.add(image);
+    });
+  }
+
+  Future<String> _copyPickedImage(XFile picked) async {
+    final imagesDir = await _toolImagesDirectory();
+    final extension = p.extension(picked.path).isEmpty
+        ? '.jpg'
+        : p.extension(picked.path);
+    final targetPath = p.join(
+      imagesDir.path,
+      'tool_${DateTime.now().microsecondsSinceEpoch}$extension',
+    );
+    final stored = await File(picked.path).copy(targetPath);
+    return stored.path;
+  }
+
   Future<void> _storePickedImage(ImageSource source) async {
+    if (source == ImageSource.gallery) {
+      final picked = await _imagePicker.pickMultiImage(
+        imageQuality: 88,
+        maxWidth: 1800,
+      );
+      if (picked.isEmpty) return;
+
+      for (final image in picked) {
+        final storedPath = await _copyPickedImage(image);
+        if (!mounted) return;
+        _appendStoredImage(storedPath);
+      }
+      return;
+    }
+
     final picked = await _imagePicker.pickImage(
       source: source,
       imageQuality: 88,
@@ -985,19 +1259,9 @@ class _EditToolPageState extends State<EditToolPage> {
     );
     if (picked == null) return;
 
-    final imagesDir = await _toolImagesDirectory();
-    final extension = p.extension(picked.path).isEmpty
-        ? '.jpg'
-        : p.extension(picked.path);
-    final targetPath = p.join(
-      imagesDir.path,
-      'tool_${DateTime.now().millisecondsSinceEpoch}$extension',
-    );
-
-    final stored = await File(picked.path).copy(targetPath);
-
+    final storedPath = await _copyPickedImage(picked);
     if (!mounted) return;
-    setState(() => _imagePath = stored.path);
+    _appendStoredImage(storedPath);
   }
 
   Future<void> _downloadImageFromUrl() async {
@@ -1084,7 +1348,7 @@ class _EditToolPageState extends State<EditToolPage> {
       client.close();
 
       if (!mounted) return;
-      setState(() => _imagePath = file.path);
+      _appendStoredImage(file.path);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1116,18 +1380,247 @@ class _EditToolPageState extends State<EditToolPage> {
     );
   }
 
-  Future<void> _removeImage() async {
-    final oldPath = _imagePath;
-    setState(() => _imagePath = '');
-
-    if (oldPath.isNotEmpty) {
-      final file = File(oldPath);
-      if (await file.exists()) {
-        try {
-          await file.delete();
-        } catch (_) {}
+  void _setPrimaryImage(ToolImage image) {
+    setState(() {
+      for (final candidate in _images) {
+        candidate.isPrimary = identical(candidate, image);
       }
-    }
+    });
+  }
+
+  void _removeImage(ToolImage image) {
+    final wasPrimary = image.isPrimary;
+    setState(() {
+      _images.remove(image);
+      for (var index = 0; index < _images.length; index++) {
+        _images[index].position = index;
+      }
+      if (wasPrimary && _images.isNotEmpty) {
+        for (final candidate in _images) {
+          candidate.isPrimary = false;
+        }
+        _images.first.isPrimary = true;
+      }
+    });
+  }
+
+  Future<void> _editImageMetadata(ToolImage image) async {
+    final descriptionController =
+        TextEditingController(text: image.description);
+    var selectedType = image.type;
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Datos de la imagen'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: selectedType,
+                decoration: const InputDecoration(
+                  labelText: 'Tipo',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'General', child: Text('General')),
+                  DropdownMenuItem(
+                    value: 'Placa',
+                    child: Text('Placa de características'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Avería',
+                    child: Text('Avería / incidencia'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Documento',
+                    child: Text('Documento / factura'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Detalle',
+                    child: Text('Detalle'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setDialogState(() => selectedType = value);
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: descriptionController,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Descripción de la imagen',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                {
+                  'type': selectedType,
+                  'description': descriptionController.text.trim(),
+                },
+              ),
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    descriptionController.dispose();
+    if (result == null) return;
+
+    setState(() {
+      image.type = result['type'] ?? 'General';
+      image.description = result['description'] ?? '';
+    });
+  }
+
+  Future<void> _openImage(ToolImage image) async {
+    if (!File(image.path).existsSync()) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.all(14),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: InteractiveViewer(
+                  minScale: 0.8,
+                  maxScale: 4,
+                  child: Image.file(
+                    File(image.path),
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              if (image.description.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  child: Text(
+                    image.description,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 4,
+                  children: [
+                    TextButton.icon(
+                      onPressed: image.isPrimary
+                          ? null
+                          : () {
+                              _setPrimaryImage(image);
+                              Navigator.pop(dialogContext);
+                            },
+                      icon: const Icon(Icons.star_outline),
+                      label: Text(
+                        image.isPrimary ? 'Principal' : 'Hacer principal',
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.pop(dialogContext);
+                        _editImageMetadata(image);
+                      },
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Datos'),
+                    ),
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.pop(dialogContext);
+                        _removeImage(image);
+                      },
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Eliminar'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('Cerrar'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAllImages() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: FractionallySizedBox(
+          heightFactor: 0.82,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: Row(
+                  children: [
+                    Text(
+                      'Imágenes (${_images.length})',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      child: const Text('Cerrar'),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 1,
+                  ),
+                  itemCount: _images.length,
+                  itemBuilder: (context, index) {
+                    final image = _images[index];
+                    return _ToolImageThumbnail(
+                      image: image,
+                      size: double.infinity,
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openImage(image);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _openQuillDescription() async {
@@ -1154,7 +1647,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V9' : 'Nuevo artículo · QUILL V9',
+          _isEditing ? 'Editar artículo · QUILL V10' : 'Nuevo artículo · QUILL V10',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -1283,13 +1776,25 @@ class _EditToolPageState extends State<EditToolPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Imagen',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF6F747A),
-                ),
+              Row(
+                children: [
+                  Text(
+                    _images.length == 1
+                        ? '1 imagen'
+                        : '${_images.length} imágenes',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF6F747A),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (_images.length > 4)
+                    TextButton(
+                      onPressed: _openAllImages,
+                      child: Text('Ver todas (${_images.length})'),
+                    ),
+                ],
               ),
               const SizedBox(height: 6),
               Container(
@@ -1304,21 +1809,45 @@ class _EditToolPageState extends State<EditToolPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (_imagePath.isNotEmpty && File(_imagePath).existsSync())
-                      AspectRatio(
-                        aspectRatio: 16 / 9,
-                        child: Image.file(
-                          File(_imagePath),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
                     _CompactImageToolbar(
                       onCamera: () => _storePickedImage(ImageSource.camera),
                       onUrl: _downloadImageFromUrl,
                       onAi: _openAiImageOption,
                       onGallery: () => _storePickedImage(ImageSource.gallery),
-                      onRemove: _imagePath.isNotEmpty ? _removeImage : null,
                     ),
+                    if (_images.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 16,
+                        ),
+                        child: Text(
+                          'Sin imágenes. Puedes añadir tantas como necesites.',
+                          style: TextStyle(
+                            color: Color(0xFF7A7F85),
+                            fontSize: 13,
+                          ),
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        height: 104,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.all(8),
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _images.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 8),
+                          itemBuilder: (context, index) {
+                            final image = _images[index];
+                            return _ToolImageThumbnail(
+                              image: image,
+                              size: 88,
+                              onTap: () => _openImage(image),
+                            );
+                          },
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -1354,19 +1883,17 @@ class _CompactImageToolbar extends StatelessWidget {
     required this.onUrl,
     required this.onAi,
     required this.onGallery,
-    this.onRemove,
   });
 
   final VoidCallback onCamera;
   final VoidCallback onUrl;
   final VoidCallback onAi;
   final VoidCallback onGallery;
-  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 58,
+      height: 54,
       color: const Color(0xFFF0F1F2),
       padding: const EdgeInsets.symmetric(horizontal: 6),
       child: Row(
@@ -1392,16 +1919,10 @@ class _CompactImageToolbar extends StatelessWidget {
             onTap: onGallery,
           ),
           const Spacer(),
-          if (onRemove != null)
-            _CompactImageAction(
-              icon: Icons.delete_outline,
-              tooltip: 'Quitar imagen',
-              onTap: onRemove!,
-            ),
           const Padding(
             padding: EdgeInsets.only(right: 10, left: 4),
             child: Text(
-              'IMAGEN',
+              'IMÁGENES',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -1440,6 +1961,95 @@ class _CompactImageAction extends StatelessWidget {
       iconSize: 25,
       color: const Color(0xFF39444D),
       icon: Icon(icon),
+    );
+  }
+}
+
+class _ToolImageThumbnail extends StatelessWidget {
+  const _ToolImageThumbnail({
+    required this.image,
+    required this.size,
+    required this.onTap,
+  });
+
+  final ToolImage image;
+  final double size;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final exists = File(image.path).existsSync();
+
+    return SizedBox(
+      width: size.isFinite ? size : null,
+      height: size.isFinite ? size : null,
+      child: Material(
+        color: const Color(0xFFE9EDF0),
+        borderRadius: BorderRadius.circular(9),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: exists ? onTap : null,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (exists)
+                Image.file(
+                  File(image.path),
+                  fit: BoxFit.cover,
+                )
+              else
+                const Center(
+                  child: Icon(
+                    Icons.broken_image_outlined,
+                    color: Color(0xFF8A9096),
+                  ),
+                ),
+              if (image.isPrimary)
+                Positioned(
+                  top: 4,
+                  left: 4,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.68),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Icon(
+                      Icons.star,
+                      size: 16,
+                      color: Colors.amber,
+                    ),
+                  ),
+                ),
+              Positioned(
+                left: 4,
+                right: 4,
+                bottom: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.62),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    image.type,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
