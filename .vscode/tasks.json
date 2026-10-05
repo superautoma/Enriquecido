@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Flutter Web móvil",
+      "type": "shell",
+      "command": "flutter run -d web-server --web-hostname 0.0.0.0 --web-port 3000",
+      "options": {
+        "cwd": "${workspaceFolder}/flutter"
+      },
+      "problemMatcher": [],
+      "isBackground": true
+    }
+  ]
+}
