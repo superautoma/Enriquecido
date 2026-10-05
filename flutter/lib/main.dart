@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
 void main() {
@@ -21,6 +22,13 @@ class RichTextTestApp extends StatelessWidget {
           brightness: Brightness.light,
         ),
       ),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        FlutterQuillLocalizations.delegate,
+      ],
+      supportedLocales: FlutterQuillLocalizations.supportedLocales,
       home: const StartPage(),
     );
   }
