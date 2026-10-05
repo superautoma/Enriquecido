@@ -57,8 +57,10 @@ void main() {
   testWidgets('Failed startup offers a retry and then opens the tools',
       (tester) async {
     final invalidPath = File('${directory.path}/not_a_directory');
-    await invalidPath.writeAsString('occupied');
-    await databaseFactory.setDatabasesPath(invalidPath.path);
+    await tester.runAsync(() async {
+      await invalidPath.writeAsString('occupied');
+      await databaseFactory.setDatabasesPath(invalidPath.path);
+    });
     await tester.pumpWidget(const GestorHerramientasApp());
     await finishDatabaseLoad(tester);
     await tester.pumpAndSettle();
