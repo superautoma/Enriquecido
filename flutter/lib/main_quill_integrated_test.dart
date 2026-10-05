@@ -219,7 +219,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V2',
+          'Mis herramientas · QUILL V3',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -510,7 +510,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V2' : 'Nuevo artículo · QUILL V2',
+          _isEditing ? 'Editar artículo · QUILL V3' : 'Nuevo artículo · QUILL V3',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -546,6 +546,7 @@ class _EditToolPageState extends State<EditToolPage> {
               const SizedBox(height: 12),
               DescriptionQuillCard(
                 text: _descriptionPlain,
+                deltaJson: _descriptionDelta,
                 onTap: _openQuillDescription,
               ),
               const SizedBox(height: 12),
@@ -708,10 +709,12 @@ class DescriptionQuillCard extends StatelessWidget {
   const DescriptionQuillCard({
     super.key,
     required this.text,
+    required this.deltaJson,
     required this.onTap,
   });
 
   final String text;
+  final String deltaJson;
   final VoidCallback onTap;
 
   @override
@@ -744,27 +747,145 @@ class DescriptionQuillCard extends StatelessWidget {
                   ),
                 ),
                 Spacer(),
-                Icon(Icons.chevron_right, color: Color(0xFF8A9096)),
+                Icon(Icons.edit_outlined, color: Color(0xFF168BD2)),
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              hasText
-                  ? text
-                  : 'Toca aquí para abrir el editor Quill',
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                height: 1.35,
-                color: hasText
-                    ? const Color(0xFF2B3035)
-                    : const Color(0xFF8A9096),
+            if (hasText)
+              _RichDeltaPreview(
+                plainText: text,
+                deltaJson: deltaJson,
+              )
+            else
+              const Text(
+                'Toca aquí para abrir el editor Quill',
+                style: TextStyle(
+                  height: 1.35,
+                  color: Color(0xFF8A9096),
+                ),
               ),
-            ),
           ],
         ),
       ),
     );
+  }
+}
+
+class _RichDeltaPreview extends StatelessWidget {
+  const _RichDeltaPreview({
+    required this.plainText,
+    required this.deltaJson,
+  });
+
+  final String plainText;
+  final String deltaJson;
+
+  @override
+  Widget build(BuildContext context) {
+    final spans = <TextSpan>[];
+
+    try {
+      if (deltaJson.trim().isNotEmpty) {
+        final decoded = jsonDecode(deltaJson);
+        if (decoded is List) {
+          for (final operation in decoded) {
+            if (operation is! Map) continue;
+
+            final insert = operation['insert'];
+            if (insert is! String) continue;
+
+            final rawAttributes = operation['attributes'];
+            final attributes = rawAttributes is Map
+                ? Map<String, dynamic>.from(rawAttributes)
+                : const <String, dynamic>{};
+
+            spans.add(
+              TextSpan(
+                text: insert,
+                style: _styleFromAttributes(attributes),
+              ),
+            );
+          }
+        }
+      }
+    } catch (_) {
+      // Si un Delta antiguo no se puede interpretar, mostramos texto normal.
+    }
+
+    if (spans.isEmpty) {
+      spans.add(TextSpan(text: plainText));
+    }
+
+    return RichText(
+      maxLines: 6,
+      overflow: TextOverflow.ellipsis,
+      text: TextSpan(
+        style: const TextStyle(
+          fontSize: 15,
+          height: 1.35,
+          color: Color(0xFF2B3035),
+        ),
+        children: spans,
+      ),
+    );
+  }
+
+  TextStyle _styleFromAttributes(Map<String, dynamic> attributes) {
+    final decorations = <TextDecoration>[];
+
+    if (attributes['underline'] == true) {
+      decorations.add(TextDecoration.underline);
+    }
+    if (attributes['strike'] == true) {
+      decorations.add(TextDecoration.lineThrough);
+    }
+
+    return TextStyle(
+      fontWeight:
+          attributes['bold'] == true ? FontWeight.w700 : FontWeight.normal,
+      fontStyle:
+          attributes['italic'] == true ? FontStyle.italic : FontStyle.normal,
+      decoration: decorations.isEmpty
+          ? TextDecoration.none
+          : TextDecoration.combine(decorations),
+      color: _parseColor(attributes['color']),
+      backgroundColor: _parseColor(attributes['background']),
+      fontSize: _parseFontSize(attributes['size']),
+    );
+  }
+
+  Color? _parseColor(dynamic value) {
+    if (value is! String || value.isEmpty) return null;
+
+    var hex = value.trim();
+    if (hex.startsWith('#')) {
+      hex = hex.substring(1);
+    }
+
+    if (hex.length == 6) {
+      hex = 'FF$hex';
+    }
+
+    if (hex.length != 8) return null;
+
+    final parsed = int.tryParse(hex, radix: 16);
+    return parsed == null ? null : Color(parsed);
+  }
+
+  double? _parseFontSize(dynamic value) {
+    if (value == null) return null;
+
+    final text = value.toString();
+    switch (text) {
+      case 'small':
+        return 12;
+      case 'large':
+        return 20;
+      case 'huge':
+        return 26;
+      default:
+        return double.tryParse(text);
+    }
   }
 }
 
