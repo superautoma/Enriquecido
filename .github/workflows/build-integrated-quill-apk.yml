@@ -1,0 +1,60 @@
+name: Build Integrated Quill APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "flutter/lib/main_quill_integrated_test.dart"
+      - "flutter/pubspec.yaml"
+      - ".github/workflows/build-integrated-quill-apk.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    defaults:
+      run:
+        working-directory: flutter
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android project
+        run: |
+          cp pubspec.yaml /tmp/flutter_pubspec.yaml
+          cp lib/main_quill_integrated_test.dart /tmp/main_quill_integrated_test.dart
+          flutter create . \
+            --platforms=android \
+            --project-name gestor_herramientas_quill_test \
+            --org org.gestorherramientas
+          cp /tmp/flutter_pubspec.yaml pubspec.yaml
+          cp /tmp/main_quill_integrated_test.dart lib/main_quill_integrated_test.dart
+          rm -rf test
+          sed -i 's/android:label="gestor_herramientas_quill_test"/android:label="Gestor Quill Integrado"/' android/app/src/main/AndroidManifest.xml
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: Analyze integrated test
+        run: flutter analyze --no-fatal-infos lib/main_quill_integrated_test.dart
+
+      - name: Build debug APK
+        run: flutter build apk --debug -t lib/main_quill_integrated_test.dart
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: gestor-quill-integrado-apk
+          path: flutter/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
