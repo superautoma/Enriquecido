@@ -1038,7 +1038,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V13',
+          'Mis herramientas · QUILL V14',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -2144,7 +2144,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V13' : 'Nuevo artículo · QUILL V13',
+          _isEditing ? 'Editar artículo · QUILL V14' : 'Nuevo artículo · QUILL V14',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -2203,6 +2203,14 @@ class _EditToolPageState extends State<EditToolPage> {
                             Text(option.label),
                           ],
                         ),
+                      ),
+                    )
+                    .toList(),
+                selectedItemBuilder: (context) => toolTypeStyles
+                    .map(
+                      (option) => Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(option.label),
                       ),
                     )
                     .toList(),
@@ -2287,6 +2295,14 @@ class _EditToolPageState extends State<EditToolPage> {
                             Text(option.label),
                           ],
                         ),
+                      ),
+                    )
+                    .toList(),
+                selectedItemBuilder: (context) => conditionStyles
+                    .map(
+                      (option) => Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(option.label),
                       ),
                     )
                     .toList(),
