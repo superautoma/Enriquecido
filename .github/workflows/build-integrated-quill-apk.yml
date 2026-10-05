@@ -42,6 +42,13 @@ jobs:
           rm -rf test
           sed -i 's/android:label="gestor_herramientas_quill_test"/android:label="Gestor Quill Integrado"/' android/app/src/main/AndroidManifest.xml
 
+      - name: Install stable development signing key
+        run: |
+          mkdir -p "$HOME/.android"
+          base64 --decode ../.github/dev-signing/android-debug.keystore.b64 > "$HOME/.android/debug.keystore"
+          chmod 600 "$HOME/.android/debug.keystore"
+          keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey >/dev/null
+
       - name: Get packages
         run: flutter pub get
 
