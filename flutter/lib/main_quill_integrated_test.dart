@@ -3586,7 +3586,9 @@ class _EditToolPageState extends State<EditToolPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
+                key: const ValueKey('tool_type'),
                 initialValue: selectedType,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Tipo',
                 ),
@@ -3889,7 +3891,13 @@ class _EditToolPageState extends State<EditToolPage> {
                               size: 20,
                             ),
                             const SizedBox(width: 8),
-                            Text(option.label),
+                            Expanded(
+                              child: Text(
+                                option.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -3899,7 +3907,11 @@ class _EditToolPageState extends State<EditToolPage> {
                     .map(
                       (option) => Align(
                         alignment: Alignment.centerLeft,
-                        child: Text(option.label),
+                        child: Text(
+                          option.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     )
                     .toList(),
@@ -4000,6 +4012,7 @@ class _EditToolPageState extends State<EditToolPage> {
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 initialValue: selectedCondition,
+                isExpanded: true,
                 decoration: InputDecoration(
                   labelText: 'Estado de la herramienta',
                   prefixIcon: Center(
@@ -4022,7 +4035,13 @@ class _EditToolPageState extends State<EditToolPage> {
                               size: 20,
                             ),
                             const SizedBox(width: 8),
-                            Text(option.label),
+                            Expanded(
+                              child: Text(
+                                option.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -4032,7 +4051,11 @@ class _EditToolPageState extends State<EditToolPage> {
                     .map(
                       (option) => Align(
                         alignment: Alignment.centerLeft,
-                        child: Text(option.label),
+                        child: Text(
+                          option.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     )
                     .toList(),

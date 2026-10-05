@@ -128,8 +128,22 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('230 V').last);
     await tester.pumpAndSettle();
+    expect(
+      tester.state<FormFieldState<String>>(
+        find.byKey(const ValueKey('tool_type')),
+      ).value,
+      'Herramienta eléctrica',
+    );
+    expect(tester.widget<TextFormField>(find.byType(TextFormField).first)
+        .controller?.text, 'Taladro');
     await tester.tap(find.text('GUARDAR'));
     await tester.pumpAndSettle();
+    expect(find.text('Selecciona el tipo'), findsNothing);
+    expect(find.text('Escribe el nombre'), findsNothing);
+    // The caller receives the result once the popped route completes.
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
     expect(saved?.voltage, '230 V');
     await tester.runAsync(() async {
       await ToolsDatabase.instance.saveTool(saved!);
