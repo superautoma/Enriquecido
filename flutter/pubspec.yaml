@@ -1,13 +1,15 @@
 name: gestor_richtext_flutter
 description: Prueba de editor enriquecido para el gestor de herramientas.
 publish_to: "none"
-version: 0.2.0+2
+version: 0.2.1+3
 
 environment:
   sdk: ">=3.12.0 <4.0.0"
 
 dependencies:
   flutter:
+    sdk: flutter
+  flutter_localizations:
     sdk: flutter
   flutter_quill: ^11.6.0
 
