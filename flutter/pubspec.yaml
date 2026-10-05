@@ -1,7 +1,7 @@
-name: gestor_richtext_flutter
-description: Prueba de editor enriquecido para el gestor de herramientas.
+name: flutter_richtext_v3
+description: Prueba diagnostica de Flutter Quill.
 publish_to: "none"
-version: 0.2.1+3
+version: 0.3.0+4
 
 environment:
   sdk: ">=3.12.0 <4.0.0"
