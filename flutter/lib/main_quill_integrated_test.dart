@@ -927,7 +927,16 @@ AppIconChoice appIconChoiceFor(String key) {
 IconData appIconFor(String key) =>
     isCustomIconKey(key) ? Icons.image_outlined : appIconChoiceFor(key).icon;
 
-String appIconLabel(String key) {
+Map<String, String> _iconNameOverrides = {};
+
+String iconNameStorageKey(String key) => isCustomIconKey(key)
+    ? 'custom:${p.basename(customIconPathFromKey(key))}'
+    : key;
+
+String appIconLabel(String key) =>
+    _iconNameOverrides[iconNameStorageKey(key)] ?? defaultAppIconLabel(key);
+
+String defaultAppIconLabel(String key) {
   if (isCustomIconKey(key)) {
     final path = customIconPathFromKey(key);
     final name = p.basenameWithoutExtension(path);
@@ -2439,6 +2448,8 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     try {
       await ToolsDatabase.instance.seedIfEmpty(_defaultItems);
       final items = await ToolsDatabase.instance.loadTools();
+      await loadIconNames();
+      await loadIconSettings();
       final conditionOptions = await ToolsDatabase.instance.loadFieldOptions(
         'condition',
       );
@@ -2870,7 +2881,133 @@ Future<Directory> customIconsDirectory() async {
   return directory;
 }
 
+Set<String> _hiddenIconKeys = {};
+Map<String, String> _iconGroupOverrides = {};
+
+bool isIconHidden(String key) =>
+    _hiddenIconKeys.contains(iconNameStorageKey(key));
+String iconCategoryForKey(
+  String key, [
+  Map<String, String> customGroups = const {},
+]) =>
+    _iconGroupOverrides[iconNameStorageKey(key)] ??
+    (isCustomIconKey(key)
+        ? customGroups[key] ?? 'Mis iconos'
+        : appIconChoiceFor(key).category);
+
+Future<File> iconSettingsFile() async {
+  final docs = await getApplicationDocumentsDirectory();
+  return File(p.join(docs.path, 'tool_images', 'icon_settings.json'));
+}
+
+Future<void> loadIconSettings() async {
+  final hidden = <String>{};
+  final groups = <String, String>{};
+  try {
+    final file = await iconSettingsFile();
+    if (await file.exists()) {
+      final raw = jsonDecode(await file.readAsString());
+      if (raw is Map) {
+        if (raw['hidden'] is List)
+          hidden.addAll((raw['hidden'] as List).whereType<String>());
+        if (raw['groups'] is Map) {
+          for (final entry in (raw['groups'] as Map).entries) {
+            if (entry.key is String &&
+                entry.value is String &&
+                appIconCategories.contains(entry.value) &&
+                entry.value != 'Todos') {
+              groups[entry.key as String] = entry.value as String;
+            }
+          }
+        }
+      }
+    }
+  } catch (_) {}
+  _hiddenIconKeys = hidden;
+  _iconGroupOverrides = groups;
+}
+
+Future<void> updateIconSettings(
+  String key, {
+  bool? hidden,
+  String? group,
+}) async {
+  final hiddenKeys = Set<String>.from(_hiddenIconKeys);
+  final groups = Map<String, String>.from(_iconGroupOverrides);
+  final id = iconNameStorageKey(key);
+  if (hidden == true) hiddenKeys.add(id);
+  if (hidden == false) hiddenKeys.remove(id);
+  if (group != null && appIconCategories.contains(group) && group != 'Todos') {
+    groups[id] = group;
+  }
+  final file = await iconSettingsFile();
+  await file.parent.create(recursive: true);
+  final temporary = File('${file.path}.tmp');
+  await temporary.writeAsString(
+    jsonEncode({'hidden': hiddenKeys.toList(), 'groups': groups}),
+    flush: true,
+  );
+  await temporary.rename(file.path);
+  _hiddenIconKeys = hiddenKeys;
+  _iconGroupOverrides = groups;
+}
+
+Future<bool> showIconRename(BuildContext context, String key) async {
+  final name = await showDialog<String>(
+    context: context,
+    builder: (_) => _IconRenameDialog(iconKey: key),
+  );
+  if (name == null) return false;
+  await saveIconName(key, name);
+  return true;
+}
+
+Future<File> iconNamesFile() async {
+  final docs = await getApplicationDocumentsDirectory();
+  return File(p.join(docs.path, 'tool_images', 'icon_names.json'));
+}
+
+Future<void> loadIconNames() async {
+  final names = <String, String>{};
+  try {
+    final file = await iconNamesFile();
+    if (await file.exists()) {
+      final raw = jsonDecode(await file.readAsString());
+      if (raw is Map) {
+        for (final entry in raw.entries) {
+          if (entry.key is String &&
+              entry.value is String &&
+              (entry.value as String).trim().isNotEmpty) {
+            names[entry.key as String] = (entry.value as String).trim();
+          }
+        }
+      }
+    }
+  } catch (_) {
+    // Un fichero ausente o inválido conserva los nombres de fábrica.
+  }
+  _iconNameOverrides = names;
+}
+
+Future<void> saveIconName(String key, String name) async {
+  final updated = Map<String, String>.from(_iconNameOverrides);
+  final value = name.trim();
+  if (value.isEmpty || value == defaultAppIconLabel(key)) {
+    updated.remove(iconNameStorageKey(key));
+  } else {
+    updated[iconNameStorageKey(key)] = value;
+  }
+  final file = await iconNamesFile();
+  await file.parent.create(recursive: true);
+  final temporary = File('${file.path}.tmp');
+  await temporary.writeAsString(jsonEncode(updated), flush: true);
+  await temporary.rename(file.path);
+  _iconNameOverrides = updated;
+}
+
 Future<List<String>> loadCustomIconKeys() async {
+  await loadIconNames();
+  await loadIconSettings();
   final directory = await customIconsDirectory();
   final supported = <String>{'.png', '.jpg', '.jpeg', '.webp', '.svg'};
   final keys = <String>[];
@@ -2993,11 +3130,30 @@ class _IconPickerPageState extends State<IconPickerPage> {
     setState(() {
       _customKeys = keys;
       _customGroups = groups;
-      if (isCustomIconKey(widget.currentKey)) {
-        _category = groups[widget.currentKey] ?? 'Mis iconos';
-      }
+      if (_loadingCustom)
+        _category = iconCategoryForKey(widget.currentKey, groups);
       _loadingCustom = false;
     });
+  }
+
+  Future<void> _renameIcon(String key) async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _IconRenameDialog(iconKey: key),
+    );
+    if (name == null) return;
+    try {
+      await saveIconName(key, name);
+      if (!mounted) return;
+      setState(() {});
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo guardar el nombre. Inténtalo de nuevo.'),
+        ),
+      );
+    }
   }
 
   Future<void> _import() async {
@@ -3050,19 +3206,22 @@ class _IconPickerPageState extends State<IconPickerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final builtInVisible = _category == 'Todos'
-        ? appIconChoices
-        : appIconChoices
-              .where((choice) => choice.category == _category)
-              .toList();
+    final builtInVisible = appIconChoices
+        .where(
+          (choice) =>
+              !isIconHidden(choice.key) &&
+              (_category == 'Todos' ||
+                  iconCategoryForKey(choice.key) == _category),
+        )
+        .toList();
     final showingCustom = _category == 'Mis iconos';
     final visibleKeys = <String>[
       if (!showingCustom) ...builtInVisible.map((choice) => choice.key),
       ..._customKeys.where(
         (key) =>
-            showingCustom ||
-            _category == 'Todos' ||
-            _customGroups[key] == _category,
+            !isIconHidden(key) &&
+            (_category == 'Todos' ||
+                iconCategoryForKey(key, _customGroups) == _category),
       ),
       if (showingCustom) ...builtInVisible.map((choice) => choice.key),
     ];
@@ -3073,6 +3232,18 @@ class _IconPickerPageState extends State<IconPickerPage> {
           'Seleccionar icono',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Gestionar iconos',
+            icon: const Icon(Icons.tune),
+            onPressed: () async {
+              await Navigator.of(context).push<void>(
+                MaterialPageRoute(builder: (_) => const IconManagementPage()),
+              );
+              if (mounted) await _loadCustom();
+            },
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -3131,7 +3302,13 @@ class _IconPickerPageState extends State<IconPickerPage> {
                 },
               ),
             ),
-            const SizedBox(height: 8),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Text(
+                'Mantén pulsado un icono para cambiar su nombre.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF6F747A)),
+              ),
+            ),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -3182,6 +3359,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
                           onTap: () => Navigator.pop(context, key),
+                          onLongPress: () => _renameIcon(key),
                           child: Padding(
                             padding: const EdgeInsets.all(8),
                             child: Column(
@@ -3243,6 +3421,301 @@ class _IconPickerPageState extends State<IconPickerPage> {
   }
 }
 
+class IconManagementPage extends StatefulWidget {
+  const IconManagementPage({super.key});
+  @override
+  State<IconManagementPage> createState() => _IconManagementPageState();
+}
+
+class _IconManagementPageState extends State<IconManagementPage> {
+  List<String> _keys = [];
+  Map<String, String> _groups = {};
+  String _query = '';
+  String _group = 'Todos';
+  bool _trash = false;
+  bool _loading = true;
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final custom = await loadCustomIconKeys();
+    final groups = await loadCustomIconGroups(custom);
+    if (!mounted) return;
+    setState(() {
+      _keys = [...appIconChoices.map((i) => i.key), ...custom];
+      _groups = groups;
+      _loading = false;
+    });
+  }
+
+  Future<void> _change(String key, String action) async {
+    try {
+      if (action == 'rename') {
+        if (!await showIconRename(context, key)) return;
+      } else if (action == 'group') {
+        final group = await showDialog<String>(
+          context: context,
+          builder: (context) => SimpleDialog(
+            title: const Text('Mover a un grupo'),
+            children: [
+              for (final group in appIconCategories.where((g) => g != 'Todos'))
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(context, group),
+                  child: Text(group),
+                ),
+            ],
+          ),
+        );
+        if (group == null) return;
+        await updateIconSettings(key, group: group);
+      } else if (action == 'delete') {
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Eliminar «${appIconLabel(key)}»'),
+            content: const Text(
+              'Se moverá a la papelera. Las herramientas que ya lo usan conservarán su icono.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Eliminar'),
+              ),
+            ],
+          ),
+        );
+        if (confirm != true) return;
+        await updateIconSettings(key, hidden: true);
+      } else if (action == 'restore') {
+        await updateIconSettings(key, hidden: false);
+      }
+      if (mounted) await _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo guardar el cambio. Inténtalo de nuevo.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _import() async {
+    await importCustomIcons();
+    if (mounted) await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = _keys
+        .where(
+          (key) =>
+              isIconHidden(key) == _trash &&
+              (_group == 'Todos' ||
+                  iconCategoryForKey(key, _groups) == _group) &&
+              appIconLabel(
+                key,
+              ).toLowerCase().contains(_query.trim().toLowerCase()),
+        )
+        .toList();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Gestor de iconos')),
+      floatingActionButton: _trash
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _import,
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+              label: const Text('Importar'),
+            ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Buscar iconos',
+                  prefixIcon: Icon(Icons.search),
+                ),
+                onChanged: (value) => setState(() => _query = value),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: DropdownButtonFormField<String>(
+                initialValue: _group,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Grupo'),
+                items: appIconCategories
+                    .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) setState(() => _group = value);
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  ChoiceChip(
+                    label: const Text('Iconos activos'),
+                    selected: !_trash,
+                    onSelected: (_) => setState(() => _trash = false),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Papelera'),
+                    selected: _trash,
+                    onSelected: (_) => setState(() => _trash = true),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              '${visible.length} iconos',
+              style: const TextStyle(color: Color(0xFF6F747A)),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : visible.isEmpty
+                  ? Center(
+                      child: Text(
+                        _trash
+                            ? 'La papelera está vacía'
+                            : 'No hay iconos que coincidan',
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 90),
+                      itemCount: visible.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 6),
+                      itemBuilder: (context, index) {
+                        final key = visible[index];
+                        final color = isCustomIconKey(key)
+                            ? const Color(0xFF546E7A)
+                            : appIconChoiceFor(key).defaultColor;
+                        return Card(
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: color.withValues(alpha: 0.12),
+                              child: iconWidgetForKey(
+                                key,
+                                color: color,
+                                size: 22,
+                              ),
+                            ),
+                            title: Text(
+                              appIconLabel(key),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(iconCategoryForKey(key, _groups)),
+                            onTap: () =>
+                                _change(key, _trash ? 'restore' : 'rename'),
+                            trailing: PopupMenuButton<String>(
+                              tooltip: 'Opciones del icono',
+                              onSelected: (action) => _change(key, action),
+                              itemBuilder: (_) => _trash
+                                  ? const [
+                                      PopupMenuItem(
+                                        value: 'restore',
+                                        child: Text('Restaurar'),
+                                      ),
+                                    ]
+                                  : const [
+                                      PopupMenuItem(
+                                        value: 'rename',
+                                        child: Text('Cambiar nombre'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'group',
+                                        child: Text('Cambiar grupo'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Eliminar'),
+                                      ),
+                                    ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IconRenameDialog extends StatefulWidget {
+  const _IconRenameDialog({required this.iconKey});
+  final String iconKey;
+  @override
+  State<_IconRenameDialog> createState() => _IconRenameDialogState();
+}
+
+class _IconRenameDialogState extends State<_IconRenameDialog> {
+  final _form = GlobalKey<FormState>();
+  late final TextEditingController _name;
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: appIconLabel(widget.iconKey));
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    if (_form.currentState!.validate())
+      Navigator.pop(context, _name.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Cambiar nombre del icono'),
+    content: Form(
+      key: _form,
+      child: TextFormField(
+        controller: _name,
+        autofocus: true,
+        maxLength: 60,
+        decoration: const InputDecoration(labelText: 'Nombre del icono'),
+        textCapitalization: TextCapitalization.sentences,
+        validator: (value) =>
+            value == null || value.trim().isEmpty ? 'Escribe un nombre' : null,
+        onFieldSubmitted: (_) => _save(),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context, ''),
+        child: const Text('Nombre original'),
+      ),
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancelar'),
+      ),
+      FilledButton(onPressed: _save, child: const Text('Guardar')),
+    ],
+  );
+}
+
 class FieldOptionEditPage extends StatefulWidget {
   const FieldOptionEditPage({
     super.key,
@@ -3290,7 +3763,11 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
     final selected = await Navigator.of(context).push<String>(
       MaterialPageRoute(builder: (_) => IconPickerPage(currentKey: _iconKey)),
     );
-    if (!mounted || selected == null) return;
+    if (!mounted) return;
+    if (selected == null) {
+      setState(() {});
+      return;
+    }
 
     setState(() {
       _iconKey = selected;
