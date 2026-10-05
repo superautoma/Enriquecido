@@ -202,6 +202,20 @@ class ToolItem {
       );
 }
 
+class DatabaseStats {
+  const DatabaseStats({
+    required this.tools,
+    required this.images,
+    required this.databaseBytes,
+    required this.imagesBytes,
+  });
+
+  final int tools;
+  final int images;
+  final int databaseBytes;
+  final int imagesBytes;
+}
+
 class ToolsDatabase {
   ToolsDatabase._();
 
@@ -433,6 +447,71 @@ class ToolsDatabase {
       batch.insert('tools', item.toMap());
     }
     await batch.commit(noResult: true);
+  }
+
+  Future<DatabaseStats> getStats() async {
+    final db = await database;
+
+    final toolsCount =
+        Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM tools')) ??
+            0;
+    final imagesCount = Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM tool_images'),
+        ) ??
+        0;
+
+    final path = await databasePath;
+    final dbFile = File(path);
+    final databaseBytes = await dbFile.exists() ? await dbFile.length() : 0;
+
+    final docs = await getApplicationDocumentsDirectory();
+    final imagesDir = Directory(p.join(docs.path, 'tool_images'));
+    final imagesBytes = await _directorySize(imagesDir);
+
+    return DatabaseStats(
+      tools: toolsCount,
+      images: imagesCount,
+      databaseBytes: databaseBytes,
+      imagesBytes: imagesBytes,
+    );
+  }
+
+  Future<String> integrityCheck() async {
+    final db = await database;
+    final rows = await db.rawQuery('PRAGMA integrity_check');
+    if (rows.isEmpty) return 'Sin resultado';
+
+    final value = rows.first.values.isEmpty ? null : rows.first.values.first;
+    return value?.toString() ?? 'Sin resultado';
+  }
+
+  Future<List<Map<String, Object?>>> databaseOverview() async {
+    final db = await database;
+    return db.rawQuery('''
+      SELECT
+        t.id,
+        t.name,
+        t.barcode,
+        COUNT(i.id) AS image_count
+      FROM tools t
+      LEFT JOIN tool_images i ON i.tool_id = t.id
+      GROUP BY t.id, t.name, t.barcode
+      ORDER BY t.id DESC
+    ''');
+  }
+
+  Future<int> _directorySize(Directory directory) async {
+    if (!await directory.exists()) return 0;
+
+    var total = 0;
+    await for (final entity in directory.list(recursive: true)) {
+      if (entity is File) {
+        try {
+          total += await entity.length();
+        } catch (_) {}
+      }
+    }
+    return total;
   }
 
   Future<String> get databasePath async {
@@ -822,7 +901,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     }
   }
 
-  Future<void> _restoreBackup() async {
+  Future<bool> _restoreBackup() async {
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['zip'],
@@ -830,7 +909,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     );
 
     final path = picked?.files.single.path;
-    if (path == null || !mounted) return;
+    if (path == null || !mounted) return false;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -854,7 +933,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       ),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true) return false;
 
     try {
       await BackupManager.restoreBackup(path);
@@ -865,11 +944,28 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
           content: Text('Copia restaurada correctamente'),
         ),
       );
+      return true;
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No se pudo restaurar la copia: $error')),
       );
+      return false;
+    }
+  }
+
+  Future<void> _openDatabaseManager() async {
+    final restored = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => DatabaseManagementPage(
+          onCreateBackup: _createBackup,
+          onRestoreBackup: _restoreBackup,
+        ),
+      ),
+    );
+
+    if (restored == true) {
+      await _loadItems();
     }
   }
 
@@ -886,7 +982,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V10',
+          'Mis herramientas · QUILL V11',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -895,6 +991,8 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
             icon: const Icon(Icons.more_vert),
             onSelected: (value) {
               switch (value) {
+                case 'database':
+                  _openDatabaseManager();
                 case 'backup':
                   _createBackup();
                 case 'restore':
@@ -902,6 +1000,15 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
               }
             },
             itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'database',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.storage_outlined),
+                  title: Text('Gestión de base de datos'),
+                ),
+              ),
+              PopupMenuDivider(),
               PopupMenuItem(
                 value: 'backup',
                 child: ListTile(
@@ -1096,6 +1203,342 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class DatabaseManagementPage extends StatefulWidget {
+  const DatabaseManagementPage({
+    super.key,
+    required this.onCreateBackup,
+    required this.onRestoreBackup,
+  });
+
+  final Future<void> Function() onCreateBackup;
+  final Future<bool> Function() onRestoreBackup;
+
+  @override
+  State<DatabaseManagementPage> createState() =>
+      _DatabaseManagementPageState();
+}
+
+class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
+  late Future<DatabaseStats> _stats;
+  late Future<List<Map<String, Object?>>> _overview;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  void _refresh() {
+    _stats = ToolsDatabase.instance.getStats();
+    _overview = ToolsDatabase.instance.databaseOverview();
+  }
+
+  void _refreshUi() {
+    setState(_refresh);
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    final kb = bytes / 1024;
+    if (kb < 1024) return '${kb.toStringAsFixed(1)} KB';
+    final mb = kb / 1024;
+    if (mb < 1024) return '${mb.toStringAsFixed(1)} MB';
+    final gb = mb / 1024;
+    return '${gb.toStringAsFixed(2)} GB';
+  }
+
+  Future<void> _checkIntegrity() async {
+    try {
+      final result = await ToolsDatabase.instance.integrityCheck();
+      if (!mounted) return;
+
+      final ok = result.trim().toLowerCase() == 'ok';
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: Icon(
+            ok ? Icons.check_circle_outline : Icons.warning_amber_rounded,
+            size: 36,
+          ),
+          title: Text(ok ? 'Base de datos correcta' : 'Resultado de comprobación'),
+          content: Text(
+            ok
+                ? 'SQLite no ha encontrado errores de integridad.'
+                : result,
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Aceptar'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo comprobar la base de datos: $error')),
+      );
+    }
+  }
+
+  Future<void> _restore() async {
+    final restored = await widget.onRestoreBackup();
+    if (!mounted || !restored) return;
+    _refreshUi();
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Gestión de base de datos',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async => _refreshUi(),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+            children: [
+              FutureBuilder<DatabaseStats>(
+                future: _stats,
+                builder: (context, snapshot) {
+                  final stats = snapshot.data;
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: _DatabaseStatCard(
+                          icon: Icons.handyman_outlined,
+                          label: 'Herramientas',
+                          value: stats == null ? '—' : '${stats.tools}',
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _DatabaseStatCard(
+                          icon: Icons.photo_library_outlined,
+                          label: 'Imágenes',
+                          value: stats == null ? '—' : '${stats.images}',
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+              FutureBuilder<DatabaseStats>(
+                future: _stats,
+                builder: (context, snapshot) {
+                  final stats = snapshot.data;
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: _DatabaseStatCard(
+                          icon: Icons.storage_outlined,
+                          label: 'SQLite',
+                          value: stats == null
+                              ? '—'
+                              : _formatBytes(stats.databaseBytes),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _DatabaseStatCard(
+                          icon: Icons.folder_outlined,
+                          label: 'Fotos',
+                          value: stats == null
+                              ? '—'
+                              : _formatBytes(stats.imagesBytes),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 18),
+              const SectionTitle('Seguridad y mantenimiento'),
+              const SizedBox(height: 10),
+              Card(
+                margin: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.backup_outlined),
+                      title: const Text('Crear copia de seguridad'),
+                      subtitle: const Text(
+                        'Guarda SQLite y todas las imágenes en un ZIP.',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: widget.onCreateBackup,
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.restore),
+                      title: const Text('Restaurar copia'),
+                      subtitle: const Text(
+                        'Recupera herramientas, campos e imágenes.',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _restore,
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.health_and_safety_outlined),
+                      title: const Text('Comprobar integridad'),
+                      subtitle: const Text(
+                        'Verifica que la base SQLite no tenga errores.',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _checkIntegrity,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  const Expanded(
+                    child: SectionTitle('Registros guardados'),
+                  ),
+                  IconButton(
+                    tooltip: 'Actualizar',
+                    onPressed: _refreshUi,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              FutureBuilder<List<Map<String, Object?>>>(
+                future: _overview,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+
+                  if (snapshot.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'No se pudieron leer los registros: ${snapshot.error}',
+                      ),
+                    );
+                  }
+
+                  final rows = snapshot.data ?? const [];
+                  if (rows.isEmpty) {
+                    return const Card(
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: EdgeInsets.all(18),
+                        child: Text('No hay herramientas guardadas.'),
+                      ),
+                    );
+                  }
+
+                  return Card(
+                    margin: EdgeInsets.zero,
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      children: [
+                        for (var index = 0; index < rows.length; index++) ...[
+                          Builder(
+                            builder: (context) {
+                              final row = rows[index];
+                              final id = row['id'] ?? '';
+                              final name = (row['name'] as String?) ?? '';
+                              final barcode =
+                                  (row['barcode'] as String?) ?? '';
+                              final imageCount =
+                                  (row['image_count'] as num?)?.toInt() ?? 0;
+
+                              return ListTile(
+                                dense: true,
+                                leading: CircleAvatar(
+                                  child: Text('$id'),
+                                ),
+                                title: Text(
+                                  name.isEmpty ? 'Sin nombre' : name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  barcode.isEmpty
+                                      ? '$imageCount imágenes'
+                                      : '$barcode · $imageCount imágenes',
+                                ),
+                              );
+                            },
+                          ),
+                          if (index < rows.length - 1)
+                            const Divider(height: 1),
+                        ],
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DatabaseStatCard extends StatelessWidget {
+  const _DatabaseStatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFD7DDE3)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFF168BD2)),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF72777D),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1637,7 +2080,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V10' : 'Nuevo artículo · QUILL V10',
+          _isEditing ? 'Editar artículo · QUILL V11' : 'Nuevo artículo · QUILL V11',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
