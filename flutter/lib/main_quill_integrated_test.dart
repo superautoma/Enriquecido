@@ -126,6 +126,13 @@ class ToolImage {
       );
 }
 
+const toolTypes = <String>[
+  'Herramienta manual',
+  'Herramienta eléctrica',
+  'Repuesto',
+  'Consumible',
+];
+
 class ToolItem {
   ToolItem({
     required this.id,
@@ -138,6 +145,7 @@ class ToolItem {
     required this.minimumStock,
     required this.purchasePrice,
     required this.condition,
+    this.type = '',
     List<ToolImage>? images,
   }) : images = images ?? <ToolImage>[];
 
@@ -151,6 +159,7 @@ class ToolItem {
   double minimumStock;
   double purchasePrice;
   String condition;
+  String type;
   List<ToolImage> images;
 
   String get imagePath {
@@ -170,6 +179,7 @@ class ToolItem {
         minimumStock: minimumStock,
         purchasePrice: purchasePrice,
         condition: condition,
+        type: type,
         images: images.map((image) => image.copy()).toList(),
       );
 
@@ -184,6 +194,7 @@ class ToolItem {
         'minimum_stock': minimumStock,
         'purchase_price': purchasePrice,
         'condition': condition,
+        'tool_type': type,
         // Se conserva para compatibilidad con versiones antiguas.
         'image_path': imagePath,
       };
@@ -199,6 +210,7 @@ class ToolItem {
         minimumStock: (map['minimum_stock'] as num?)?.toDouble() ?? 0,
         purchasePrice: (map['purchase_price'] as num?)?.toDouble() ?? 0,
         condition: (map['condition'] as String?) ?? 'Bueno',
+        type: (map['tool_type'] as String?) ?? '',
       );
 }
 
@@ -230,7 +242,7 @@ class ToolsDatabase {
 
     _database = await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -247,6 +259,7 @@ class ToolsDatabase {
             minimum_stock REAL NOT NULL DEFAULT 0,
             purchase_price REAL NOT NULL DEFAULT 0,
             condition TEXT NOT NULL DEFAULT 'Bueno',
+            tool_type TEXT NOT NULL DEFAULT '',
             image_path TEXT NOT NULL DEFAULT ''
           )
         ''');
@@ -277,6 +290,12 @@ class ToolsDatabase {
             FROM tools
             WHERE TRIM(COALESCE(image_path, '')) <> ''
           ''');
+        }
+
+        if (oldVersion < 4) {
+          await db.execute(
+            "ALTER TABLE tools ADD COLUMN tool_type TEXT NOT NULL DEFAULT ''",
+          );
         }
       },
     );
@@ -492,10 +511,11 @@ class ToolsDatabase {
         t.id,
         t.name,
         t.barcode,
+        t.tool_type,
         COUNT(i.id) AS image_count
       FROM tools t
       LEFT JOIN tool_images i ON i.tool_id = t.id
-      GROUP BY t.id, t.name, t.barcode
+      GROUP BY t.id, t.name, t.barcode, t.tool_type
       ORDER BY t.id DESC
     ''');
   }
@@ -850,7 +870,8 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
           (item) =>
               item.name.toLowerCase().contains(_query) ||
               item.description.toLowerCase().contains(_query) ||
-              item.barcode.toLowerCase().contains(_query),
+              item.barcode.toLowerCase().contains(_query) ||
+              item.type.toLowerCase().contains(_query),
         )
         .toList();
   }
@@ -982,7 +1003,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V11',
+          'Mis herramientas · QUILL V12',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -1460,6 +1481,8 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
                               final name = (row['name'] as String?) ?? '';
                               final barcode =
                                   (row['barcode'] as String?) ?? '';
+                              final toolType =
+                                  (row['tool_type'] as String?) ?? '';
                               final imageCount =
                                   (row['image_count'] as num?)?.toInt() ?? 0;
 
@@ -1474,9 +1497,11 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 subtitle: Text(
-                                  barcode.isEmpty
-                                      ? '$imageCount imágenes'
-                                      : '$barcode · $imageCount imágenes',
+                                  [
+                                    if (toolType.isNotEmpty) toolType,
+                                    if (barcode.isNotEmpty) barcode,
+                                    '$imageCount imágenes',
+                                  ].join(' · '),
                                 ),
                               );
                             },
@@ -1571,6 +1596,7 @@ class _EditToolPageState extends State<EditToolPage> {
   late final TextEditingController _purchasePrice;
 
   late String _condition;
+  late String _type;
   late List<ToolImage> _images;
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -1596,6 +1622,7 @@ class _EditToolPageState extends State<EditToolPage> {
       text: item == null ? '' : item.purchasePrice.toStringAsFixed(2),
     );
     _condition = item?.condition ?? conditionStyles.first.label;
+    _type = item?.type ?? '';
     _images = item?.images.map((image) => image.copy()).toList() ??
         <ToolImage>[];
   }
@@ -1629,6 +1656,7 @@ class _EditToolPageState extends State<EditToolPage> {
       minimumStock: _number(_minimumStock.text),
       purchasePrice: _number(_purchasePrice.text),
       condition: _condition,
+      type: _type,
       images: _images.map((image) => image.copy()).toList(),
     );
 
@@ -2080,7 +2108,7 @@ class _EditToolPageState extends State<EditToolPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? 'Editar artículo · QUILL V11' : 'Nuevo artículo · QUILL V11',
+          _isEditing ? 'Editar artículo · QUILL V12' : 'Nuevo artículo · QUILL V12',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -2112,6 +2140,28 @@ class _EditToolPageState extends State<EditToolPage> {
                 validator: (value) => value == null || value.trim().isEmpty
                     ? 'Escribe el nombre'
                     : null,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _type.isEmpty ? null : _type,
+                decoration: const InputDecoration(
+                  labelText: 'Tipo*',
+                  prefixIcon: Icon(Icons.category_outlined),
+                ),
+                hint: const Text('Selecciona el tipo'),
+                items: toolTypes
+                    .map(
+                      (type) => DropdownMenuItem<String>(
+                        value: type,
+                        child: Text(type),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  setState(() => _type = value ?? '');
+                },
+                validator: (value) =>
+                    value == null || value.isEmpty ? 'Selecciona el tipo' : null,
               ),
               const SizedBox(height: 12),
               DescriptionQuillCard(
