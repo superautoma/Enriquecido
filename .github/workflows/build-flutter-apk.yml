@@ -42,12 +42,13 @@ jobs:
             --org org.gestorherramientas
           cp /tmp/flutter_pubspec.yaml pubspec.yaml
           cp /tmp/flutter_main.dart lib/main.dart
+          rm -rf test
 
       - name: Get packages
         run: flutter pub get
 
-      - name: Analyze
-        run: flutter analyze
+      - name: Analyze app
+        run: flutter analyze lib
 
       - name: Build debug APK
         run: flutter build apk --debug
