@@ -160,11 +160,11 @@ const appIconChoices = <AppIconChoice>[
   AppIconChoice('tool_art_hammer', 'Martillo', Icons.hardware_outlined,
       'Herramientas', 0xFF455A64),
   AppIconChoice('tool_art_handsaw', 'Sierra de mano', Icons.carpenter_outlined,
-      'Herramientas', 0xFFF59E0B),
+      'Herramientas', 0xFFF57C00),
   AppIconChoice('tool_art_screwdriver', 'Destornillador', Icons.build_outlined,
       'Herramientas', 0xFFE53935),
   AppIconChoice('tool_art_drill', 'Taladro', Icons.precision_manufacturing_outlined,
-      'Herramientas', 0xFFFBC02D),
+      'Herramientas', 0xFF1976D2),
   AppIconChoice('handyman', 'Herramientas', Icons.handyman_outlined,
       'Herramientas', 0xFF1976D2),
   AppIconChoice('construction', 'Construcción', Icons.construction_outlined,
@@ -332,6 +332,10 @@ Widget iconWidgetForKey(
   double size = 24,
   BoxFit fit = BoxFit.contain,
 }) {
+  if (key == 'tool_art_hammer') {
+    return Icon(Icons.hardware_outlined, color: color, size: size);
+  }
+
   if (isToolArtworkKey(key)) {
     return _ToolArtworkIcon(
       kind: key,
@@ -428,12 +432,13 @@ class _ToolArtworkIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: size,
-      child: CustomPaint(
-        painter: _ToolArtworkPainter(
-          kind: kind,
-          color: color,
+    return Center(
+      widthFactor: 1,
+      heightFactor: 1,
+      child: SizedBox.square(
+        dimension: size,
+        child: CustomPaint(
+          painter: _ToolArtworkPainter(kind: kind, color: color),
         ),
       ),
     );
@@ -441,41 +446,26 @@ class _ToolArtworkIcon extends StatelessWidget {
 }
 
 class _ToolArtworkPainter extends CustomPainter {
-  const _ToolArtworkPainter({
-    required this.kind,
-    required this.color,
-  });
+  const _ToolArtworkPainter({required this.kind, required this.color});
 
   final String kind;
   final Color color;
 
-  Paint _stroke({double width = 2.25}) => Paint()
+  Paint get _stroke => Paint()
     ..color = color
     ..style = PaintingStyle.stroke
-    ..strokeWidth = width
+    ..strokeWidth = 2
     ..strokeCap = StrokeCap.round
     ..strokeJoin = StrokeJoin.round;
 
-  Paint _fill() => Paint()
-    ..color = color
-    ..style = PaintingStyle.fill;
-
   @override
   void paint(Canvas canvas, Size size) {
-    // Los iconos Material dejan bastante aire dentro de su caja.
-    // Dibujamos estos cuatro al ~72 % para igualar su peso visual.
-    final iconSide = size.shortestSide * 0.72;
-    final offsetX = (size.width - iconSide) / 2;
-    final offsetY = (size.height - iconSide) / 2;
-    final scale = iconSide / 48;
-
+    // Misma caja de 24 y trazo de 2 que los iconos Material del catálogo.
+    final side = size.shortestSide;
     canvas.save();
-    canvas.translate(offsetX, offsetY);
-    canvas.scale(scale, scale);
-
+    canvas.translate((size.width - side) / 2, (size.height - side) / 2);
+    canvas.scale(side / 24);
     switch (kind) {
-      case 'tool_art_hammer':
-        _drawHammer(canvas);
       case 'tool_art_handsaw':
         _drawHandSaw(canvas);
       case 'tool_art_screwdriver':
@@ -483,175 +473,80 @@ class _ToolArtworkPainter extends CustomPainter {
       case 'tool_art_drill':
         _drawDrill(canvas);
     }
-
-    canvas.restore();
-  }
-
-  void _drawHammer(Canvas canvas) {
-    canvas.save();
-    canvas.translate(24, 24);
-    canvas.rotate(-0.52);
-    canvas.translate(-24, -24);
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(21.5, 20, 5, 22),
-        const Radius.circular(2.4),
-      ),
-      _fill(),
-    );
-
-    final head = Path()
-      ..moveTo(9, 13)
-      ..lineTo(27, 13)
-      ..lineTo(31, 17)
-      ..lineTo(41, 11)
-      ..lineTo(43, 14)
-      ..lineTo(33, 21)
-      ..lineTo(27, 19)
-      ..lineTo(9, 19)
-      ..close();
-    canvas.drawPath(head, _fill());
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(5.5, 12, 8.5, 8.5),
-        const Radius.circular(2.2),
-      ),
-      _fill(),
-    );
-
     canvas.restore();
   }
 
   void _drawHandSaw(Canvas canvas) {
     final blade = Path()
-      ..moveTo(7, 17)
-      ..lineTo(34, 12)
-      ..lineTo(35, 28)
-      ..lineTo(9, 31)
+      ..moveTo(3, 9)
+      ..lineTo(15, 6)
+      ..lineTo(15, 15)
+      ..lineTo(13, 17)
+      ..lineTo(12, 15)
+      ..lineTo(10, 17)
+      ..lineTo(9, 15)
+      ..lineTo(7, 17)
+      ..lineTo(6, 15)
+      ..lineTo(4, 17)
       ..close();
-    canvas.drawPath(blade, _stroke(width: 2.2));
-
-    final teeth = Path()..moveTo(10, 31);
-    for (var i = 0; i < 7; i++) {
-      final x = 12.3 + i * 3.1;
-      teeth
-        ..lineTo(x, 34)
-        ..lineTo(x + 1.5, 31);
-    }
-    canvas.drawPath(teeth, _stroke(width: 1.7));
-
-    final handle = Path()
-      ..moveTo(34, 12)
-      ..quadraticBezierTo(43, 10, 44, 18)
-      ..quadraticBezierTo(44, 27, 36, 29)
-      ..lineTo(32, 25)
-      ..lineTo(35, 20)
-      ..quadraticBezierTo(37, 16, 33, 15)
-      ..close();
-    canvas.drawPath(handle, _stroke(width: 2.2));
+    canvas.drawPath(blade, _stroke);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(15, 5, 6, 11),
+        const Radius.circular(2),
+      ),
+      _stroke,
+    );
+    canvas.drawLine(const Offset(18, 8), const Offset(18, 12), _stroke);
   }
 
   void _drawScrewdriver(Canvas canvas) {
-    canvas.save();
-    canvas.translate(24, 24);
-    canvas.rotate(-0.48);
-    canvas.translate(-24, -24);
-
-    canvas.drawLine(
-      const Offset(23.5, 7),
-      const Offset(23.5, 26),
-      _stroke(width: 3.2),
-    );
-
-    canvas.drawLine(
-      const Offset(21, 7),
-      const Offset(23.5, 4.5),
-      _stroke(width: 2.2),
-    );
-    canvas.drawLine(
-      const Offset(26, 7),
-      const Offset(23.5, 4.5),
-      _stroke(width: 2.2),
-    );
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(17.5, 24, 12, 18),
-        const Radius.circular(5.5),
-      ),
-      _stroke(width: 2.5),
-    );
-
-    canvas.drawLine(
-      const Offset(20.5, 29),
-      const Offset(26.5, 29),
-      _stroke(width: 2),
-    );
-    canvas.drawLine(
-      const Offset(20.5, 36),
-      const Offset(26.5, 36),
-      _stroke(width: 2),
-    );
-
-    canvas.restore();
+    final shaft = Path()
+      ..moveTo(11, 13)
+      ..lineTo(18, 6)
+      ..lineTo(19, 3)
+      ..lineTo(21, 3)
+      ..lineTo(21, 5)
+      ..lineTo(18, 6);
+    canvas.drawPath(shaft, _stroke);
+    final handle = Path()
+      ..moveTo(9, 12)
+      ..lineTo(12, 15)
+      ..quadraticBezierTo(13, 16, 12, 17)
+      ..lineTo(8, 21)
+      ..quadraticBezierTo(7, 22, 6, 21)
+      ..lineTo(3, 18)
+      ..quadraticBezierTo(2, 17, 3, 16)
+      ..lineTo(7, 12)
+      ..quadraticBezierTo(8, 11, 9, 12)
+      ..close();
+    canvas.drawPath(handle, _stroke);
+    canvas.drawLine(const Offset(6, 18), const Offset(9, 15), _stroke);
   }
 
   void _drawDrill(Canvas canvas) {
     final body = Path()
-      ..moveTo(13, 14)
-      ..lineTo(33, 14)
-      ..quadraticBezierTo(40, 14, 42, 20)
-      ..lineTo(42, 26)
-      ..lineTo(31, 27)
-      ..lineTo(27, 31)
-      ..lineTo(19, 29)
-      ..lineTo(19, 24)
-      ..lineTo(13, 23)
+      ..moveTo(7, 5)
+      ..lineTo(18, 5)
+      ..quadraticBezierTo(21, 5, 21, 8)
+      ..lineTo(21, 11)
+      ..lineTo(14, 11)
+      ..lineTo(16, 19)
+      ..lineTo(10, 19)
+      ..lineTo(8, 11)
+      ..lineTo(7, 11)
       ..close();
-    canvas.drawPath(body, _stroke(width: 2.4));
-
+    canvas.drawPath(body, _stroke);
+    canvas.drawRect(const Rect.fromLTWH(4, 6, 3, 4), _stroke);
+    canvas.drawLine(const Offset(2, 8), const Offset(4, 8), _stroke);
+    canvas.drawLine(const Offset(17, 8), const Offset(19, 8), _stroke);
+    canvas.drawLine(const Offset(12, 12), const Offset(13, 15), _stroke);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        const Rect.fromLTWH(7, 16.5, 8, 8),
-        const Radius.circular(2.5),
+        const Rect.fromLTWH(9, 19, 8, 3),
+        const Radius.circular(1),
       ),
-      _stroke(width: 2.2),
-    );
-
-    canvas.drawLine(
-      const Offset(3, 20.5),
-      const Offset(7, 20.5),
-      _stroke(width: 2.2),
-    );
-
-    final grip = Path()
-      ..moveTo(25, 27)
-      ..lineTo(33, 27)
-      ..lineTo(36, 40)
-      ..lineTo(29, 41)
-      ..lineTo(24, 32)
-      ..close();
-    canvas.drawPath(grip, _stroke(width: 2.4));
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(27, 39, 13, 5),
-        const Radius.circular(2),
-      ),
-      _stroke(width: 2.2),
-    );
-
-    canvas.drawLine(
-      const Offset(35, 18),
-      const Offset(39, 18),
-      _stroke(width: 1.8),
-    );
-    canvas.drawLine(
-      const Offset(35, 22),
-      const Offset(39, 22),
-      _stroke(width: 1.8),
+      _stroke,
     );
   }
 
@@ -2325,7 +2220,18 @@ class _IconPickerPageState extends State<IconPickerPage> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: showingCustom
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = (constraints.maxWidth / 88).floor().clamp(2, 6);
+                  final labelSize = MediaQuery.textScalerOf(context).scale(11);
+                  final gridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    // Padding + icono + separación + dos líneas + margen.
+                    mainAxisExtent: 16 + 48 + 6 + labelSize * 2.4 + 8,
+                  );
+                  return showingCustom
                   ? _loadingCustom
                       ? const Center(child: CircularProgressIndicator())
                       : _customKeys.isEmpty
@@ -2343,13 +2249,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                           : GridView.builder(
                               padding:
                                   const EdgeInsets.fromLTRB(12, 0, 12, 20),
-                              gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 4,
-                                mainAxisSpacing: 8,
-                                crossAxisSpacing: 8,
-                                childAspectRatio: 0.95,
-                              ),
+                              gridDelegate: gridDelegate,
                               itemCount: _customKeys.length,
                               itemBuilder: (context, index) {
                                 final key = _customKeys[index];
@@ -2393,6 +2293,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                                             overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
                                               fontSize: 10,
+                                              height: 1.2,
                                               fontWeight: selected
                                                   ? FontWeight.w700
                                                   : FontWeight.w500,
@@ -2407,13 +2308,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                             )
                   : GridView.builder(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 4,
-                        mainAxisSpacing: 8,
-                        crossAxisSpacing: 8,
-                        childAspectRatio: 0.95,
-                      ),
+                      gridDelegate: gridDelegate,
                       itemCount: builtInVisible.length,
                       itemBuilder: (context, index) {
                         final choice = builtInVisible[index];
@@ -2454,6 +2349,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       fontSize: 11,
+                                      height: 1.2,
                                       fontWeight: selected
                                           ? FontWeight.w700
                                           : FontWeight.w500,
@@ -2465,7 +2361,9 @@ class _IconPickerPageState extends State<IconPickerPage> {
                           ),
                         );
                       },
-                    ),
+                    );
+                },
+              ),
             ),
           ],
         ),

@@ -8,6 +8,7 @@ on:
     paths:
       - "flutter/lib/main_quill_integrated_test.dart"
       - "flutter/pubspec.yaml"
+      - "flutter/test/**"
       - ".github/dev-signing/android-debug.keystore.b64"
       - ".github/workflows/build-integrated-quill-apk.yml"
 
@@ -40,7 +41,7 @@ jobs:
             --org org.gestorherramientas
           cp /tmp/flutter_pubspec.yaml pubspec.yaml
           cp /tmp/main_quill_integrated_test.dart lib/main_quill_integrated_test.dart
-          rm -rf test
+          rm -f test/widget_test.dart
           sed -i 's/android:label="gestor_herramientas_quill_test"/android:label="Gestor Quill Integrado"/' android/app/src/main/AndroidManifest.xml
 
       - name: Install stable development signing key
@@ -78,6 +79,9 @@ jobs:
 
       - name: Analyze integrated test
         run: flutter analyze --no-fatal-infos lib/main_quill_integrated_test.dart
+
+      - name: Verify icon picker layout
+        run: flutter test test/icon_picker_layout_test.dart
 
       - name: Build debug APK
         run: |
