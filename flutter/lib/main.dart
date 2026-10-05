@@ -5,6 +5,24 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
 void main() {
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Material(
+      color: const Color(0xFFFFF4F4),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(18),
+          child: Text(
+            'ERROR DE INTERFAZ\n\n${details.exceptionAsString()}',
+            style: const TextStyle(
+              color: Color(0xFFB3261E),
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  };
   runApp(const GestorHerramientasApp());
 }
 
@@ -418,9 +436,8 @@ class _EditToolPageState extends State<EditToolPage> {
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _name;
-  late final QuillController _descriptionController;
-  final FocusNode _descriptionFocus = FocusNode();
-  final ScrollController _descriptionScroll = ScrollController();
+  late String _descriptionPlain;
+  late String _descriptionDelta;
   late final TextEditingController _barcode;
   late final TextEditingController _quantity;
   late final TextEditingController _unit;
@@ -437,26 +454,8 @@ class _EditToolPageState extends State<EditToolPage> {
     final item = widget.item;
 
     _name = TextEditingController(text: item?.name ?? '');
-    final rawDelta = item?.descriptionDelta ?? '';
-    Document descriptionDocument;
-    if (rawDelta.trim().isNotEmpty) {
-      try {
-        descriptionDocument =
-            Document.fromJson(jsonDecode(rawDelta) as List<dynamic>);
-      } catch (_) {
-        descriptionDocument = Document.fromJson([
-          {'insert': '${item?.description ?? ''}\n'}
-        ]);
-      }
-    } else {
-      descriptionDocument = Document.fromJson([
-        {'insert': '${item?.description ?? ''}\n'}
-      ]);
-    }
-    _descriptionController = QuillController(
-      document: descriptionDocument,
-      selection: const TextSelection.collapsed(offset: 0),
-    );
+    _descriptionPlain = item?.description ?? '';
+    _descriptionDelta = item?.descriptionDelta ?? '';
     _barcode = TextEditingController(text: item?.barcode ?? '');
     _quantity = TextEditingController(
       text: item == null ? '1' : formatNumber(item.quantity),
@@ -474,9 +473,6 @@ class _EditToolPageState extends State<EditToolPage> {
   @override
   void dispose() {
     _name.dispose();
-    _descriptionController.dispose();
-    _descriptionFocus.dispose();
-    _descriptionScroll.dispose();
     _barcode.dispose();
     _quantity.dispose();
     _unit.dispose();
@@ -495,10 +491,8 @@ class _EditToolPageState extends State<EditToolPage> {
     final result = ToolItem(
       id: widget.item?.id ?? widget.nextId,
       name: _name.text.trim(),
-      description: _descriptionController.document.toPlainText().trim(),
-      descriptionDelta: jsonEncode(
-        _descriptionController.document.toDelta().toJson(),
-      ),
+      description: _descriptionPlain,
+      descriptionDelta: _descriptionDelta,
       barcode: _barcode.text.trim(),
       quantity: _number(_quantity.text),
       unit: _unit.text.trim().isEmpty ? 'ud' : _unit.text.trim(),
@@ -508,6 +502,23 @@ class _EditToolPageState extends State<EditToolPage> {
     );
 
     Navigator.of(context).pop(result);
+  }
+
+  Future<void> _editDescription() async {
+    final result = await Navigator.of(context).push<RichTextResult>(
+      MaterialPageRoute(
+        builder: (_) => RichTextEditorPage(
+          initialPlainText: _descriptionPlain,
+          initialDelta: _descriptionDelta,
+        ),
+      ),
+    );
+
+    if (result == null) return;
+    setState(() {
+      _descriptionPlain = result.plainText;
+      _descriptionDelta = result.deltaJson;
+    });
   }
 
   @override
@@ -551,10 +562,9 @@ class _EditToolPageState extends State<EditToolPage> {
                     : null,
               ),
               const SizedBox(height: 12),
-              RichDescriptionEditor(
-                controller: _descriptionController,
-                focusNode: _descriptionFocus,
-                scrollController: _descriptionScroll,
+              DescriptionFieldCard(
+                text: _descriptionPlain,
+                onTap: _editDescription,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -712,98 +722,234 @@ class _EditToolPageState extends State<EditToolPage> {
   }
 }
 
-class RichDescriptionEditor extends StatelessWidget {
-  const RichDescriptionEditor({
+class DescriptionFieldCard extends StatelessWidget {
+  const DescriptionFieldCard({
     super.key,
-    required this.controller,
-    required this.focusNode,
-    required this.scrollController,
+    required this.text,
+    required this.onTap,
   });
 
-  final QuillController controller;
-  final FocusNode focusNode;
-  final ScrollController scrollController;
+  final String text;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFD7DDE3)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(14, 11, 14, 6),
-            child: Text(
-              'Descripción',
+    final hasText = text.trim().isNotEmpty;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 118),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFD7DDE3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.format_color_text, color: Color(0xFF168BD2)),
+                SizedBox(width: 8),
+                Text(
+                  'Descripción enriquecida',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF666C72),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Spacer(),
+                Icon(Icons.chevron_right, color: Color(0xFF899097)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              hasText ? text : 'Toca aquí para escribir y dar formato al texto…',
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 13,
-                color: Color(0xFF666C72),
-                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                height: 1.35,
+                color: hasText
+                    ? const Color(0xFF2B3035)
+                    : const Color(0xFF8A9096),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class RichTextResult {
+  const RichTextResult({
+    required this.plainText,
+    required this.deltaJson,
+  });
+
+  final String plainText;
+  final String deltaJson;
+}
+
+class RichTextEditorPage extends StatefulWidget {
+  const RichTextEditorPage({
+    super.key,
+    required this.initialPlainText,
+    required this.initialDelta,
+  });
+
+  final String initialPlainText;
+  final String initialDelta;
+
+  @override
+  State<RichTextEditorPage> createState() => _RichTextEditorPageState();
+}
+
+class _RichTextEditorPageState extends State<RichTextEditorPage> {
+  late final QuillController _controller;
+  final FocusNode _focusNode = FocusNode();
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+
+    Document document;
+    if (widget.initialDelta.trim().isNotEmpty) {
+      try {
+        document = Document.fromJson(
+          jsonDecode(widget.initialDelta) as List<dynamic>,
+        );
+      } catch (_) {
+        document = _plainDocument(widget.initialPlainText);
+      }
+    } else {
+      document = _plainDocument(widget.initialPlainText);
+    }
+
+    _controller = QuillController(
+      document: document,
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+  }
+
+  Document _plainDocument(String text) {
+    final normalized = text.trim().isEmpty ? '\n' : '${text.trimRight()}\n';
+    return Document.fromJson([
+      {'insert': normalized}
+    ]);
+  }
+
+  void _accept() {
+    Navigator.of(context).pop(
+      RichTextResult(
+        plainText: _controller.document.toPlainText().trim(),
+        deltaJson: jsonEncode(_controller.document.toDelta().toJson()),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Editar descripción',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _accept,
+            child: const Text(
+              'ACEPTAR',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
           ),
-          Container(
-            color: const Color(0xFFF7F9FB),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: QuillSimpleToolbar(
-                controller: controller,
-                config: const QuillSimpleToolbarConfig(
-                  axis: Axis.horizontal,
-                  multiRowsDisplay: false,
-                  showDividers: true,
-                  showBoldButton: true,
-                  showItalicButton: true,
-                  showUnderLineButton: true,
-                  showStrikeThrough: true,
-                  showColorButton: true,
-                  showBackgroundColorButton: true,
-                  showFontSize: true,
-                  showAlignmentButtons: true,
-                  showLeftAlignment: true,
-                  showCenterAlignment: true,
-                  showRightAlignment: true,
-                  showJustifyAlignment: true,
-                  showListNumbers: true,
-                  showListBullets: true,
-                  showUndo: true,
-                  showRedo: true,
-                  showClearFormat: true,
-                  showFontFamily: false,
-                  showInlineCode: false,
-                  showHeaderStyle: false,
-                  showListCheck: false,
-                  showCodeBlock: false,
-                  showQuote: false,
-                  showIndent: false,
-                  showLink: false,
-                  showDirection: false,
-                  showSearchButton: false,
-                  showSubscript: false,
-                  showSuperscript: false,
+          const SizedBox(width: 6),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              color: Colors.white,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: QuillSimpleToolbar(
+                  controller: _controller,
+                  config: const QuillSimpleToolbarConfig(
+                    axis: Axis.horizontal,
+                    multiRowsDisplay: false,
+                    showDividers: true,
+                    showBoldButton: true,
+                    showItalicButton: true,
+                    showUnderLineButton: true,
+                    showStrikeThrough: true,
+                    showColorButton: true,
+                    showBackgroundColorButton: true,
+                    showFontSize: true,
+                    showAlignmentButtons: true,
+                    showLeftAlignment: true,
+                    showCenterAlignment: true,
+                    showRightAlignment: true,
+                    showJustifyAlignment: true,
+                    showListNumbers: true,
+                    showListBullets: true,
+                    showUndo: true,
+                    showRedo: true,
+                    showClearFormat: true,
+                    showFontFamily: false,
+                    showInlineCode: false,
+                    showHeaderStyle: false,
+                    showListCheck: false,
+                    showCodeBlock: false,
+                    showQuote: false,
+                    showIndent: false,
+                    showLink: false,
+                    showDirection: false,
+                    showSearchButton: false,
+                    showSubscript: false,
+                    showSuperscript: false,
+                  ),
                 ),
               ),
             ),
-          ),
-          const Divider(height: 1),
-          SizedBox(
-            height: 190,
-            child: QuillEditor.basic(
-              controller: controller,
-              focusNode: focusNode,
-              scrollController: scrollController,
-              config: const QuillEditorConfig(
-                placeholder: 'Notas, características, observaciones…',
-                padding: EdgeInsets.all(14),
+            const Divider(height: 1),
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFD7DDE3)),
+                ),
+                child: QuillEditor.basic(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  scrollController: _scrollController,
+                  config: const QuillEditorConfig(
+                    placeholder: 'Escribe aquí la descripción…',
+                    padding: EdgeInsets.all(16),
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
