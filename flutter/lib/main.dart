@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
 void main() {
@@ -13,7 +12,7 @@ class RichTextTestApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Prueba editor enriquecido',
+      title: 'Flutter Rich Text V2',
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: Colors.white,
@@ -21,224 +20,181 @@ class RichTextTestApp extends StatelessWidget {
           seedColor: const Color(0xFF168BD2),
           brightness: Brightness.light,
         ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFEAF4FE),
-          foregroundColor: Color(0xFF20242A),
-          elevation: 0,
-        ),
       ),
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        FlutterQuillLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('es'),
-        Locale('en'),
-      ],
-      home: const EditorTestPage(),
+      home: const StartPage(),
     );
   }
 }
 
-class EditorTestPage extends StatefulWidget {
-  const EditorTestPage({super.key});
+class StartPage extends StatelessWidget {
+  const StartPage({super.key});
 
   @override
-  State<EditorTestPage> createState() => _EditorTestPageState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFEAF4FE),
+        title: const Text(
+          'FLUTTER V2 — PRUEBA BÁSICA',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF81C784)),
+              ),
+              child: const Text(
+                'SI VES ESTE RECUADRO, FLUTTER ESTÁ DIBUJANDO LA PANTALLA CORRECTAMENTE.',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1B5E20),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Esta pantalla no contiene todavía el editor Quill. '
+              'Así podemos comprobar primero que el problema no está en Flutter.',
+              style: TextStyle(fontSize: 17),
+            ),
+            const SizedBox(height: 28),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const RichEditorPage(),
+                  ),
+                );
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF168BD2),
+                minimumSize: const Size.fromHeight(56),
+              ),
+              child: const Text(
+                'ABRIR EDITOR ENRIQUECIDO',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-class _EditorTestPageState extends State<EditorTestPage> {
-  final _nameController = TextEditingController();
-  final _quillController = QuillController.basic();
-  final _editorFocusNode = FocusNode();
-  final _editorScrollController = ScrollController();
+class RichEditorPage extends StatefulWidget {
+  const RichEditorPage({super.key});
+
+  @override
+  State<RichEditorPage> createState() => _RichEditorPageState();
+}
+
+class _RichEditorPageState extends State<RichEditorPage> {
+  late final QuillController _controller;
+  final FocusNode _focusNode = FocusNode();
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = QuillController.basic();
+  }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _quillController.dispose();
-    _editorFocusNode.dispose();
-    _editorScrollController.dispose();
+    _controller.dispose();
+    _focusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
-  }
-
-  void _save() {
-    FocusScope.of(context).unfocus();
-
-    final name = _nameController.text.trim();
-    final plainText = _quillController.document.toPlainText().trim();
-
-    String message;
-    if (name.isEmpty) {
-      message = 'Escribe un nombre.';
-    } else if (plainText.isEmpty) {
-      message = 'Prueba correcta. Falta escribir una descripción.';
-    } else {
-      message = 'Prueba correcta. El editor está funcionando.';
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Prueba editor enriquecido',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
+        backgroundColor: const Color(0xFFEAF4FE),
+        title: const Text('Editor enriquecido'),
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'Nombre*',
-                    style: TextStyle(
-                      fontSize: 17,
-                      color: Color(0xFF62666B),
-                    ),
-                  ),
-                  TextField(
-                    controller: _nameController,
-                    style: const TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.only(top: 8, bottom: 8),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(
-                          width: 1.5,
-                          color: Color(0xFF5E6268),
-                        ),
-                      ),
-                      focusedBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(
-                          width: 2,
-                          color: Color(0xFF168BD2),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  const Text(
-                    'Descripción',
-                    style: TextStyle(
-                      fontSize: 17,
-                      color: Color(0xFF62666B),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            color: const Color(0xFFFFF3CD),
+            padding: const EdgeInsets.all(12),
+            child: const Text(
+              'Si esta franja amarilla aparece pero el editor no, '
+              'el problema está dentro de Quill.',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: QuillSimpleToolbar(
+              controller: _controller,
+              config: const QuillSimpleToolbarConfig(
+                axis: Axis.horizontal,
+                multiRowsDisplay: false,
+                showDividers: true,
+                showBoldButton: true,
+                showItalicButton: true,
+                showUnderLineButton: true,
+                showStrikeThrough: true,
+                showColorButton: true,
+                showBackgroundColorButton: true,
+                showFontSize: true,
+                showAlignmentButtons: true,
+                showListNumbers: true,
+                showListBullets: true,
+                showUndo: true,
+                showRedo: true,
+                showClearFormat: true,
+                showFontFamily: false,
+                showInlineCode: false,
+                showHeaderStyle: false,
+                showListCheck: false,
+                showCodeBlock: false,
+                showQuote: false,
+                showIndent: false,
+                showLink: false,
+                showDirection: false,
+                showSearchButton: false,
+                showSubscript: false,
+                showSuperscript: false,
               ),
             ),
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 18),
+          ),
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                border: Border.all(color: const Color(0xFFD4DAE0)),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(12),
-                ),
+                border: Border.all(color: const Color(0xFFB0B7BE)),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: QuillSimpleToolbar(
-                  controller: _quillController,
-                  config: const QuillSimpleToolbarConfig(
-                    axis: Axis.horizontal,
-                    multiRowsDisplay: false,
-                    showDividers: true,
-                    showBoldButton: true,
-                    showItalicButton: true,
-                    showUnderLineButton: true,
-                    showStrikeThrough: true,
-                    showColorButton: true,
-                    showBackgroundColorButton: true,
-                    showFontSize: true,
-                    showAlignmentButtons: true,
-                    showLeftAlignment: true,
-                    showCenterAlignment: true,
-                    showRightAlignment: true,
-                    showJustifyAlignment: true,
-                    showListNumbers: true,
-                    showListBullets: true,
-                    showUndo: true,
-                    showRedo: true,
-                    showClearFormat: true,
-                    showFontFamily: false,
-                    showInlineCode: false,
-                    showHeaderStyle: false,
-                    showListCheck: false,
-                    showCodeBlock: false,
-                    showQuote: false,
-                    showIndent: false,
-                    showLink: false,
-                    showDirection: false,
-                    showSearchButton: false,
-                    showSubscript: false,
-                    showSuperscript: false,
-                  ),
+              child: QuillEditor(
+                controller: _controller,
+                focusNode: _focusNode,
+                scrollController: _scrollController,
+                config: const QuillEditorConfig(
+                  placeholder: 'Escribe aquí…',
+                  padding: EdgeInsets.all(12),
+                  autoFocus: false,
                 ),
               ),
             ),
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(18, 0, 18, 12),
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: const Color(0xFFC8CDD3)),
-                  borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(12),
-                  ),
-                ),
-                child: QuillEditor(
-                  focusNode: _editorFocusNode,
-                  scrollController: _editorScrollController,
-                  controller: _quillController,
-                  config: const QuillEditorConfig(
-                    placeholder: 'Escribe aquí la descripción…',
-                    padding: EdgeInsets.all(12),
-                    autoFocus: false,
-                    expands: true,
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-              child: FilledButton.icon(
-                onPressed: _save,
-                icon: const Icon(Icons.check),
-                label: const Text('Probar / Guardar'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF168BD2),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(54),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
