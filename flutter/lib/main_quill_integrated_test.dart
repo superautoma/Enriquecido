@@ -4431,7 +4431,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
     }
     if (mounted) {
       await _load();
-      setState(() => _saving = false);
+      if (mounted) setState(() => _saving = false);
     }
   }
 
