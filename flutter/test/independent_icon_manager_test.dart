@@ -331,9 +331,9 @@ void main() {
 
   testWidgets('Empty trash confirms all icons regardless of search and cancels safely',
       (tester) async {
-    await updateIconSettings('electric_bombilla', hidden: true);
-    await updateIconSettings('electric_enchufe_schuko', hidden: true);
     await tester.runAsync(() async {
+      await updateIconSettings('electric_bombilla', hidden: true);
+      await updateIconSettings('electric_enchufe_schuko', hidden: true);
       await tester.pumpWidget(const MaterialApp(home: IconManagementPage()));
     });
     await finish(tester);
