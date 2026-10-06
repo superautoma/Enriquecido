@@ -3507,7 +3507,7 @@ Future<void> saveCustomIconGroup(String key, String group) async {
       .writeAsString(jsonEncode({'group': group}), flush: true);
 }
 
-Future<List<String>> importCustomIcons({String group = 'Mis iconos'}) async {
+Future<List<String>> importCustomIcons({String group = 'Mis iconos', IconImportReport? report}) async {
   final picked = await FilePicker.platform.pickFiles(
     type: FileType.custom,
     allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp', 'svg', 'zip'],
@@ -3516,6 +3516,7 @@ Future<List<String>> importCustomIcons({String group = 'Mis iconos'}) async {
 
   if (picked == null || picked.files.isEmpty) return const [];
 
+  final index = await _IconContentIndex.load();
   final directory = await customIconsDirectory();
   final imported = <String>[];
 
@@ -3528,7 +3529,16 @@ Future<List<String>> importCustomIcons({String group = 'Mis iconos'}) async {
 
     final extension = p.extension(sourcePath).toLowerCase();
     if (extension == '.zip') {
-      imported.addAll(await importIconArchive(await source.readAsBytes(), group: group));
+      imported.addAll(await importIconArchive(await source.readAsBytes(), group: group, report: report, contentIndex: index));
+      continue;
+    }
+    final content = await source.readAsBytes();
+    final duplicate = await index.matchingKey(content);
+    if (duplicate != null) {
+      if (report != null) {
+        report.skippedDuplicates++;
+        if (isIconHidden(duplicate)) report.duplicatesInTrash++;
+      }
       continue;
     }
     final originalName = p
@@ -3543,6 +3553,7 @@ Future<List<String>> importCustomIcons({String group = 'Mis iconos'}) async {
     final stored = await source.copy(target);
     final key = 'custom:${stored.path}';
     await saveCustomIconGroup(key, group);
+    await index.add(key, content);
     imported.add(key);
   }
 
@@ -4036,8 +4047,61 @@ class _IconColorsDialogState extends State<IconColorsDialog> {
   );
 }
 
+
+class IconImportReport {
+  int skippedDuplicates = 0;
+  int duplicatesInTrash = 0;
+}
+
+// Hashes only narrow the candidates; a byte-for-byte comparison confirms
+// equality, so a hash collision can never discard a different drawing.
+class _IconContentIndex {
+  final Map<String, List<List<String>>> _buckets = {};
+  String _bucket(List<int> bytes) => '${bytes.length}:${Object.hashAll(bytes)}';
+  Future<List<String>?> _match(List<int> bytes) async {
+    for (final group in _buckets[_bucket(bytes)] ?? <List<String>>[]) {
+      final existing = await File(customIconPathFromKey(group.first)).readAsBytes();
+      if (existing.length != bytes.length) continue;
+      var equal = true;
+      for (var i = 0; i < bytes.length; i++) {
+        if (existing[i] != bytes[i]) { equal = false; break; }
+      }
+      if (equal) return group;
+    }
+    return null;
+  }
+  Future<String?> matchingKey(List<int> bytes) async => (await _match(bytes))?.first;
+  Future<void> add(String key, List<int> bytes) async {
+    final group = await _match(bytes);
+    if (group != null) {
+      group.add(key);
+    } else {
+      _buckets.putIfAbsent(_bucket(bytes), () => []).add([key]);
+    }
+  }
+  List<List<String>> get duplicateGroups => [
+    for (final bucket in _buckets.values)
+      for (final group in bucket) if (group.length > 1) List<String>.from(group),
+  ];
+  static Future<_IconContentIndex> load({bool includeTrash = true}) async {
+    final index = _IconContentIndex();
+    final keys = await loadCustomIconKeys();
+    // Prefer an active copy if the same file also exists in the trash.
+    keys.sort((a, b) => (isIconHidden(a) ? 1 : 0).compareTo(isIconHidden(b) ? 1 : 0));
+    for (final key in keys) {
+      if (isIconRemoved(key) || (!includeTrash && isIconHidden(key))) continue;
+      await index.add(key, await File(customIconPathFromKey(key)).readAsBytes());
+    }
+    return index;
+  }
+}
+
+Future<List<List<String>>> findDuplicateIconGroups() async =>
+    (await _IconContentIndex.load(includeTrash: false)).duplicateGroups;
+
 Future<List<String>> importIconArchive(List<int> bytes,
-    {String group = 'Mis iconos'}) async {
+    {String group = 'Mis iconos', IconImportReport? report,
+      _IconContentIndex? contentIndex}) async {
   if (bytes.length > 20 * 1024 * 1024) {
     throw const FormatException('El ZIP es demasiado grande');
   }
@@ -4068,11 +4132,21 @@ Future<List<String>> importIconArchive(List<int> bytes,
     ['.svg', '.png', '.jpg', '.jpeg', '.webp']
         .contains(p.posix.extension(file.name).toLowerCase())).toList();
   if (candidates.length > 512) throw const FormatException('Demasiados iconos');
+  final index = contentIndex ?? await _IconContentIndex.load();
   final directory = await customIconsDirectory();
   final imported = <String>[];
   for (final file in candidates) {
     if (file.size > 5 * 1024 * 1024) {
       throw const FormatException('Un icono es demasiado grande');
+    }
+    final content = file.content;
+    final duplicate = await index.matchingKey(content);
+    if (duplicate != null) {
+      if (report != null) {
+        report.skippedDuplicates++;
+        if (isIconHidden(duplicate)) report.duplicatesInTrash++;
+      }
+      continue;
     }
     final original = p.posix.basename(file.name);
     final extension = p.posix.extension(original).toLowerCase();
@@ -4101,6 +4175,7 @@ Future<List<String>> importIconArchive(List<int> bytes,
         parseColor(entry?['color_fondo']) ?? current.circleValue,
       ));
     }
+    await index.add(key, content);
     imported.add(key);
   }
   return imported;
@@ -4333,21 +4408,31 @@ class _IconManagementPageState extends State<IconManagementPage> {
   }
 
   Future<void> _import() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final report = IconImportReport();
     try {
       final imported = await importCustomIcons(
+        report: report,
         group: iconGroups.contains(_group) ? _group : 'Mis iconos',
       );
       if (!mounted) return;
-      if (imported.isNotEmpty) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${imported.length} iconos importados')),
-      );
+      if (imported.isNotEmpty || report.skippedDuplicates > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
+          '${imported.length} iconos importados; ${report.skippedDuplicates} duplicados omitidos.'
+          '${report.duplicatesInTrash > 0 ? " Hay copias en la papelera que puedes restaurar." : ""}',
+        )));
+      }
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se pudo importar el archivo de iconos.')),
       );
     }
-    if (mounted) await _load();
+    if (mounted) {
+      await _load();
+      setState(() => _saving = false);
+    }
   }
 
 
@@ -4629,7 +4714,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
       floatingActionButton: _trash
           ? null
           : FloatingActionButton.extended(
-              onPressed: _import,
+              onPressed: _saving ? null : _import,
               icon: const Icon(Icons.add_photo_alternate_outlined),
               label: const Text('Importar'),
             ),
@@ -4679,6 +4764,16 @@ class _IconManagementPageState extends State<IconManagementPage> {
                 ],
               ),
             ),
+            if (!_trash)
+              TextButton.icon(
+                icon: const Icon(Icons.find_in_page_outlined),
+                label: const Text('Buscar duplicados'),
+                onPressed: _saving ? null : () async {
+                  await Navigator.of(context).push<void>(MaterialPageRoute(
+                    builder: (_) => const IconDuplicatesPage()));
+                  if (mounted) await _load();
+                },
+              ),
             if (_trash)
               TextButton.icon(
                 key: const ValueKey('empty_icon_trash'),
@@ -4710,6 +4805,77 @@ class _IconManagementPageState extends State<IconManagementPage> {
       ),
     );
   }
+}
+
+
+class IconDuplicatesPage extends StatefulWidget {
+  const IconDuplicatesPage({super.key});
+  @override
+  State<IconDuplicatesPage> createState() => _IconDuplicatesPageState();
+}
+class _IconDuplicatesPageState extends State<IconDuplicatesPage> {
+  List<List<String>> _groups = [];
+  bool _loading = true, _busy = false;
+  String? _error;
+  @override
+  void initState() { super.initState(); _load(); }
+  Future<void> _load() async {
+    try {
+      final groups = await findDuplicateIconGroups();
+      if (mounted) setState(() { _groups = groups; _loading = false; _error = null; });
+    } catch (_) {
+      if (mounted) setState(() { _loading = false; _error = 'No se pudieron revisar los iconos.'; });
+    }
+  }
+  Future<void> _hide(String key) async {
+    if (_busy) return;
+    _busy = true;
+    try {
+      final confirm = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+        title: const Text('Mover copia a la papelera'),
+        content: Text('¿Mover «${appIconLabel(key)}» a la papelera? '
+            'Las herramientas que lo usan conservarán su icono. Podrás restaurarlo.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Mover a la papelera')),
+        ],
+      ));
+      if (confirm != true) return;
+      await updateIconSettings(key, hidden: true);
+      await _load();
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo mover el icono a la papelera.')));
+    } finally { _busy = false; }
+  }
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Iconos duplicados')),
+    body: _loading ? const Center(child: CircularProgressIndicator())
+      : _error != null ? Center(child: TextButton(onPressed: _load, child: Text('$_error Reintentar')))
+      : _groups.isEmpty ? const Center(child: Text('No hay archivos de iconos duplicados.'))
+      : ListView(padding: const EdgeInsets.all(12), children: [
+          const Padding(padding: EdgeInsets.all(8), child: Text(
+            'Estas copias contienen el mismo dibujo. Sus nombres o colores pueden ser distintos. '
+            'Revisa cuál quieres conservar antes de mover una copia a la papelera.')),
+          for (var i = 0; i < _groups.length; i++)
+            Card(child: ExpansionTile(
+              initiallyExpanded: true,
+              title: Text('Conjunto ${i + 1}: ${_groups[i].length} copias'),
+              children: [
+                for (final key in _groups[i])
+                  ListTile(
+                    leading: CircleAvatar(backgroundColor: iconAppearance(key).circle,
+                      child: iconWidgetForKey(key, color: iconAppearance(key).line, size: 24)),
+                    title: Text(appIconLabel(key)),
+                    subtitle: Text(p.basename(customIconPathFromKey(key))),
+                    trailing: IconButton(tooltip: 'Mover copia a la papelera',
+                      icon: const Icon(Icons.delete_outline), onPressed: () => _hide(key)),
+                  ),
+              ],
+            )),
+        ]),
+  );
 }
 
 class IconGroupsPage extends StatefulWidget {
