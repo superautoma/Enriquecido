@@ -180,7 +180,7 @@ void main() {
       await finish(tester);
       expect(find.descendant(of: find.byType(GridView),
         matching: find.text('Enchufe Schuko')), findsOneWidget);
-      for (final view in ['Conjunto compacto', 'Lista', 'Cuadrícula']) {
+      for (final view in ['Conjunto compacto', 'Lista', 'Cuadrícula', 'Galería ampliada']) {
         await tester.tap(find.byKey(const ValueKey('icon_picker_view')));
         await tester.pumpAndSettle();
         await tester.tap(find.text(view));
@@ -223,7 +223,7 @@ void main() {
       await finish(tester);
       await tester.enterText(find.widgetWithText(TextField, 'Buscar iconos'), 'Enchufe Schuko');
       await finish(tester);
-      for (final view in ['Cuadrícula', 'Conjunto compacto', 'Por grupos', 'Lista']) {
+      for (final view in ['Cuadrícula', 'Conjunto compacto', 'Por grupos', 'Galería ampliada', 'Lista']) {
         await tester.tap(find.byKey(const ValueKey('icon_manager_view')));
         await tester.pumpAndSettle();
         await tester.tap(find.text(view));
@@ -254,11 +254,38 @@ void main() {
         expect(find.text('Gestor de iconos'), findsOneWidget);
         expect(tester.takeException(), isNull);
       }
+      await tester.tap(find.byTooltip('Ordenar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Nombre: Z–A'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListTile), findsOneWidget);
       await tester.tap(find.text('Papelera'));
       await tester.pumpAndSettle();
       expect(find.text('La papelera está vacía'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
+
+  test('Icon ordering respects names, groups, favorites and original order', () async {
+    const a = 'electric_enchufe_schuko';
+    const b = 'electric_bombilla';
+    const c = 'electric_cuadro_electrico';
+    final keys = [b, c, a];
+    await saveIconName(a, 'Álvaro');
+    await saveIconName(b, 'Zeta');
+    await saveIconName(c, 'Beta');
+    expect(orderedIconKeys(keys, 'original'), [b, c, a]);
+    expect(orderedIconKeys(keys, 'az'), [a, c, b]);
+    expect(orderedIconKeys(keys, 'za'), [b, c, a]);
+    await updateIconSettings(b, favorite: true);
+    expect(orderedIconKeys(keys, 'favorites'), [b, a, c]);
+    await saveIconGroup('Medición');
+    await updateIconSettings(b, group: 'Medición');
+    await updateIconSettings(a, group: 'Herramientas');
+    expect(orderedIconKeys(keys, 'group'), [a, b, c]);
+    expect(keys, [b, c, a]);
+    await saveIconName(c, 'Álvaro');
+    expect(orderedIconKeys([c, a], 'az'), [c, a]);
+  });
 
 }

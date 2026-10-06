@@ -3359,6 +3359,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
   String _query = '';
   bool _editingColors = false;
   String _view = 'grid';
+  String _order = 'original';
 
   @override
   void initState() {
@@ -3404,13 +3405,13 @@ class _IconPickerPageState extends State<IconPickerPage> {
     }
   }
 
-  Widget _preview(String key) {
+  Widget _preview(String key, {bool enlarged = false}) {
     final custom = isCustomIconKey(key);
     final svgCircle = isEditableSvgIcon(key);
     final color = iconAppearance(key).line;
     return Container(
-      width: custom ? 48 : 44,
-      height: custom ? 48 : 44,
+      width: enlarged ? 80 : custom ? 48 : 44,
+      height: enlarged ? 80 : custom ? 48 : 44,
       padding: custom
           ? const EdgeInsets.all(4)
           : EdgeInsets.zero,
@@ -3426,7 +3427,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
       child: iconWidgetForKey(
         key,
         color: color,
-        size: custom
+        size: enlarged ? 50 : custom
             ? (svgCircle ? 26 : 40)
             : isElectricCollectionKey(key)
             ? 22
@@ -3449,7 +3450,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
             .contains(_query.trim().toLowerCase()))
         .toList();
     final showingCustom = _category == 'Mis iconos';
-    final visibleKeys = <String>[
+    final filteredKeys = <String>[
       if (!showingCustom) ...builtInVisible.map((choice) => choice.key),
       ..._customKeys.where(
         (key) =>
@@ -3461,6 +3462,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
       ),
       if (showingCustom) ...builtInVisible.map((choice) => choice.key),
     ];
+    final visibleKeys = orderedIconKeys(filteredKeys, _order, _customGroups);
 
     return Scaffold(
       appBar: AppBar(
@@ -3481,8 +3483,12 @@ class _IconPickerPageState extends State<IconPickerPage> {
                 child: const Text('Conjunto compacto')),
               CheckedPopupMenuItem(value: 'list', checked: _view == 'list',
                 child: const Text('Lista')),
+              CheckedPopupMenuItem(value: 'gallery', checked: _view == 'gallery',
+                child: const Text('Galería ampliada')),
             ],
           ),
+          _IconOrderMenu(order: _order,
+            onSelected: (value) => setState(() => _order = value)),
         ],
       ),
       body: SafeArea(
@@ -3534,16 +3540,17 @@ class _IconPickerPageState extends State<IconPickerPage> {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final compact = _view == 'compact';
-                  final columns = (constraints.maxWidth / (compact ? 64 : 88))
-                      .floor().clamp(2, compact ? 12 : 6);
-                  final labelSize = MediaQuery.textScalerOf(context).scale(11);
+                  final gallery = _view == 'gallery';
+                  final columns = (constraints.maxWidth / (compact ? 64 : gallery ? 150 : 88))
+                      .floor().clamp(2, compact ? 12 : gallery ? 4 : 6);
+                  final labelSize = MediaQuery.textScalerOf(context).scale(gallery ? 13 : 11);
                   final gridDelegate =
                       SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: columns,
                         mainAxisSpacing: 8,
                         crossAxisSpacing: 8,
                         // Padding + icono + separación + dos líneas + margen.
-                        mainAxisExtent: compact ? 64 : 16 + 48 + 6 + labelSize * 2.4 + 8,
+                        mainAxisExtent: compact ? 64 : 16 + (gallery ? 80 : 48) + 6 + labelSize * 2.4 + 8,
                       );
                   if (_loadingCustom && showingCustom) {
                     return const Center(child: CircularProgressIndicator());
@@ -3618,7 +3625,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                _preview(key),
+                                _preview(key, enlarged: gallery),
                                 if (!compact) const SizedBox(height: 6),
                                 if (!compact) Text(
                                   appIconLabel(key),
@@ -3626,7 +3633,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    fontSize: isCustomIconKey(key) ? 10 : 11,
+                                    fontSize: gallery ? 13 : isCustomIconKey(key) ? 10 : 11,
                                     height: 1.2,
                                     fontWeight: selected
                                         ? FontWeight.w700
@@ -3813,6 +3820,57 @@ class IconManagementPage extends StatefulWidget {
   State<IconManagementPage> createState() => _IconManagementPageState();
 }
 
+
+String _iconOrderText(String value) => value.toLowerCase()
+    .replaceAll('á', 'a').replaceAll('é', 'e').replaceAll('í', 'i')
+    .replaceAll('ó', 'o').replaceAll('ú', 'u').replaceAll('ü', 'u')
+    .replaceAll('ñ', 'n~');
+
+List<String> orderedIconKeys(Iterable<String> keys, String order,
+    [Map<String, String> groups = const {}]) {
+  final result = keys.toList();
+  if (order == 'original') return result;
+  final positions = {for (var i = 0; i < result.length; i++) result[i]: i};
+  result.sort((a, b) {
+    int comparison = 0;
+    if (order == 'favorites') {
+      comparison = (isIconFavorite(b) ? 1 : 0).compareTo(isIconFavorite(a) ? 1 : 0);
+    } else if (order == 'group') {
+      comparison = _iconOrderText(iconCategoryForKey(a, groups))
+          .compareTo(_iconOrderText(iconCategoryForKey(b, groups)));
+    }
+    if (comparison == 0) {
+      comparison = _iconOrderText(appIconLabel(a)).compareTo(_iconOrderText(appIconLabel(b)));
+      if (order == 'za') comparison = -comparison;
+    }
+    return comparison != 0 ? comparison : positions[a]!.compareTo(positions[b]!);
+  });
+  return result;
+}
+
+class _IconOrderMenu extends StatelessWidget {
+  const _IconOrderMenu({required this.order, required this.onSelected});
+  final String order;
+  final ValueChanged<String> onSelected;
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<String>(
+    tooltip: 'Ordenar',
+    icon: const Icon(Icons.sort),
+    onSelected: onSelected,
+    itemBuilder: (_) => [
+      for (final entry in (const {
+        'original': 'Orden original',
+        'az': 'Nombre: A–Z',
+        'za': 'Nombre: Z–A',
+        'group': 'Grupo y nombre',
+        'favorites': 'Favoritos primero',
+      }).entries)
+        CheckedPopupMenuItem(value: entry.key, checked: order == entry.key,
+          child: Text(entry.value)),
+    ],
+  );
+}
+
 class _IconManagementPageState extends State<IconManagementPage> {
   List<String> _keys = [];
   Map<String, String> _groups = {};
@@ -3822,6 +3880,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
   bool _loading = true;
   bool _saving = false;
   String _view = 'list';
+  String _order = 'original';
   @override
   void initState() {
     super.initState();
@@ -4043,6 +4102,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
 
   Widget _tile(String key, bool compact) {
     final label = appIconLabel(key);
+    final gallery = _view == 'gallery';
     return Semantics(
       label: compact ? label : null,
       button: true,
@@ -4059,9 +4119,9 @@ class _IconManagementPageState extends State<IconManagementPage> {
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               Stack(children: [
                 CircleAvatar(
-                  radius: 22,
+                  radius: gallery ? 40 : 22,
                   backgroundColor: iconAppearance(key).circle,
-                  child: iconWidgetForKey(key, color: iconAppearance(key).line, size: 26),
+                  child: iconWidgetForKey(key, color: iconAppearance(key).line, size: gallery ? 50 : 26),
                 ),
                 if (isIconFavorite(key))
                   const Positioned(right: 0, top: 0,
@@ -4070,7 +4130,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
               if (!compact) ...[
                 const SizedBox(height: 6),
                 Text(label, textAlign: TextAlign.center, maxLines: 2,
-                  overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, height: 1.2)),
+                  overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: gallery ? 13 : 11, height: 1.2)),
               ],
             ]),
           ),
@@ -4083,12 +4143,13 @@ class _IconManagementPageState extends State<IconManagementPage> {
     if (_view == 'list') return _list(keys);
     return LayoutBuilder(builder: (context, constraints) {
       final compact = _view == 'compact';
-      final columns = (constraints.maxWidth / (compact ? 64 : 100))
-          .floor().clamp(2, compact ? 12 : 6);
-      final labelSize = MediaQuery.textScalerOf(context).scale(11);
+      final gallery = _view == 'gallery';
+      final columns = (constraints.maxWidth / (compact ? 64 : gallery ? 150 : 100))
+          .floor().clamp(2, compact ? 12 : gallery ? 4 : 6);
+      final labelSize = MediaQuery.textScalerOf(context).scale(gallery ? 13 : 11);
       final delegate = SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns, mainAxisSpacing: 8, crossAxisSpacing: 8,
-        mainAxisExtent: compact ? 64 : 16 + 44 + 6 + labelSize * 2.4 + 8,
+        mainAxisExtent: compact ? 64 : 16 + (gallery ? 80 : 44) + 6 + labelSize * 2.4 + 8,
       );
       Widget grid(List<String> items) => SliverGrid(
         gridDelegate: delegate,
@@ -4129,7 +4190,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
 
   @override
   Widget build(BuildContext context) {
-    final visible = _keys
+    final filtered = _keys
         .where(
           (key) =>
               isIconHidden(key) == _trash &&
@@ -4141,6 +4202,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
                   .contains(_query.trim().toLowerCase()),
         )
         .toList();
+    final visible = orderedIconKeys(filtered, _order, _groups);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gestor de iconos'),
@@ -4151,15 +4213,17 @@ class _IconManagementPageState extends State<IconManagementPage> {
             icon: const Icon(Icons.view_module_outlined),
             onSelected: (value) => setState(() => _view = value),
             itemBuilder: (_) => [
-              for (final entry in (const {'grid': 'Cuadrícula', 'compact': 'Conjunto compacto', 'list': 'Lista', 'groups': 'Por grupos'}).entries)
+              for (final entry in (const {'grid': 'Cuadrícula', 'compact': 'Conjunto compacto', 'list': 'Lista', 'groups': 'Por grupos', 'gallery': 'Galería ampliada'}).entries)
                 CheckedPopupMenuItem(value: entry.key, checked: _view == entry.key,
                   child: Text(entry.value)),
             ],
           ),
 
-          TextButton.icon(
+          _IconOrderMenu(order: _order,
+            onSelected: (value) => setState(() => _order = value)),
+          IconButton(
             icon: const Icon(Icons.folder_outlined),
-            label: const Text('Grupos'),
+            tooltip: 'Grupos',
             onPressed: () async {
               await Navigator.of(context).push<void>(
                 MaterialPageRoute(builder: (_) => const IconGroupsPage()),
