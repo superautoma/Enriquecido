@@ -1414,9 +1414,10 @@ const toolVoltageOptions = <String>[
 List<String> voltageOptionsFor(String selected) {
   double numericValue(String value) =>
       double.tryParse(
-        RegExp(
-              r'\d+(?:[.,]\d+)?',
-            ).firstMatch(value)?.group(0)?.replaceAll(',', '.') ??
+        RegExp(r'\d+(?:[.,]\d+)?')
+                .firstMatch(value)
+                ?.group(0)
+                ?.replaceAll(',', '.') ??
             '',
       ) ??
       double.infinity;
@@ -2143,8 +2144,7 @@ class BackupManager {
         'created_at': DateTime.now().toIso8601String(),
         'database': 'database/gestor_herramientas.db',
         'images': 'tool_images',
-        'note':
-            'Copia completa de SQLite e imágenes. Incluye automáticamente campos futuros guardados en la base de datos.',
+        'note': 'Copia completa de SQLite e imágenes. Incluye automáticamente campos futuros guardados en la base de datos.',
       };
       await File(p.join(workDir.path, 'manifest.json')).writeAsString(
         const JsonEncoder.withIndent('  ').convert(manifest),
@@ -2530,8 +2530,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       await Share.shareXFiles(
         [XFile(backup.path)],
         subject: 'Copia de seguridad · Gestor de Herramientas',
-        text:
-            'Copia completa de la base de datos y las imágenes del Gestor de Herramientas.',
+        text: 'Copia completa de la base de datos y las imágenes del Gestor de Herramientas.',
       );
     } catch (error) {
       if (!mounted) return;
@@ -2882,8 +2881,17 @@ Future<Directory> customIconsDirectory() async {
 }
 
 Set<String> _hiddenIconKeys = {};
+Set<String> _favoriteIconKeys = {};
+List<String> _customIconCategories = [];
 Map<String, String> _iconGroupOverrides = {};
 
+List<String> get iconGroups => [
+  ...appIconCategories.where((g) => g != 'Todos'),
+  ..._customIconCategories,
+];
+List<String> get iconFilters => ['Todos', 'Favoritos', ...iconGroups];
+bool isIconFavorite(String key) =>
+    _favoriteIconKeys.contains(iconNameStorageKey(key));
 bool isIconHidden(String key) =>
     _hiddenIconKeys.contains(iconNameStorageKey(key));
 String iconCategoryForKey(
@@ -2902,6 +2910,8 @@ Future<File> iconSettingsFile() async {
 
 Future<void> loadIconSettings() async {
   final hidden = <String>{};
+  final favorites = <String>{};
+  final custom = <String>[];
   final groups = <String, String>{};
   try {
     final file = await iconSettingsFile();
@@ -2910,12 +2920,30 @@ Future<void> loadIconSettings() async {
       if (raw is Map) {
         if (raw['hidden'] is List)
           hidden.addAll((raw['hidden'] as List).whereType<String>());
+        if (raw['favorites'] is List)
+          favorites.addAll((raw['favorites'] as List).whereType<String>());
+        if (raw['customGroups'] is List) {
+          for (final name
+              in (raw['customGroups'] as List).whereType<String>()) {
+            final clean = name.trim();
+            if (clean.isNotEmpty &&
+                clean.length <= 40 &&
+                ![
+                  ...appIconCategories,
+                  'Favoritos',
+                  ...custom,
+                ].any((g) => g.toLowerCase() == clean.toLowerCase()))
+              custom.add(clean);
+          }
+        }
         if (raw['groups'] is Map) {
           for (final entry in (raw['groups'] as Map).entries) {
             if (entry.key is String &&
                 entry.value is String &&
-                appIconCategories.contains(entry.value) &&
-                entry.value != 'Todos') {
+                [
+                  ...appIconCategories.where((g) => g != 'Todos'),
+                  ...custom,
+                ].contains(entry.value)) {
               groups[entry.key as String] = entry.value as String;
             }
           }
@@ -2924,32 +2952,109 @@ Future<void> loadIconSettings() async {
     }
   } catch (_) {}
   _hiddenIconKeys = hidden;
+  _favoriteIconKeys = favorites;
+  _customIconCategories = custom;
+  _iconGroupOverrides = groups;
+}
+
+Future<void> _persistIconSettings({
+  required Set<String> hidden,
+  required Set<String> favorites,
+  required List<String> customGroups,
+  required Map<String, String> groups,
+}) async {
+  final file = await iconSettingsFile();
+  await file.parent.create(recursive: true);
+  final temporary = File('${file.path}.tmp');
+  await temporary.writeAsString(
+    jsonEncode({
+      'hidden': hidden.toList(),
+      'favorites': favorites.toList(),
+      'customGroups': customGroups,
+      'groups': groups,
+    }),
+    flush: true,
+  );
+  await temporary.rename(file.path);
+  _hiddenIconKeys = hidden;
+  _favoriteIconKeys = favorites;
+  _customIconCategories = customGroups;
   _iconGroupOverrides = groups;
 }
 
 Future<void> updateIconSettings(
   String key, {
   bool? hidden,
+  bool? favorite,
   String? group,
 }) async {
   final hiddenKeys = Set<String>.from(_hiddenIconKeys);
+  final favorites = Set<String>.from(_favoriteIconKeys);
   final groups = Map<String, String>.from(_iconGroupOverrides);
   final id = iconNameStorageKey(key);
   if (hidden == true) hiddenKeys.add(id);
   if (hidden == false) hiddenKeys.remove(id);
-  if (group != null && appIconCategories.contains(group) && group != 'Todos') {
+  if (favorite == true) favorites.add(id);
+  if (favorite == false) favorites.remove(id);
+  if (group != null) {
+    if (!iconGroups.contains(group))
+      throw ArgumentError('Grupo de iconos no válido');
     groups[id] = group;
   }
-  final file = await iconSettingsFile();
-  await file.parent.create(recursive: true);
-  final temporary = File('${file.path}.tmp');
-  await temporary.writeAsString(
-    jsonEncode({'hidden': hiddenKeys.toList(), 'groups': groups}),
-    flush: true,
+  await _persistIconSettings(
+    hidden: hiddenKeys,
+    favorites: favorites,
+    customGroups: List<String>.from(_customIconCategories),
+    groups: groups,
   );
-  await temporary.rename(file.path);
-  _hiddenIconKeys = hiddenKeys;
-  _iconGroupOverrides = groups;
+}
+
+String? iconGroupNameError(String name, {String? original}) {
+  final clean = name.trim();
+  if (clean.isEmpty) return 'Escribe un nombre';
+  if (clean.length > 40) return 'Usa un máximo de 40 caracteres';
+  if ([
+    ...appIconCategories,
+    'Favoritos',
+    ..._customIconCategories,
+  ].any((g) => g != original && g.toLowerCase() == clean.toLowerCase()))
+    return 'Ya existe un grupo con ese nombre';
+  return null;
+}
+
+Future<void> saveIconGroup(String name, {String? original}) async {
+  final error = iconGroupNameError(name, original: original);
+  if (error != null) throw ArgumentError(error);
+  if (original != null && !_customIconCategories.contains(original))
+    throw ArgumentError('Grupo no editable');
+  final clean = name.trim();
+  final custom = List<String>.from(_customIconCategories);
+  final groups = Map<String, String>.from(_iconGroupOverrides);
+  if (original == null) {
+    custom.add(clean);
+  } else {
+    custom[custom.indexOf(original)] = clean;
+    groups.updateAll((key, group) => group == original ? clean : group);
+  }
+  await _persistIconSettings(
+    hidden: Set<String>.from(_hiddenIconKeys),
+    favorites: Set<String>.from(_favoriteIconKeys),
+    customGroups: custom,
+    groups: groups,
+  );
+}
+
+Future<void> deleteIconGroup(String name) async {
+  if (!_customIconCategories.contains(name))
+    throw ArgumentError('Grupo no editable');
+  final groups = Map<String, String>.from(_iconGroupOverrides);
+  groups.updateAll((key, group) => group == name ? 'Mis iconos' : group);
+  await _persistIconSettings(
+    hidden: Set<String>.from(_hiddenIconKeys),
+    favorites: Set<String>.from(_favoriteIconKeys),
+    customGroups: _customIconCategories.where((g) => g != name).toList(),
+    groups: groups,
+  );
 }
 
 Future<bool> showIconRename(BuildContext context, String key) async {
@@ -3036,16 +3141,14 @@ Future<Map<String, String>> loadCustomIconGroups(List<String> keys) async {
       if (await file.exists()) {
         final data = jsonDecode(await file.readAsString());
         final saved = data is Map ? data['group'] : null;
-        if (saved is String &&
-            saved != 'Todos' &&
-            appIconCategories.contains(saved)) {
+        if (saved is String && saved != 'Todos' && iconGroups.contains(saved)) {
           group = saved;
         }
       }
     } catch (_) {
       // Los iconos anteriores o sin metadatos siguen en Mis iconos.
     }
-    groups[key] = group;
+    groups[key] = _iconGroupOverrides[iconNameStorageKey(key)] ?? group;
   }
   return groups;
 }
@@ -3053,12 +3156,12 @@ Future<Map<String, String>> loadCustomIconGroups(List<String> keys) async {
 Future<void> saveCustomIconGroup(String key, String group) async {
   if (!isCustomIconKey(key) ||
       group == 'Todos' ||
-      !appIconCategories.contains(group)) {
+      !iconGroups.contains(group)) {
     throw ArgumentError('Grupo de iconos no válido');
   }
-  await File(
-    '${customIconPathFromKey(key)}.group.json',
-  ).writeAsString(jsonEncode({'group': group}), flush: true);
+  await updateIconSettings(key, group: group);
+  await File('${customIconPathFromKey(key)}.group.json')
+      .writeAsString(jsonEncode({'group': group}), flush: true);
 }
 
 Future<List<String>> importCustomIcons({String group = 'Mis iconos'}) async {
@@ -3132,6 +3235,8 @@ class _IconPickerPageState extends State<IconPickerPage> {
       _customGroups = groups;
       if (_loadingCustom)
         _category = iconCategoryForKey(widget.currentKey, groups);
+      if (!iconFilters.contains(_category))
+        _category = iconCategoryForKey(widget.currentKey, groups);
       _loadingCustom = false;
     });
   }
@@ -3157,7 +3262,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
   }
 
   Future<void> _import() async {
-    var selected = _category == 'Todos' ? 'Herramientas' : _category;
+    var selected = iconGroups.contains(_category) ? _category : 'Mis iconos';
     final group = await showDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -3167,7 +3272,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
             initialValue: selected,
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'Grupo'),
-            items: appIconCategories
+            items: iconGroups
                 .where((item) => item != 'Todos')
                 .map((item) => DropdownMenuItem(value: item, child: Text(item)))
                 .toList(),
@@ -3211,6 +3316,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
           (choice) =>
               !isIconHidden(choice.key) &&
               (_category == 'Todos' ||
+                  (_category == 'Favoritos' && isIconFavorite(choice.key)) ||
                   iconCategoryForKey(choice.key) == _category),
         )
         .toList();
@@ -3221,6 +3327,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
         (key) =>
             !isIconHidden(key) &&
             (_category == 'Todos' ||
+                (_category == 'Favoritos' && isIconFavorite(key)) ||
                 iconCategoryForKey(key, _customGroups) == _category),
       ),
       if (showingCustom) ...builtInVisible.map((choice) => choice.key),
@@ -3290,10 +3397,10 @@ class _IconPickerPageState extends State<IconPickerPage> {
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 scrollDirection: Axis.horizontal,
-                itemCount: appIconCategories.length,
+                itemCount: iconFilters.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 7),
                 itemBuilder: (context, index) {
-                  final item = appIconCategories[index];
+                  final item = iconFilters[index];
                   return ChoiceChip(
                     label: Text(item),
                     selected: _category == item,
@@ -3301,6 +3408,16 @@ class _IconPickerPageState extends State<IconPickerPage> {
                   );
                 },
               ),
+            ),
+            TextButton.icon(
+              icon: const Icon(Icons.tune),
+              label: const Text('Gestor de iconos'),
+              onPressed: () async {
+                await Navigator.of(context).push<void>(
+                  MaterialPageRoute(builder: (_) => const IconManagementPage()),
+                );
+                if (mounted) await _loadCustom();
+              },
             ),
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -3434,6 +3551,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
   String _group = 'Todos';
   bool _trash = false;
   bool _loading = true;
+  bool _saving = false;
   @override
   void initState() {
     super.initState();
@@ -3452,16 +3570,20 @@ class _IconManagementPageState extends State<IconManagementPage> {
   }
 
   Future<void> _change(String key, String action) async {
+    if (_saving) return;
+    _saving = true;
     try {
       if (action == 'rename') {
         if (!await showIconRename(context, key)) return;
+      } else if (action == 'favorite') {
+        await updateIconSettings(key, favorite: !isIconFavorite(key));
       } else if (action == 'group') {
         final group = await showDialog<String>(
           context: context,
           builder: (context) => SimpleDialog(
             title: const Text('Mover a un grupo'),
             children: [
-              for (final group in appIconCategories.where((g) => g != 'Todos'))
+              for (final group in iconGroups)
                 SimpleDialogOption(
                   onPressed: () => Navigator.pop(context, group),
                   child: Text(group),
@@ -3504,11 +3626,15 @@ class _IconManagementPageState extends State<IconManagementPage> {
           content: Text('No se pudo guardar el cambio. Inténtalo de nuevo.'),
         ),
       );
+    } finally {
+      _saving = false;
     }
   }
 
   Future<void> _import() async {
-    await importCustomIcons();
+    await importCustomIcons(
+      group: iconGroups.contains(_group) ? _group : 'Mis iconos',
+    );
     if (mounted) await _load();
   }
 
@@ -3519,14 +3645,31 @@ class _IconManagementPageState extends State<IconManagementPage> {
           (key) =>
               isIconHidden(key) == _trash &&
               (_group == 'Todos' ||
+                  (_group == 'Favoritos' && isIconFavorite(key)) ||
                   iconCategoryForKey(key, _groups) == _group) &&
-              appIconLabel(
-                key,
-              ).toLowerCase().contains(_query.trim().toLowerCase()),
+              appIconLabel(key)
+                  .toLowerCase()
+                  .contains(_query.trim().toLowerCase()),
         )
         .toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('Gestor de iconos')),
+      appBar: AppBar(
+        title: const Text('Gestor de iconos'),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.folder_outlined),
+            label: const Text('Grupos'),
+            onPressed: () async {
+              await Navigator.of(context).push<void>(
+                MaterialPageRoute(builder: (_) => const IconGroupsPage()),
+              );
+              if (!mounted) return;
+              if (!iconFilters.contains(_group)) _group = 'Todos';
+              await _load();
+            },
+          ),
+        ],
+      ),
       floatingActionButton: _trash
           ? null
           : FloatingActionButton.extended(
@@ -3550,10 +3693,11 @@ class _IconManagementPageState extends State<IconManagementPage> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: DropdownButtonFormField<String>(
+                key: ValueKey(_group),
                 initialValue: _group,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Grupo'),
-                items: appIconCategories
+                items: iconFilters
                     .map((g) => DropdownMenuItem(value: g, child: Text(g)))
                     .toList(),
                 onChanged: (value) {
@@ -3622,30 +3766,50 @@ class _IconManagementPageState extends State<IconManagementPage> {
                             subtitle: Text(iconCategoryForKey(key, _groups)),
                             onTap: () =>
                                 _change(key, _trash ? 'restore' : 'rename'),
-                            trailing: PopupMenuButton<String>(
-                              tooltip: 'Opciones del icono',
-                              onSelected: (action) => _change(key, action),
-                              itemBuilder: (_) => _trash
-                                  ? const [
-                                      PopupMenuItem(
-                                        value: 'restore',
-                                        child: Text('Restaurar'),
-                                      ),
-                                    ]
-                                  : const [
-                                      PopupMenuItem(
-                                        value: 'rename',
-                                        child: Text('Cambiar nombre'),
-                                      ),
-                                      PopupMenuItem(
-                                        value: 'group',
-                                        child: Text('Cambiar grupo'),
-                                      ),
-                                      PopupMenuItem(
-                                        value: 'delete',
-                                        child: Text('Eliminar'),
-                                      ),
-                                    ],
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (!_trash)
+                                  IconButton(
+                                    tooltip: isIconFavorite(key)
+                                        ? 'Quitar de favoritos'
+                                        : 'Añadir a favoritos',
+                                    icon: Icon(
+                                      isIconFavorite(key)
+                                          ? Icons.star
+                                          : Icons.star_border,
+                                      color: isIconFavorite(key)
+                                          ? Colors.amber.shade800
+                                          : null,
+                                    ),
+                                    onPressed: () => _change(key, 'favorite'),
+                                  ),
+                                PopupMenuButton<String>(
+                                  tooltip: 'Opciones del icono',
+                                  onSelected: (action) => _change(key, action),
+                                  itemBuilder: (_) => _trash
+                                      ? const [
+                                          PopupMenuItem(
+                                            value: 'restore',
+                                            child: Text('Restaurar'),
+                                          ),
+                                        ]
+                                      : const [
+                                          PopupMenuItem(
+                                            value: 'rename',
+                                            child: Text('Cambiar nombre'),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'group',
+                                            child: Text('Cambiar grupo'),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'delete',
+                                            child: Text('Eliminar'),
+                                          ),
+                                        ],
+                                ),
+                              ],
                             ),
                           ),
                         );
@@ -3657,6 +3821,170 @@ class _IconManagementPageState extends State<IconManagementPage> {
       ),
     );
   }
+}
+
+class IconGroupsPage extends StatefulWidget {
+  const IconGroupsPage({super.key});
+  @override
+  State<IconGroupsPage> createState() => _IconGroupsPageState();
+}
+
+class _IconGroupsPageState extends State<IconGroupsPage> {
+  bool _busy = false;
+  Future<void> _edit([String? original]) async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _IconGroupDialog(original: original),
+    );
+    if (name == null || !mounted) return;
+    await _save(() => saveIconGroup(name, original: original));
+  }
+
+  Future<void> _save(Future<void> Function() action) async {
+    setState(() => _busy = true);
+    try {
+      await action();
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo guardar el grupo. Inténtalo de nuevo.'),
+          ),
+        );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _delete(String group) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Eliminar «$group»'),
+        content: const Text(
+          'Sus iconos pasarán a Mis iconos. Se conservarán sus nombres y favoritos.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar grupo'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) await _save(() => deleteIconGroup(group));
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Grupos de iconos')),
+    floatingActionButton: FloatingActionButton.extended(
+      onPressed: _busy ? null : () => _edit(),
+      icon: const Icon(Icons.create_new_folder_outlined),
+      label: const Text('Crear grupo'),
+    ),
+    body: SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(8),
+            child: Text(
+              'Crea grupos como Carpintería, Fontanería o Medición. Después mueve tus iconos desde el gestor.',
+            ),
+          ),
+          for (final group in iconGroups)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.folder_outlined),
+                title: Text(group),
+                subtitle: Text(
+                  _customIconCategories.contains(group)
+                      ? 'Grupo personalizado'
+                      : 'Grupo de la aplicación',
+                ),
+                trailing: _customIconCategories.contains(group)
+                    ? PopupMenuButton<String>(
+                        enabled: !_busy,
+                        tooltip: 'Opciones del grupo',
+                        onSelected: (action) =>
+                            action == 'rename' ? _edit(group) : _delete(group),
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                            value: 'rename',
+                            child: Text('Cambiar nombre'),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Eliminar grupo'),
+                          ),
+                        ],
+                      )
+                    : null,
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _IconGroupDialog extends StatefulWidget {
+  const _IconGroupDialog({this.original});
+  final String? original;
+  @override
+  State<_IconGroupDialog> createState() => _IconGroupDialogState();
+}
+
+class _IconGroupDialogState extends State<_IconGroupDialog> {
+  final _form = GlobalKey<FormState>();
+  late final TextEditingController _name;
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: widget.original ?? '');
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_form.currentState!.validate())
+      Navigator.pop(context, _name.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(
+      widget.original == null ? 'Crear grupo' : 'Cambiar nombre del grupo',
+    ),
+    content: Form(
+      key: _form,
+      child: TextFormField(
+        controller: _name,
+        autofocus: true,
+        maxLength: 40,
+        decoration: const InputDecoration(labelText: 'Nombre del grupo'),
+        validator: (value) =>
+            iconGroupNameError(value ?? '', original: widget.original),
+        onFieldSubmitted: (_) => _submit(),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancelar'),
+      ),
+      FilledButton(onPressed: _submit, child: const Text('Guardar')),
+    ],
+  );
 }
 
 class _IconRenameDialog extends StatefulWidget {
@@ -3875,9 +4203,10 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
                     InkWell(
                       key: ValueKey('circle_color_$value'),
                       onTap: () => setState(
-                        () => _circleColorValue = Color(
-                          value,
-                        ).withValues(alpha: 0.16).toARGB32(),
+                        () =>
+                            _circleColorValue = Color(value)
+                                .withValues(alpha: 0.16)
+                                .toARGB32(),
                       ),
                       child: Container(
                         width: 40,
@@ -3889,9 +4218,9 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
                             width: 2,
                             color:
                                 _circleColorValue ==
-                                    Color(
-                                      value,
-                                    ).withValues(alpha: 0.16).toARGB32()
+                                    Color(value)
+                                        .withValues(alpha: 0.16)
+                                        .toARGB32()
                                 ? Color(value)
                                 : Colors.transparent,
                           ),
