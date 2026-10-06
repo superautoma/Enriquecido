@@ -1121,7 +1121,17 @@ Widget fieldOptionIconWidget(FieldOption option, {double size = 24}) {
       color: option.circleColor,
       shape: BoxShape.circle,
     ),
-    child: glyph,
+    // Enlarge only the presentation; saved SVGs and their colors stay intact.
+    child: isEditableSvgIcon(option.iconKey)
+        ? ClipOval(
+            child: SizedBox.square(
+              dimension: size,
+              child: Center(
+                child: Transform.scale(scale: 1.30, child: glyph),
+              ),
+            ),
+          )
+        : glyph,
   );
 }
 
