@@ -31,11 +31,35 @@ class StartupInstallTest(unittest.TestCase):
                 </activity>
                 <meta-data android:name="flutterEmbedding" android:value="2"/>
               </application></manifest>''')
+            gradle = flutter / 'android/app/build.gradle.kts'
+            gradle.write_text('''plugins {
+                id("com.android.application")
+            }
+            android {
+                buildTypes {
+                    release {
+                        isMinifyEnabled = true
+                        isShrinkResources = true
+                        signingConfig = signingConfigs.getByName("debug")
+                    }
+                }
+            }
+            ''')
+            (flutter / 'android/gradle.properties').write_text(
+                'android.builtInKotlin=false\n')
             command = [sys.executable, str(startup / 'install_startup.py')]
             subprocess.run(command, check=True)
             first = hashlib.sha256(manifest.read_bytes()).digest()
+            first_gradle = gradle.read_text()
             subprocess.run(command, check=True)
             self.assertEqual(hashlib.sha256(manifest.read_bytes()).digest(), first)
+            self.assertEqual(gradle.read_text(), first_gradle)
+            self.assertEqual(first_gradle.count('isMinifyEnabled = false'), 1)
+            self.assertEqual(first_gradle.count('isShrinkResources = false'), 1)
+            self.assertNotIn('isMinifyEnabled = true', first_gradle)
+            self.assertNotIn('isShrinkResources = true', first_gradle)
+            self.assertIn('signingConfig = signingConfigs.getByName("debug")', first_gradle)
+            self.assertEqual(first_gradle.count('id("org.jetbrains.kotlin.android")'), 1)
             app = ET.parse(manifest).getroot().find('application')
             activities = {a.get(ANDROID + 'name'): a for a in app.findall('activity')}
             self.assertEqual(len(activities), 2)

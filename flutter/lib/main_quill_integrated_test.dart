@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -2319,10 +2320,16 @@ ConditionStyle conditionStyleFor(String value) {
 }
 
 class StartupStatusPage extends StatelessWidget {
-  const StartupStatusPage({super.key, this.hasError = false, this.onRetry});
+  const StartupStatusPage({
+    super.key,
+    this.hasError = false,
+    this.onRetry,
+    this.errorDetails,
+  });
 
   final bool hasError;
   final VoidCallback? onRetry;
+  final String? errorDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -2370,6 +2377,17 @@ class StartupStatusPage extends StatelessWidget {
                     onPressed: onRetry,
                     child: const Text('Reintentar'),
                   ),
+                  if (errorDetails != null)
+                    TextButton(
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: errorDetails!));
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Error copiado')),
+                        );
+                      },
+                      child: const Text('Copiar error'),
+                    ),
                 ],
               ],
             ),
@@ -2433,6 +2451,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
   List<FieldOption> _conditionOptions = defaultFieldOptions('condition');
   bool _loading = true;
   bool _loadError = false;
+  String? _loadErrorDetails;
 
   @override
   void initState() {
@@ -2444,12 +2463,17 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     setState(() {
       _loading = true;
       _loadError = false;
+      _loadErrorDetails = null;
     });
+    var loadStage = 'Abrir los datos guardados';
     try {
       await ToolsDatabase.instance.seedIfEmpty(_defaultItems);
+      loadStage = 'Leer las herramientas';
       final items = await ToolsDatabase.instance.loadTools();
+      loadStage = 'Leer los iconos';
       await loadIconNames();
       await loadIconSettings();
+      loadStage = 'Leer los estados';
       final conditionOptions = await ToolsDatabase.instance.loadFieldOptions(
         'condition',
       );
@@ -2469,6 +2493,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       setState(() {
         _loading = false;
         _loadError = true;
+        _loadErrorDetails = '$loadStage\n$error';
       });
     }
   }
@@ -2615,7 +2640,11 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
   @override
   Widget build(BuildContext context) {
     if (_loading || _loadError) {
-      return StartupStatusPage(hasError: _loadError, onRetry: _loadItems);
+      return StartupStatusPage(
+        hasError: _loadError,
+        onRetry: _loadItems,
+        errorDetails: _loadErrorDetails,
+      );
     }
     final visible = _visibleItems;
 

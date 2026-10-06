@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -66,6 +67,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('No se pudieron cargar las herramientas.'), findsOneWidget);
     expect(find.text('Reintentar'), findsOneWidget);
+    expect(find.text('Copiar error'), findsOneWidget);
+    String? copiedError;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copiedError = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform, null,
+      );
+    });
+    await tester.tap(find.text('Copiar error'));
+    await tester.pump();
+    expect(copiedError, startsWith('Abrir los datos guardados\n'));
+    expect(copiedError, contains('DatabaseException'));
+    expect(find.text('Error copiado'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
 
     await databaseFactory.setDatabasesPath(directory.path);
@@ -75,6 +97,7 @@ void main() {
     await finishDatabaseLoad(tester);
     await tester.pumpAndSettle();
     expect(find.text('Reintentar'), findsNothing);
+    expect(find.text('Copiar error'), findsNothing);
     expect(find.text('Destornillador aislado'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

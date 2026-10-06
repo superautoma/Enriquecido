@@ -1,6 +1,7 @@
 """Install the native first-frame loader into a generated Flutter Android project."""
 from pathlib import Path
 import shutil
+import re
 import xml.etree.ElementTree as ET
 
 root = Path(__file__).resolve().parent
@@ -50,3 +51,15 @@ if properties.exists() and gradle.exists() and 'android.builtInKotlin=false' in 
         text = text.replace('id("com.android.application")',
                             'id("com.android.application")\n    id("org.jetbrains.kotlin.android")', 1)
         gradle.write_text(text)
+
+# JNI-backed plugins can access classes by name, outside R8's reachability
+# analysis. Preserve Android classes/resources while keeping Dart release AOT.
+if not gradle.exists():
+    raise SystemExit('No se encontró android/app/build.gradle.kts')
+text = gradle.read_text()
+marker = 'release {'
+if text.count(marker) != 1:
+    raise SystemExit('No se encontró un único bloque release en build.gradle.kts')
+text = re.sub(r'^[ \t]*(?:isMinifyEnabled|isShrinkResources)[ \t]*=.*\n?', '', text, flags=re.MULTILINE)
+text = text.replace(marker, marker + '\n            isMinifyEnabled = false\n            isShrinkResources = false', 1)
+gradle.write_text(text)
