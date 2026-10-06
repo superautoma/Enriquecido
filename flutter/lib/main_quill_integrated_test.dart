@@ -952,8 +952,14 @@ bool isEditableSvgIcon(String key) =>
     isCustomIconKey(key) &&
     p.extension(customIconPathFromKey(key)).toLowerCase() == '.svg';
 
+bool canEditIconColors(String key) =>
+    isEditableSvgIcon(key) ||
+    (!isCustomIconKey(key) && !isToolArtworkKey(key));
+
 bool hasIconCircle(String key) =>
-    isElectricCollectionKey(key) || isEditableSvgIcon(key);
+    isElectricCollectionKey(key) || isEditableSvgIcon(key) ||
+    (canEditIconColors(key) &&
+        _iconAppearances.containsKey(iconNameStorageKey(key)));
 
 class IconAppearance {
   const IconAppearance(this.lineValue, this.circleValue);
@@ -1294,10 +1300,13 @@ class FieldOption {
   bool active;
 
   IconData get icon => appIconFor(iconKey);
-  Color get color => Color(colorValue);
-  Color get circleColor => circleColorValue == null
-      ? color.withValues(alpha: 0.12)
-      : Color(circleColorValue!);
+  Color get color =>
+      _iconAppearances[iconNameStorageKey(iconKey)]?.line ?? Color(colorValue);
+  Color get circleColor =>
+      _iconAppearances[iconNameStorageKey(iconKey)]?.circle ??
+      (circleColorValue == null
+          ? Color(colorValue).withValues(alpha: 0.12)
+          : Color(circleColorValue!));
 
   FieldOption copyWith({
     int? id,
@@ -2597,6 +2606,13 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     });
   }
 
+  Future<void> _openIconManager() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const IconManagementPage()),
+    );
+    if (mounted) await _loadItems();
+  }
+
   Future<void> _openFieldOptionsManager() async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(builder: (_) => const FieldOptionsManagementPage()),
@@ -2712,11 +2728,18 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Gestor de iconos',
+            icon: const Icon(Icons.image_outlined),
+            onPressed: _openIconManager,
+          ),
           PopupMenuButton<String>(
             tooltip: 'Opciones',
             icon: const Icon(Icons.more_vert),
             onSelected: (value) {
               switch (value) {
+                case 'icons':
+                  _openIconManager();
                 case 'database':
                   _openDatabaseManager();
                 case 'fields':
@@ -2728,6 +2751,14 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
               }
             },
             itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'icons',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.image_outlined),
+                  title: Text('Gestor de iconos'),
+                ),
+              ),
               PopupMenuItem(
                 value: 'database',
                 child: ListTile(
@@ -3325,6 +3356,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
   Map<String, String> _customGroups = const {};
   bool _loadingCustom = true;
   late String _category;
+  String _query = '';
 
   @override
   void initState() {
@@ -3350,83 +3382,6 @@ class _IconPickerPageState extends State<IconPickerPage> {
     });
   }
 
-  Future<void> _renameIcon(String key) async {
-    final name = await showDialog<String>(
-      context: context,
-      builder: (_) => _IconRenameDialog(iconKey: key),
-    );
-    if (name == null) return;
-    try {
-      await saveIconName(key, name);
-      if (!mounted) return;
-      setState(() {});
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo guardar el nombre. Inténtalo de nuevo.'),
-        ),
-      );
-    }
-  }
-
-  Future<void> _import() async {
-    var selected = iconGroups.contains(_category) ? _category : 'Mis iconos';
-    final group = await showDialog<String>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Grupo de los iconos'),
-          content: DropdownButtonFormField<String>(
-            initialValue: selected,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Grupo'),
-            items: iconGroups
-                .where((item) => item != 'Todos')
-                .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-                .toList(),
-            onChanged: (value) {
-              if (value != null) setDialogState(() => selected = value);
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, selected),
-              child: const Text('Elegir archivos'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (!mounted || group == null) return;
-    List<String> imported;
-    try {
-      imported = await importCustomIcons(group: group);
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo importar el archivo de iconos.')),
-      );
-      return;
-    }
-    if (!mounted || imported.isEmpty) return;
-
-    final keys = await loadCustomIconKeys();
-    final groups = await loadCustomIconGroups(keys);
-    if (!mounted) return;
-
-    setState(() {
-      _customKeys = keys;
-      _customGroups = groups;
-      _loadingCustom = false;
-      _category = group;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final builtInVisible = appIconChoices
@@ -3437,6 +3392,8 @@ class _IconPickerPageState extends State<IconPickerPage> {
                   (_category == 'Favoritos' && isIconFavorite(choice.key)) ||
                   iconCategoryForKey(choice.key) == _category),
         )
+        .where((choice) => appIconLabel(choice.key).toLowerCase()
+            .contains(_query.trim().toLowerCase()))
         .toList();
     final showingCustom = _category == 'Mis iconos';
     final visibleKeys = <String>[
@@ -3444,6 +3401,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
       ..._customKeys.where(
         (key) =>
             !isIconHidden(key) &&
+            appIconLabel(key).toLowerCase().contains(_query.trim().toLowerCase()) &&
             (_category == 'Todos' ||
                 (_category == 'Favoritos' && isIconFavorite(key)) ||
                 iconCategoryForKey(key, _customGroups) == _category),
@@ -3457,57 +3415,18 @@ class _IconPickerPageState extends State<IconPickerPage> {
           'Seleccionar icono',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Gestionar iconos',
-            icon: const Icon(Icons.tune),
-            onPressed: () async {
-              await Navigator.of(context).push<void>(
-                MaterialPageRoute(builder: (_) => const IconManagementPage()),
-              );
-              if (mounted) await _loadCustom();
-            },
-          ),
-        ],
       ),
       body: SafeArea(
         child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _import,
-                      icon: const Icon(Icons.photo_library_outlined),
-                      label: const Text('GALERÍA...'),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(50),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'La generación de iconos con IA la '
-                              'conectaremos en una fase posterior.',
-                            ),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.auto_awesome),
-                      label: const Text('GENERAR CON IA'),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(50),
-                      ),
-                    ),
-                  ),
-                ],
+              child: TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Buscar iconos',
+                  prefixIcon: Icon(Icons.search),
+                ),
+                onChanged: (value) => setState(() => _query = value),
               ),
             ),
             SizedBox(
@@ -3525,23 +3444,6 @@ class _IconPickerPageState extends State<IconPickerPage> {
                     onSelected: (_) => setState(() => _category = item),
                   );
                 },
-              ),
-            ),
-            TextButton.icon(
-              icon: const Icon(Icons.tune),
-              label: const Text('Gestor de iconos'),
-              onPressed: () async {
-                await Navigator.of(context).push<void>(
-                  MaterialPageRoute(builder: (_) => const IconManagementPage()),
-                );
-                if (mounted) await _loadCustom();
-              },
-            ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Text(
-                'Mantén pulsado un icono para cambiar su nombre.',
-                style: TextStyle(fontSize: 12, color: Color(0xFF6F747A)),
               ),
             ),
             Expanded(
@@ -3568,8 +3470,8 @@ class _IconPickerPageState extends State<IconPickerPage> {
                       child: Padding(
                         padding: EdgeInsets.all(24),
                         child: Text(
-                          'Todavía no hay iconos en este grupo. Pulsa '
-                          'GALERÍA... para importar imágenes, SVG o un ZIP.',
+                          'No hay iconos que coincidan. Puedes preparar nuevos '
+                          'iconos desde el gestor del menú principal.',
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -3593,7 +3495,6 @@ class _IconPickerPageState extends State<IconPickerPage> {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
                           onTap: () => Navigator.pop(context, key),
-                          onLongPress: () => _renameIcon(key),
                           child: Padding(
                             padding: const EdgeInsets.all(8),
                             child: Column(
@@ -4083,7 +3984,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
                                           ),
                                         ]
                                       : [
-                                          if (isEditableSvgIcon(key))
+                                          if (canEditIconColors(key))
                                             const PopupMenuItem(
                                               value: 'colors',
                                               child: Text('Cambiar colores'),
@@ -4483,101 +4384,11 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
               ),
             ),
             const SizedBox(height: 18),
-            if (hasIconCircle(_iconKey)) ...[
-              const Text(
-                'Color del círculo',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  for (final value in optionColorPalette)
-                    InkWell(
-                      key: ValueKey('circle_color_$value'),
-                      onTap: () => setState(
-                        () =>
-                            _circleColorValue = Color(value)
-                                .withValues(alpha: 0.16)
-                                .toARGB32(),
-                      ),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Color(value).withValues(alpha: 0.16),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            width: 2,
-                            color:
-                                _circleColorValue ==
-                                    Color(value)
-                                        .withValues(alpha: 0.16)
-                                        .toARGB32()
-                                ? Color(value)
-                                : Colors.transparent,
-                          ),
-                        ),
-                        child:
-                            _circleColorValue ==
-                                Color(value).withValues(alpha: 0.16).toARGB32()
-                            ? Icon(Icons.check, size: 20, color: Color(value))
-                            : null,
-                      ),
-                    ),
-                ],
-              ),
-              TextButton(
-                onPressed: () => setState(() => _circleColorValue = null),
-                child: const Text('Usar círculo del color de las líneas'),
-              ),
-              const SizedBox(height: 18),
-            ],
-            if (isCustomIconKey(_iconKey) && !isEditableSvgIcon(_iconKey))
-              const Text(
-                'Este icono conserva sus colores originales.',
-                style: TextStyle(color: Color(0xFF6F747A), fontSize: 13),
-              )
-            else ...[
-              const Text(
-                'Color de las líneas',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  for (final value in optionColorPalette)
-                    InkWell(
-                      borderRadius: BorderRadius.circular(30),
-                      onTap: () => setState(() => _colorValue = value),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Color(value),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: value == _colorValue
-                                ? const Color(0xFF20242A)
-                                : Colors.transparent,
-                            width: 3,
-                          ),
-                        ),
-                        child: value == _colorValue
-                            ? const Icon(
-                                Icons.check,
-                                color: Colors.white,
-                                size: 20,
-                              )
-                            : null,
-                      ),
-                    ),
-                ],
-              ),
-            ],
+            const Text(
+              'Los nombres, grupos y colores de los iconos se editan '
+              'en el Gestor de iconos del menú principal.',
+              style: TextStyle(color: Color(0xFF6F747A), fontSize: 13),
+            ),
           ],
         ),
       ),

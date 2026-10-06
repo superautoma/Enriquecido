@@ -120,4 +120,21 @@ void main() {
     }
     await tester.pumpWidget(const SizedBox.shrink());
   });
+  testWidgets('Home opens the standalone icon manager directly', (tester) async {
+    await tester.pumpWidget(const GestorHerramientasApp());
+    await finishDatabaseLoad(tester);
+    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await tester.tap(find.byTooltip('Gestor de iconos'));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Gestor de iconos'), findsOneWidget);
+    expect(find.text('Importar'), findsOneWidget);
+    expect(find.text('Grupos'), findsOneWidget);
+    expect(find.text('Configurar Tipo y Estado'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
 }

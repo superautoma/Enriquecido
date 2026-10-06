@@ -71,18 +71,17 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    await open('tool_art_hammer');
     await tester.runAsync(() async {
-      await tester.tap(find.text('GALERÍA...'));
+      await tester.pumpWidget(const MaterialApp(home: IconManagementPage()));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
     });
     await tester.pumpAndSettle();
-    expect(find.text('Grupo de los iconos'), findsOneWidget);
-    expect(
-      find.widgetWithText(DropdownButtonFormField<String>, 'Herramientas'),
-      findsOneWidget,
-    );
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Herramientas').last);
+    await tester.pumpAndSettle();
     await tester.runAsync(() async {
-      await tester.tap(find.text('Elegir archivos'));
+      await tester.tap(find.text('Importar'));
       await Future<void>.delayed(const Duration(milliseconds: 100));
     });
     await tester.pumpAndSettle();
@@ -95,10 +94,6 @@ void main() {
     });
     final label = appIconLabel(imported.single);
     expect(find.text(label), findsOneWidget);
-    await tester.tap(find.text('Eléctrica'));
-    await tester.pumpAndSettle();
-    expect(find.text(label), findsNothing);
-
     await open(imported.single);
     expect(find.text(label), findsOneWidget);
     expect(find.text('Martillo'), findsOneWidget);
