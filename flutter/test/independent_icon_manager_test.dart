@@ -4,6 +4,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../lib/main_quill_integrated_test.dart';
 
+Future<void> finish(WidgetTester tester) async {
+  for (var i = 0; i < 4; i++) {
+    await tester.pump();
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+  }
+  await tester.pumpAndSettle();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory docs;
@@ -50,24 +60,24 @@ void main() {
         fieldKey: 'type', label: 'Eléctrica', iconKey: 'electric_bombilla',
         colorValue: 0xFF1976D2, circleColorValue: 0xFFEAF2FB),
     )));
-    await tester.pumpAndSettle();
+    await finish(tester);
     expect(find.text('Color del círculo'), findsNothing);
     expect(find.text('Color de las líneas'), findsNothing);
     await tester.runAsync(() async {
       await tester.tap(find.byType(OutlinedButton));
       await Future<void>.delayed(const Duration(milliseconds: 100));
     });
-    await tester.pumpAndSettle();
+    await finish(tester);
     expect(find.text('Seleccionar icono'), findsOneWidget);
     expect(find.text('Importar'), findsNothing);
     expect(find.text('GALERÍA...'), findsNothing);
     expect(find.text('GENERAR CON IA'), findsNothing);
     expect(find.byTooltip('Gestionar iconos'), findsNothing);
     await tester.enterText(find.widgetWithText(TextField, 'Buscar iconos'), 'Enchufe Schuko');
-    await tester.pumpAndSettle();
+    await finish(tester);
     expect(find.text('Enchufe Schuko'), findsOneWidget);
     await tester.tap(find.text('Enchufe Schuko'));
-    await tester.pumpAndSettle();
+    await finish(tester);
     expect(find.text('Seleccionar icono'), findsNothing);
     expect(find.text('Icono: Enchufe Schuko'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -78,22 +88,22 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: IconManagementPage()));
       await Future<void>.delayed(const Duration(milliseconds: 100));
     });
-    await tester.pumpAndSettle();
+    await finish(tester);
     await tester.enterText(find.widgetWithText(TextField, 'Buscar iconos'), 'Enchufe Schuko');
-    await tester.pumpAndSettle();
+    await finish(tester);
     await tester.tap(find.byType(PopupMenuButton<String>));
-    await tester.pumpAndSettle();
+    await finish(tester);
     await tester.tap(find.text('Cambiar colores'));
-    await tester.pumpAndSettle();
+    await finish(tester);
     await tester.ensureVisible(find.byKey(const ValueKey('icon_line_4293212469')));
-    await tester.pumpAndSettle();
+    await finish(tester);
     await tester.tap(find.byKey(const ValueKey('icon_line_4293212469')));
     await tester.pump();
     await tester.runAsync(() async {
       await tester.tap(find.text('Guardar'));
       await Future<void>.delayed(const Duration(milliseconds: 100));
     });
-    await tester.pumpAndSettle();
+    await finish(tester);
     expect(find.text('Colores del icono'), findsNothing);
     expect(iconAppearance('electric_enchufe_schuko').lineValue, 0xFFE53935);
     expect(tester.takeException(), isNull);

@@ -84,6 +84,10 @@ void main() {
       await tester.tap(find.text('Importar'));
       await Future<void>.delayed(const Duration(milliseconds: 100));
     });
+    await tester.pump();
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    });
     await tester.pumpAndSettle();
     late List<String> imported;
     await tester.runAsync(() async {
@@ -93,6 +97,8 @@ void main() {
           'Herramientas');
     });
     final label = appIconLabel(imported.single);
+    await tester.enterText(find.widgetWithText(TextField, 'Buscar iconos'), label);
+    await tester.pumpAndSettle();
     expect(find.text(label), findsOneWidget);
     await open(imported.single);
     expect(find.text(label), findsOneWidget);

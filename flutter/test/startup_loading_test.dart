@@ -20,10 +20,19 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('startup_loading_');
     await databaseFactory.setDatabasesPath(directory.path);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (_) async => directory.path,
+        );
   });
 
   tearDown(() async {
     await ToolsDatabase.instance.closeForBackup();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'), null,
+        );
     await directory.delete(recursive: true);
   });
 
@@ -128,6 +137,12 @@ void main() {
       await tester.tap(find.byTooltip('Gestor de iconos'));
       await Future<void>.delayed(const Duration(milliseconds: 100));
     });
+    for (var i = 0; i < 4; i++) {
+      await tester.pump();
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+    }
     await tester.pumpAndSettle();
     expect(find.text('Gestor de iconos'), findsOneWidget);
     expect(find.text('Importar'), findsOneWidget);
