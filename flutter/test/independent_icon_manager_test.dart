@@ -180,7 +180,7 @@ void main() {
       await finish(tester);
       expect(find.descendant(of: find.byType(GridView),
         matching: find.text('Enchufe Schuko')), findsOneWidget);
-      for (final view in ['Conjunto compacto', 'Lista', 'Cuadrícula', 'Galería ampliada']) {
+      for (final view in ['Conjunto compacto', 'Lista', 'Cuadrícula', 'Galería ampliada', 'Por colores']) {
         await tester.tap(find.byKey(const ValueKey('icon_picker_view')));
         await tester.pumpAndSettle();
         await tester.tap(find.text(view));
@@ -188,7 +188,7 @@ void main() {
         expect(find.text('Enchufe Schuko').first, findsOneWidget);
         final tile = view == 'Lista'
             ? find.byType(ListTile)
-            : find.descendant(of: find.byType(GridView), matching: find.byType(InkWell));
+            : find.descendant(of: view == 'Por colores' ? find.byType(CustomScrollView) : find.byType(GridView), matching: find.byType(InkWell));
         expect(tile, findsOneWidget);
         if (view == 'Conjunto compacto') {
           expect(find.descendant(of: find.byType(GridView), matching: find.byType(Text)), findsNothing);
@@ -223,7 +223,7 @@ void main() {
       await finish(tester);
       await tester.enterText(find.widgetWithText(TextField, 'Buscar iconos'), 'Enchufe Schuko');
       await finish(tester);
-      for (final view in ['Cuadrícula', 'Conjunto compacto', 'Por grupos', 'Galería ampliada', 'Lista']) {
+      for (final view in ['Cuadrícula', 'Conjunto compacto', 'Por grupos', 'Galería ampliada', 'Por colores', 'Lista']) {
         await tester.tap(find.byKey(const ValueKey('icon_manager_view')));
         await tester.pumpAndSettle();
         await tester.tap(find.text(view));
@@ -352,5 +352,52 @@ void main() {
     expect(find.text('Gestor de iconos'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  test('Background color groups cover hues, neutral colors and transparency', () async {
+    const key = 'electric_bombilla';
+    final cases = {
+      0xFFFF0000: 'Rojos', 0xFFFF8000: 'Naranjas', 0xFFFFFF00: 'Amarillos',
+      0xFF00FF00: 'Verdes', 0xFF00FFFF: 'Turquesas', 0xFF0000FF: 'Azules',
+      0xFF8000FF: 'Violetas', 0xFFFF00FF: 'Rosas', 0xFFFFFFFF: 'Blancos',
+      0xFF808080: 'Grises', 0xFF000000: 'Negros', 0x00000000: 'Sin fondo',
+      0x20E3F2FD: 'Azules',
+    };
+    for (final entry in cases.entries) {
+      await saveIconAppearance(key, IconAppearance(0xFFFF0000, entry.key));
+      expect(iconBackgroundColorGroup(key), entry.value);
+    }
+  });
+
+  for (final manager in [false, true]) {
+    testWidgets('Color view regroups after saving background, manager=$manager',
+        (tester) async {
+      const key = 'electric_enchufe_schuko';
+      await tester.runAsync(() async {
+        await saveIconAppearance(key, const IconAppearance(0xFF23836D, 0xFF1976D2));
+        await tester.pumpWidget(MaterialApp(home: manager
+            ? const IconManagementPage() : const IconPickerPage(currentKey: key)));
+      });
+      await finish(tester);
+      await tester.enterText(find.widgetWithText(TextField, 'Buscar iconos'), 'Enchufe Schuko');
+      await finish(tester);
+      await tester.tap(find.byKey(ValueKey(manager ? 'icon_manager_view' : 'icon_picker_view')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Por colores'));
+      await tester.pumpAndSettle();
+      final prefix = manager ? 'icon_manager_color_' : 'icon_picker_color_';
+      expect(find.byKey(ValueKey('${prefix}Azules')), findsOneWidget);
+      final tile = find.descendant(of: find.byType(CustomScrollView), matching: find.byType(InkWell));
+      await tester.longPress(tile);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('icon_circle_4293212469')));
+      await tester.tap(find.byKey(const ValueKey('icon_circle_4293212469')));
+      await tester.runAsync(() async { await tester.tap(find.text('Guardar')); });
+      await finish(tester);
+      expect(find.byKey(ValueKey('${prefix}Azules')), findsNothing);
+      expect(find.byKey(ValueKey('${prefix}Rojos')), findsOneWidget);
+      expect(iconAppearance(key).lineValue, 0xFF23836D);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
 }

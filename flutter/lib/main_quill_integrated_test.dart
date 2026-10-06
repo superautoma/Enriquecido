@@ -3555,6 +3555,8 @@ class _IconPickerPageState extends State<IconPickerPage> {
                 child: const Text('Lista')),
               CheckedPopupMenuItem(value: 'gallery', checked: _view == 'gallery',
                 child: const Text('Galería ampliada')),
+              CheckedPopupMenuItem(value: 'colors', checked: _view == 'colors',
+                child: const Text('Por colores')),
             ],
           ),
           _IconOrderMenu(order: _order,
@@ -3663,13 +3665,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                       },
                     );
                   }
-                  return GridView.builder(
-                    key: ValueKey('icon_picker_$_view'),
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-                    gridDelegate: gridDelegate,
-                    itemCount: visibleKeys.length,
-                    itemBuilder: (context, index) {
-                      final key = visibleKeys[index];
+                  Widget tile(String key) {
                       final selected = key == widget.currentKey;
                       final color = iconAppearance(key).line;
                       return Tooltip(
@@ -3717,7 +3713,41 @@ class _IconPickerPageState extends State<IconPickerPage> {
                           ),
                         ),
                       );
-                    },
+                  }
+
+                  if (_view == 'colors') {
+                    final groups = <String, List<String>>{};
+                    for (final key in visibleKeys) {
+                      groups.putIfAbsent(iconBackgroundColorGroup(key), () => []).add(key);
+                    }
+                    return CustomScrollView(
+                      key: const ValueKey('icon_picker_colors'),
+                      slivers: [
+                        for (final group in iconBackgroundGroups)
+                          if (groups.containsKey(group)) ...[
+                            SliverToBoxAdapter(child: _iconColorHeading(group, groups[group]!.length,
+                              ValueKey('icon_picker_color_$group'))),
+                            SliverPadding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              sliver: SliverGrid(
+                                gridDelegate: gridDelegate,
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) => tile(groups[group]![index]),
+                                  childCount: groups[group]!.length,
+                                ),
+                              ),
+                            ),
+                          ],
+                        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                      ],
+                    );
+                  }
+                  return GridView.builder(
+                    key: ValueKey('icon_picker_$_view'),
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                    gridDelegate: gridDelegate,
+                    itemCount: visibleKeys.length,
+                    itemBuilder: (context, index) => tile(visibleKeys[index]),
                   );
                 },
               ),
@@ -3890,6 +3920,38 @@ class IconManagementPage extends StatefulWidget {
   State<IconManagementPage> createState() => _IconManagementPageState();
 }
 
+
+
+const iconBackgroundGroups = <String>[
+  'Rojos', 'Naranjas', 'Amarillos', 'Verdes', 'Turquesas', 'Azules',
+  'Violetas', 'Rosas', 'Blancos', 'Grises', 'Negros', 'Sin fondo',
+];
+
+String iconBackgroundColorGroup(String key) {
+  final color = iconAppearance(key).circle;
+  if (color.a == 0) return 'Sin fondo';
+  final hsv = HSVColor.fromColor(color);
+  if (hsv.saturation < 0.08) {
+    if (hsv.value < 0.25) return 'Negros';
+    if (hsv.value > 0.90) return 'Blancos';
+    return 'Grises';
+  }
+  final hue = hsv.hue;
+  if (hue < 15 || hue >= 345) return 'Rojos';
+  if (hue < 45) return 'Naranjas';
+  if (hue < 75) return 'Amarillos';
+  if (hue < 170) return 'Verdes';
+  if (hue < 195) return 'Turquesas';
+  if (hue < 255) return 'Azules';
+  if (hue < 290) return 'Violetas';
+  return 'Rosas';
+}
+
+Widget _iconColorHeading(String group, int count, Key key) => Padding(
+  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+  child: Text('$group · $count', key: key,
+    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+);
 
 String _iconOrderText(String value) => value.toLowerCase()
     .replaceAll('á', 'a').replaceAll('é', 'e').replaceAll('í', 'i')
@@ -4269,23 +4331,30 @@ class _IconManagementPageState extends State<IconManagementPage> {
         ),
       );
       final groups = <String, List<String>>{};
-      if (_view == 'groups') {
+      if (_view == 'groups' || _view == 'colors') {
         for (final key in keys) {
-          groups.putIfAbsent(iconCategoryForKey(key, _groups), () => []).add(key);
+          final group = _view == 'colors' ? iconBackgroundColorGroup(key)
+              : iconCategoryForKey(key, _groups);
+          groups.putIfAbsent(group, () => []).add(key);
         }
       }
-      final names = groups.keys.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      final names = groups.keys.toList()..sort((a, b) => _view == 'colors'
+          ? iconBackgroundGroups.indexOf(a).compareTo(iconBackgroundGroups.indexOf(b))
+          : a.toLowerCase().compareTo(b.toLowerCase()));
       return CustomScrollView(
         key: ValueKey('icon_manager_$_view'),
         slivers: [
-          if (_view == 'groups')
+          if (_view == 'groups' || _view == 'colors')
             for (final name in names) ...[
-              SliverToBoxAdapter(child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text('$name · ${groups[name]!.length}',
-                  key: ValueKey('icon_manager_group_$name'),
-                  style: Theme.of(context).textTheme.titleMedium),
-              )),
+              SliverToBoxAdapter(child: _view == 'colors'
+                  ? _iconColorHeading(name, groups[name]!.length,
+                      ValueKey('icon_manager_color_$name'))
+                  : Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Text('$name · ${groups[name]!.length}',
+                        key: ValueKey('icon_manager_group_$name'),
+                        style: Theme.of(context).textTheme.titleMedium),
+                    )),
               SliverPadding(padding: const EdgeInsets.symmetric(horizontal: 12),
                 sliver: grid(groups[name]!)),
             ]
@@ -4324,7 +4393,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
             icon: const Icon(Icons.view_module_outlined),
             onSelected: (value) => setState(() => _view = value),
             itemBuilder: (_) => [
-              for (final entry in (const {'grid': 'Cuadrícula', 'compact': 'Conjunto compacto', 'list': 'Lista', 'groups': 'Por grupos', 'gallery': 'Galería ampliada'}).entries)
+              for (final entry in (const {'grid': 'Cuadrícula', 'compact': 'Conjunto compacto', 'list': 'Lista', 'groups': 'Por grupos', 'gallery': 'Galería ampliada', 'colors': 'Por colores'}).entries)
                 CheckedPopupMenuItem(value: entry.key, checked: _view == entry.key,
                   child: Text(entry.value)),
             ],
