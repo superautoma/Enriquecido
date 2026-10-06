@@ -3357,6 +3357,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
   bool _loadingCustom = true;
   late String _category;
   String _query = '';
+  bool _editingColors = false;
 
   @override
   void initState() {
@@ -3380,6 +3381,26 @@ class _IconPickerPageState extends State<IconPickerPage> {
         _category = iconCategoryForKey(widget.currentKey, groups);
       _loadingCustom = false;
     });
+  }
+
+  Future<void> _editColors(String key) async {
+    if (_editingColors || !canEditIconColors(key)) return;
+    _editingColors = true;
+    try {
+      final appearance = await showDialog<IconAppearance>(
+        context: context,
+        builder: (_) => IconColorsDialog(iconKey: key),
+      );
+      if (appearance == null) return;
+      await saveIconAppearance(key, appearance);
+      if (mounted) setState(() {});
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudieron guardar los colores.')),
+      );
+    } finally {
+      _editingColors = false;
+    }
   }
 
   @override
@@ -3446,6 +3467,21 @@ class _IconPickerPageState extends State<IconPickerPage> {
                 },
               ),
             ),
+            if (canEditIconColors(widget.currentKey))
+              TextButton.icon(
+                key: const ValueKey('picker_edit_current_colors'),
+                onPressed: () => _editColors(widget.currentKey),
+                icon: const Icon(Icons.palette_outlined),
+                label: const Text('Colores del icono actual'),
+              ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Text(
+                'Mantén pulsado un icono para cambiar sus colores.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Color(0xFF6F747A)),
+              ),
+            ),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -3495,6 +3531,9 @@ class _IconPickerPageState extends State<IconPickerPage> {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
                           onTap: () => Navigator.pop(context, key),
+                          onLongPress: canEditIconColors(key)
+                              ? () => _editColors(key)
+                              : null,
                           child: Padding(
                             padding: const EdgeInsets.all(8),
                             child: Column(

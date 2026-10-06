@@ -112,4 +112,50 @@ void main() {
     expect(iconAppearance('electric_enchufe_schuko').lineValue, 0xFFE53935);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('Picker edits SVG background and stroke without selecting or leaving',
+      (tester) async {
+    late String key;
+    await tester.runAsync(() async {
+      final directory = await customIconsDirectory();
+      final file = File('${directory.path}/aviso.svg');
+      await file.writeAsString('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path stroke="#BD7A23" fill="none" d="M32 8L56 54H8Z"/></svg>');
+      key = 'custom:${file.path}';
+      await saveIconName(key, 'Aviso propio');
+      await tester.pumpWidget(MaterialApp(home: IconPickerPage(currentKey: key)));
+    });
+    await finish(tester);
+    await tester.tap(find.byKey(const ValueKey('picker_edit_current_colors')));
+    await finish(tester);
+    expect(find.text('Color del círculo'), findsOneWidget);
+    expect(find.text('Color de las líneas'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey('icon_circle_4279858898')));
+    await tester.tap(find.byKey(const ValueKey('icon_circle_4279858898')));
+    await tester.ensureVisible(find.byKey(const ValueKey('icon_line_4293212469')));
+    await tester.tap(find.byKey(const ValueKey('icon_line_4293212469')));
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Guardar'));
+    });
+    await finish(tester);
+    expect(find.text('Seleccionar icono'), findsOneWidget);
+    expect(find.text('Colores del icono'), findsNothing);
+    final expectedCircle = const Color(0xFF1976D2).withValues(alpha: 0.16).toARGB32();
+    expect(iconAppearance(key).circleValue, expectedCircle);
+    expect(iconAppearance(key).lineValue, 0xFFE53935);
+    await tester.runAsync(() async { await loadIconSettings(); });
+    expect(iconAppearance(key).lineValue, 0xFFE53935);
+
+    final tile = find.descendant(of: find.byType(GridView),
+      matching: find.text('Aviso propio'));
+    await tester.longPress(tile);
+    await finish(tester);
+    expect(find.text('Colores del icono'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey('icon_line_4279858898')));
+    await tester.tap(find.byKey(const ValueKey('icon_line_4279858898')));
+    await tester.tap(find.text('Cancelar'));
+    await finish(tester);
+    expect(iconAppearance(key).lineValue, 0xFFE53935);
+    expect(find.text('Seleccionar icono'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
 }
