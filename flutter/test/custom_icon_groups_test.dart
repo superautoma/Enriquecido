@@ -99,7 +99,7 @@ void main() {
     final label = appIconLabel(imported.single);
     await tester.enterText(find.widgetWithText(TextField, 'Buscar iconos'), label);
     await tester.pumpAndSettle();
-    expect(find.text(label), findsOneWidget);
+    expect(find.widgetWithText(ListTile, label), findsOneWidget);
     await open(imported.single);
     expect(find.text(label), findsOneWidget);
     expect(find.text('Martillo'), findsOneWidget);

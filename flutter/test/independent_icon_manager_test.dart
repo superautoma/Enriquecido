@@ -75,8 +75,10 @@ void main() {
     expect(find.byTooltip('Gestionar iconos'), findsNothing);
     await tester.enterText(find.widgetWithText(TextField, 'Buscar iconos'), 'Enchufe Schuko');
     await finish(tester);
-    expect(find.text('Enchufe Schuko'), findsOneWidget);
-    await tester.tap(find.text('Enchufe Schuko'));
+    final selectedIcon = find.descendant(
+      of: find.byType(GridView), matching: find.text('Enchufe Schuko'));
+    expect(selectedIcon, findsOneWidget);
+    await tester.tap(selectedIcon);
     await finish(tester);
     expect(find.text('Seleccionar icono'), findsNothing);
     expect(find.text('Icono: Enchufe Schuko'), findsOneWidget);
