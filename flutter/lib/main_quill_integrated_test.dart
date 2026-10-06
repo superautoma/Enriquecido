@@ -3821,6 +3821,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
   bool _trash = false;
   bool _loading = true;
   bool _saving = false;
+  String _view = 'list';
   @override
   void initState() {
     super.initState();
@@ -3925,6 +3926,207 @@ class _IconManagementPageState extends State<IconManagementPage> {
     if (mounted) await _load();
   }
 
+
+  Widget _list(List<String> keys) {
+    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 90),
+                      itemCount: keys.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 6),
+                      itemBuilder: (context, index) {
+                        final key = keys[index];
+                        final color = iconAppearance(key).line;
+                        return Card(
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: iconAppearance(key).circle,
+                              child: iconWidgetForKey(
+                                key,
+                                color: color,
+                                size: 22,
+                              ),
+                            ),
+                            title: Text(
+                              appIconLabel(key),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(iconCategoryForKey(key, _groups)),
+                            onTap: () =>
+                                _change(key, _trash ? 'restore' : 'rename'),
+                            onLongPress: canEditIconColors(key) && !_trash
+                                ? () => _change(key, 'colors') : null,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (!_trash)
+                                  IconButton(
+                                    tooltip: isIconFavorite(key)
+                                        ? 'Quitar de favoritos'
+                                        : 'Añadir a favoritos',
+                                    icon: Icon(
+                                      isIconFavorite(key)
+                                          ? Icons.star
+                                          : Icons.star_border,
+                                      color: isIconFavorite(key)
+                                          ? Colors.amber.shade800
+                                          : null,
+                                    ),
+                                    onPressed: () => _change(key, 'favorite'),
+                                  ),
+                                PopupMenuButton<String>(
+                                  tooltip: 'Opciones del icono',
+                                  onSelected: (action) => _change(key, action),
+                                  itemBuilder: (_) => _trash
+                                      ? const [
+                                          PopupMenuItem(
+                                            value: 'restore',
+                                            child: Text('Restaurar'),
+                                          ),
+                                        ]
+                                      : [
+                                          if (canEditIconColors(key))
+                                            const PopupMenuItem(
+                                              value: 'colors',
+                                              child: Text('Cambiar colores'),
+                                            ),
+                                          const PopupMenuItem(
+                                            value: 'rename',
+                                            child: Text('Cambiar nombre'),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'group',
+                                            child: Text('Cambiar grupo'),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'delete',
+                                            child: Text('Eliminar'),
+                                          ),
+                                        ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+  }
+
+  Map<String, String> _actions(String key) => _trash
+      ? {'restore': 'Restaurar'}
+      : {
+          if (canEditIconColors(key)) 'colors': 'Cambiar colores',
+          'rename': 'Cambiar nombre',
+          'favorite': isIconFavorite(key) ? 'Quitar de favoritos' : 'Añadir a favoritos',
+          'group': 'Cambiar grupo',
+          'delete': 'Eliminar',
+        };
+
+  Future<void> _showActions(String key) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(padding: const EdgeInsets.all(16),
+              child: Text(appIconLabel(key), style: Theme.of(context).textTheme.titleMedium)),
+            for (final entry in _actions(key).entries)
+              ListTile(title: Text(entry.value),
+                onTap: () => Navigator.pop(context, entry.key)),
+          ],
+        )),
+      ),
+    );
+    if (action != null && mounted) await _change(key, action);
+  }
+
+  Widget _tile(String key, bool compact) {
+    final label = appIconLabel(key);
+    return Semantics(
+      label: compact ? label : null,
+      button: true,
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _showActions(key),
+          onLongPress: canEditIconColors(key) && !_trash
+              ? () => _change(key, 'colors') : () => _showActions(key),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Stack(children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: iconAppearance(key).circle,
+                  child: iconWidgetForKey(key, color: iconAppearance(key).line, size: 26),
+                ),
+                if (isIconFavorite(key))
+                  const Positioned(right: 0, top: 0,
+                    child: Icon(Icons.star, size: 12, color: Color(0xFFB77900))),
+              ]),
+              if (!compact) ...[
+                const SizedBox(height: 6),
+                Text(label, textAlign: TextAlign.center, maxLines: 2,
+                  overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, height: 1.2)),
+              ],
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _collection(List<String> keys) {
+    if (_view == 'list') return _list(keys);
+    return LayoutBuilder(builder: (context, constraints) {
+      final compact = _view == 'compact';
+      final columns = (constraints.maxWidth / (compact ? 64 : 100))
+          .floor().clamp(2, compact ? 12 : 6);
+      final labelSize = MediaQuery.textScalerOf(context).scale(11);
+      final delegate = SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns, mainAxisSpacing: 8, crossAxisSpacing: 8,
+        mainAxisExtent: compact ? 64 : 16 + 44 + 6 + labelSize * 2.4 + 8,
+      );
+      Widget grid(List<String> items) => SliverGrid(
+        gridDelegate: delegate,
+        delegate: SliverChildBuilderDelegate(
+          (context, index) => _tile(items[index], compact),
+          childCount: items.length,
+        ),
+      );
+      final groups = <String, List<String>>{};
+      if (_view == 'groups') {
+        for (final key in keys) {
+          groups.putIfAbsent(iconCategoryForKey(key, _groups), () => []).add(key);
+        }
+      }
+      final names = groups.keys.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      return CustomScrollView(
+        key: ValueKey('icon_manager_$_view'),
+        slivers: [
+          if (_view == 'groups')
+            for (final name in names) ...[
+              SliverToBoxAdapter(child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text('$name · ${groups[name]!.length}',
+                  key: ValueKey('icon_manager_group_$name'),
+                  style: Theme.of(context).textTheme.titleMedium),
+              )),
+              SliverPadding(padding: const EdgeInsets.symmetric(horizontal: 12),
+                sliver: grid(groups[name]!)),
+            ]
+          else
+            SliverPadding(padding: const EdgeInsets.symmetric(horizontal: 12),
+              sliver: grid(keys)),
+          const SliverToBoxAdapter(child: SizedBox(height: 96)),
+        ],
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final visible = _keys
@@ -3943,6 +4145,18 @@ class _IconManagementPageState extends State<IconManagementPage> {
       appBar: AppBar(
         title: const Text('Gestor de iconos'),
         actions: [
+          PopupMenuButton<String>(
+            key: const ValueKey('icon_manager_view'),
+            tooltip: 'Vista',
+            icon: const Icon(Icons.view_module_outlined),
+            onSelected: (value) => setState(() => _view = value),
+            itemBuilder: (_) => [
+              for (final entry in (const {'grid': 'Cuadrícula', 'compact': 'Conjunto compacto', 'list': 'Lista', 'groups': 'Por grupos'}).entries)
+                CheckedPopupMenuItem(value: entry.key, checked: _view == entry.key,
+                  child: Text(entry.value)),
+            ],
+          ),
+
           TextButton.icon(
             icon: const Icon(Icons.folder_outlined),
             label: const Text('Grupos'),
@@ -4026,85 +4240,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
                             : 'No hay iconos que coincidan',
                       ),
                     )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 90),
-                      itemCount: visible.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 6),
-                      itemBuilder: (context, index) {
-                        final key = visible[index];
-                        final color = iconAppearance(key).line;
-                        return Card(
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: iconAppearance(key).circle,
-                              child: iconWidgetForKey(
-                                key,
-                                color: color,
-                                size: 22,
-                              ),
-                            ),
-                            title: Text(
-                              appIconLabel(key),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(iconCategoryForKey(key, _groups)),
-                            onTap: () =>
-                                _change(key, _trash ? 'restore' : 'rename'),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (!_trash)
-                                  IconButton(
-                                    tooltip: isIconFavorite(key)
-                                        ? 'Quitar de favoritos'
-                                        : 'Añadir a favoritos',
-                                    icon: Icon(
-                                      isIconFavorite(key)
-                                          ? Icons.star
-                                          : Icons.star_border,
-                                      color: isIconFavorite(key)
-                                          ? Colors.amber.shade800
-                                          : null,
-                                    ),
-                                    onPressed: () => _change(key, 'favorite'),
-                                  ),
-                                PopupMenuButton<String>(
-                                  tooltip: 'Opciones del icono',
-                                  onSelected: (action) => _change(key, action),
-                                  itemBuilder: (_) => _trash
-                                      ? const [
-                                          PopupMenuItem(
-                                            value: 'restore',
-                                            child: Text('Restaurar'),
-                                          ),
-                                        ]
-                                      : [
-                                          if (canEditIconColors(key))
-                                            const PopupMenuItem(
-                                              value: 'colors',
-                                              child: Text('Cambiar colores'),
-                                            ),
-                                          const PopupMenuItem(
-                                            value: 'rename',
-                                            child: Text('Cambiar nombre'),
-                                          ),
-                                          PopupMenuItem(
-                                            value: 'group',
-                                            child: Text('Cambiar grupo'),
-                                          ),
-                                          PopupMenuItem(
-                                            value: 'delete',
-                                            child: Text('Eliminar'),
-                                          ),
-                                        ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                  : _collection(visible),
             ),
           ],
         ),

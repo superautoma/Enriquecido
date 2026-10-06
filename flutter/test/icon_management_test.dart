@@ -66,7 +66,7 @@ void main() {
     await tester.enterText(search, 'Toma del taller');
     await tester.pumpAndSettle();
     expect(find.widgetWithText(ListTile, 'Toma del taller'), findsOneWidget);
-    await tester.runAsync(() async { await tester.tap(find.byType(PopupMenuButton<String>)); });
+    await tester.runAsync(() async { await tester.tap(find.byTooltip('Opciones del icono')); });
     await tester.pumpAndSettle();
     await tester.runAsync(() async { await tester.tap(find.text('Eliminar')); });
     await tester.pumpAndSettle();

@@ -95,7 +95,7 @@ void main() {
     await finish(tester);
     await tester.enterText(find.widgetWithText(TextField, 'Buscar iconos'), 'Enchufe Schuko');
     await finish(tester);
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byTooltip('Opciones del icono'));
     await finish(tester);
     await tester.tap(find.text('Cambiar colores'));
     await finish(tester);
@@ -209,6 +209,54 @@ void main() {
       await tester.pumpAndSettle();
       expect(selected, 'electric_enchufe_schuko');
       expect(find.text('Seleccionar icono'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final width in [320.0, 800.0]) {
+    testWidgets('Manager supports four views and keeps editing at $width', (tester) async {
+      await tester.binding.setSurfaceSize(Size(width, 850));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.runAsync(() async {
+        await tester.pumpWidget(const MaterialApp(home: IconManagementPage()));
+      });
+      await finish(tester);
+      await tester.enterText(find.widgetWithText(TextField, 'Buscar iconos'), 'Enchufe Schuko');
+      await finish(tester);
+      for (final view in ['Cuadrícula', 'Conjunto compacto', 'Por grupos', 'Lista']) {
+        await tester.tap(find.byKey(const ValueKey('icon_manager_view')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(view));
+        await tester.pumpAndSettle();
+        if (view == 'Por grupos') {
+          expect(find.byKey(ValueKey('icon_manager_group_${iconCategoryForKey('electric_enchufe_schuko')}')), findsOneWidget);
+        }
+        final tile = view == 'Lista' ? find.byType(ListTile)
+            : find.descendant(of: find.byType(CustomScrollView), matching: find.byType(InkWell));
+        expect(tile, findsOneWidget);
+        await tester.longPress(tile);
+        await tester.pumpAndSettle();
+        expect(find.text('Colores del icono'), findsOneWidget);
+        await tester.tap(find.text('Cancelar'));
+        await tester.pumpAndSettle();
+        if (view != 'Lista') {
+          await tester.tap(tile);
+          await tester.pumpAndSettle();
+          expect(find.text('Cambiar nombre'), findsOneWidget);
+          expect(find.text('Cambiar grupo'), findsOneWidget);
+          expect(find.text('Eliminar'), findsOneWidget);
+          await tester.runAsync(() async {
+            await tester.tap(find.text(isIconFavorite('electric_enchufe_schuko')
+                ? 'Quitar de favoritos' : 'Añadir a favoritos'));
+          });
+          await finish(tester);
+        }
+        expect(find.text('Gestor de iconos'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+      await tester.tap(find.text('Papelera'));
+      await tester.pumpAndSettle();
+      expect(find.text('La papelera está vacía'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
