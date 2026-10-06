@@ -1103,7 +1103,13 @@ Widget fieldOptionIconWidget(FieldOption option, {double size = 24}) {
   final glyph = iconWidgetForKey(
     option.iconKey,
     color: option.color,
-    size: hasIconCircle(option.iconKey) ? size * 0.55 : size,
+    // Imported SVGs already include their own artwork margins. Avoid
+    // shrinking those margins a second time inside the option circle.
+    size: isEditableSvgIcon(option.iconKey)
+        ? size * 0.90
+        : hasIconCircle(option.iconKey)
+        ? size * 0.55
+        : size,
     circleColor: option.circleColor,
   );
   if (!hasIconCircle(option.iconKey)) return glyph;
