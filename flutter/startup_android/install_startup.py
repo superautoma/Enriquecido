@@ -1,0 +1,52 @@
+"""Install the native first-frame loader into a generated Flutter Android project."""
+from pathlib import Path
+import shutil
+import xml.etree.ElementTree as ET
+
+root = Path(__file__).resolve().parent
+android = root.parent / 'android/app/src/main'
+package = 'org.gestorherramientas.gestor_herramientas_quill_test'
+sources = android / 'kotlin' / Path(package.replace('.', '/'))
+sources.mkdir(parents=True, exist_ok=True)
+shutil.copy2(root / 'MainActivity.kt', sources / 'MainActivity.kt')
+java = android / 'java' / Path(package.replace('.', '/'))
+java.mkdir(parents=True, exist_ok=True)
+shutil.copy2(root / 'StartupActivity.java', java / 'StartupActivity.java')
+shutil.copytree(root / 'res', android / 'res', dirs_exist_ok=True)
+
+ns = 'http://schemas.android.com/apk/res/android'
+ET.register_namespace('android', ns)
+attr = lambda key: f'{{{ns}}}{key}'
+path = android / 'AndroidManifest.xml'
+tree = ET.parse(path)
+manifest = tree.getroot()
+if not any(p.get(attr('name')) == 'android.permission.INTERNET' for p in manifest.findall('uses-permission')):
+    ET.SubElement(manifest, 'uses-permission', {attr('name'): 'android.permission.INTERNET'})
+application = manifest.find('application')
+main = next(a for a in application.findall('activity') if a.get(attr('name')) == '.MainActivity')
+for intent in list(main.findall('intent-filter')):
+    if any(a.get(attr('name')) == 'android.intent.action.MAIN' for a in intent.findall('action')):
+        main.remove(intent)
+if not any(a.get(attr('name')) == '.StartupActivity' for a in application.findall('activity')):
+    startup = ET.SubElement(application, 'activity', {
+        attr('name'): '.StartupActivity', attr('exported'): 'true',
+        attr('theme'): '@style/StartupTheme', attr('taskAffinity'): '',
+        attr('configChanges'): main.get(attr('configChanges')),
+        attr('hardwareAccelerated'): 'true',
+    })
+    intent = ET.SubElement(startup, 'intent-filter')
+    ET.SubElement(intent, 'action', {attr('name'): 'android.intent.action.MAIN'})
+    ET.SubElement(intent, 'category', {attr('name'): 'android.intent.category.LAUNCHER'})
+ET.indent(tree)
+tree.write(path, encoding='utf-8', xml_declaration=True)
+
+# Flutter's AGP 9 migration opts out of built-in Kotlin. Ensure the existing
+# Kotlin Flutter activity is still compiled when generated templates omit KGP.
+properties = android.parents[2] / 'gradle.properties'
+gradle = android.parents[1] / 'build.gradle.kts'
+if properties.exists() and gradle.exists() and 'android.builtInKotlin=false' in properties.read_text():
+    text = gradle.read_text()
+    if 'id("org.jetbrains.kotlin.android")' not in text and 'id("kotlin-android")' not in text:
+        text = text.replace('id("com.android.application")',
+                            'id("com.android.application")\n    id("org.jetbrains.kotlin.android")', 1)
+        gradle.write_text(text)

@@ -37,9 +37,9 @@ def wait_for(label):
     raise AssertionError(f"Android did not display {label!r}")
 
 
-adb("install", "-r", "build/app/outputs/flutter-apk/app-debug.apk")
+adb("install", "-r", "build/app/outputs/flutter-apk/app-release.apk")
 adb("shell", "am", "force-stop", package)
-adb("shell", "am", "start", "-n", f"{package}/.MainActivity")
+adb("shell", "am", "start", "-n", f"{package}/.StartupActivity")
 screenshot("startup-first-frame.png")
 item = wait_for("Destornillador aislado")
 screenshot("startup-ready.png")

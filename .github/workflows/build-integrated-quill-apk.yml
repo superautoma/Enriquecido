@@ -46,7 +46,7 @@ jobs:
           cp /tmp/main_quill_integrated_test.dart lib/main_quill_integrated_test.dart
           rm -f test/widget_test.dart
           sed -i 's/android:label="gestor_herramientas_quill_test"/android:label="Gestor Quill Integrado"/' android/app/src/main/AndroidManifest.xml
-          cp startup_android/MainActivity.kt android/app/src/main/kotlin/org/gestorherramientas/gestor_herramientas_quill_test/MainActivity.kt
+          python3 startup_android/install_startup.py
 
       - name: Install stable development signing key
         run: |
@@ -84,18 +84,21 @@ jobs:
       - name: Analyze integrated test
         run: flutter analyze --no-fatal-infos lib/main_quill_integrated_test.dart
 
+      - name: Verify native startup installation
+        run: python3 -m unittest discover -s startup_android -p "test_*.py"
+
       - name: Verify layout, startup and voltage persistence
         run: flutter test
 
-      - name: Build debug APK
+      - name: Build optimized APK
         run: |
-          flutter build apk --debug \
+          flutter build apk --release --no-tree-shake-icons \
             -t lib/main_quill_integrated_test.dart \
             --build-number=${{ github.run_number }}
 
       - name: Verify stable APK signature
         run: |
-          APK="build/app/outputs/flutter-apk/app-debug.apk"
+          APK="build/app/outputs/flutter-apk/app-release.apk"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           if [ -z "$APKSIGNER" ]; then
             echo "No se encontró apksigner"
@@ -142,6 +145,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: gestor-quill-integrado-apk
-          path: flutter/build/app/outputs/flutter-apk/app-debug.apk
+          path: flutter/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14

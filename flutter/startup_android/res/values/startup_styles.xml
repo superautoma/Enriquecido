@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="StartupTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/startup_background</item>
+        <item name="android:colorAccent">#168BD2</item>
+        <item name="android:statusBarColor">#F7F9FB</item>
+        <item name="android:navigationBarColor">#F7F9FB</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
