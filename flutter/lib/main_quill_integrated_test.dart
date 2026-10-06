@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
@@ -946,11 +947,65 @@ String defaultAppIconLabel(String key) {
   return appIconChoiceFor(key).label;
 }
 
+
+bool isEditableSvgIcon(String key) =>
+    isCustomIconKey(key) &&
+    p.extension(customIconPathFromKey(key)).toLowerCase() == '.svg';
+
+bool hasIconCircle(String key) =>
+    isElectricCollectionKey(key) || isEditableSvgIcon(key);
+
+class IconAppearance {
+  const IconAppearance(this.lineValue, this.circleValue);
+  final int lineValue;
+  final int circleValue;
+  Color get line => Color(lineValue);
+  Color get circle => Color(circleValue);
+}
+Map<String, IconAppearance> _iconAppearances = {};
+IconAppearance iconAppearance(String key) =>
+    _iconAppearances[iconNameStorageKey(key)] ??
+    IconAppearance(
+      isCustomIconKey(key) ? 0xFF31678F : appIconChoiceFor(key).defaultColorValue,
+      (isCustomIconKey(key) ? const Color(0xFF31678F) :
+          appIconChoiceFor(key).defaultColor).withValues(alpha: 0.12).toARGB32(),
+    );
+
+class IconSvgColorMapper extends ColorMapper {
+  const IconSvgColorMapper(this.lines, this.background);
+  final Color lines;
+  final Color background;
+  @override
+  Color substitute(String? id, String elementName, String attributeName, Color color) {
+    if (color.a == 0) return color;
+    if (id == 'fondo' && attributeName == 'fill') return background;
+    return lines;
+  }
+  @override
+  bool operator ==(Object other) => other is IconSvgColorMapper &&
+      lines == other.lines && background == other.background;
+  @override
+  int get hashCode => Object.hash(lines, background);
+}
+
+Future<void> saveIconAppearance(String key, IconAppearance appearance) async {
+  final updated = Map<String, IconAppearance>.from(_iconAppearances);
+  updated[iconNameStorageKey(key)] = appearance;
+  await _persistIconSettings(
+    hidden: Set<String>.from(_hiddenIconKeys),
+    favorites: Set<String>.from(_favoriteIconKeys),
+    customGroups: List<String>.from(_customIconCategories),
+    groups: Map<String, String>.from(_iconGroupOverrides),
+    appearances: updated,
+  );
+}
+
 Widget iconWidgetForKey(
   String key, {
   required Color color,
   double size = 24,
   BoxFit fit = BoxFit.contain,
+  Color? circleColor,
 }) {
   if (isElectricCollectionKey(key)) {
     return SvgPicture.asset(
@@ -1019,6 +1074,7 @@ Widget iconWidgetForKey(
       child: SvgPicture.file(
         file,
         fit: fit,
+        colorMapper: IconSvgColorMapper(color, circleColor ?? iconAppearance(key).circle),
         placeholderBuilder: (_) =>
             Icon(Icons.image_outlined, color: color, size: size),
       ),
@@ -1041,9 +1097,10 @@ Widget fieldOptionIconWidget(FieldOption option, {double size = 24}) {
   final glyph = iconWidgetForKey(
     option.iconKey,
     color: option.color,
-    size: isElectricCollectionKey(option.iconKey) ? size * 0.55 : size,
+    size: hasIconCircle(option.iconKey) ? size * 0.55 : size,
+    circleColor: option.circleColor,
   );
-  if (!isElectricCollectionKey(option.iconKey)) return glyph;
+  if (!hasIconCircle(option.iconKey)) return glyph;
   return Container(
     width: size,
     height: size,
@@ -2942,11 +2999,22 @@ Future<void> loadIconSettings() async {
   final favorites = <String>{};
   final custom = <String>[];
   final groups = <String, String>{};
+  final appearances = <String, IconAppearance>{};
   try {
     final file = await iconSettingsFile();
     if (await file.exists()) {
       final raw = jsonDecode(await file.readAsString());
       if (raw is Map) {
+        if (raw['appearances'] is Map) {
+          for (final entry in (raw['appearances'] as Map).entries) {
+            final value = entry.value;
+            if (entry.key is String && value is Map &&
+                value['line'] is int && value['circle'] is int) {
+              appearances[entry.key as String] =
+                  IconAppearance(value['line'] as int, value['circle'] as int);
+            }
+          }
+        }
         if (raw['hidden'] is List)
           hidden.addAll((raw['hidden'] as List).whereType<String>());
         if (raw['favorites'] is List)
@@ -2984,6 +3052,7 @@ Future<void> loadIconSettings() async {
   _favoriteIconKeys = favorites;
   _customIconCategories = custom;
   _iconGroupOverrides = groups;
+  _iconAppearances = appearances;
 }
 
 Future<void> _persistIconSettings({
@@ -2991,6 +3060,7 @@ Future<void> _persistIconSettings({
   required Set<String> favorites,
   required List<String> customGroups,
   required Map<String, String> groups,
+  Map<String, IconAppearance>? appearances,
 }) async {
   final file = await iconSettingsFile();
   await file.parent.create(recursive: true);
@@ -3001,6 +3071,11 @@ Future<void> _persistIconSettings({
       'favorites': favorites.toList(),
       'customGroups': customGroups,
       'groups': groups,
+      'appearances': (appearances ?? _iconAppearances).map(
+        (key, value) => MapEntry(key, {
+          'line': value.lineValue, 'circle': value.circleValue,
+        }),
+      ),
     }),
     flush: true,
   );
@@ -3009,6 +3084,7 @@ Future<void> _persistIconSettings({
   _favoriteIconKeys = favorites;
   _customIconCategories = customGroups;
   _iconGroupOverrides = groups;
+  if (appearances != null) _iconAppearances = appearances;
 }
 
 Future<void> updateIconSettings(
@@ -3196,7 +3272,7 @@ Future<void> saveCustomIconGroup(String key, String group) async {
 Future<List<String>> importCustomIcons({String group = 'Mis iconos'}) async {
   final picked = await FilePicker.platform.pickFiles(
     type: FileType.custom,
-    allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp', 'svg'],
+    allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp', 'svg', 'zip'],
     allowMultiple: true,
   );
 
@@ -3213,6 +3289,10 @@ Future<List<String>> importCustomIcons({String group = 'Mis iconos'}) async {
     if (!await source.exists()) continue;
 
     final extension = p.extension(sourcePath).toLowerCase();
+    if (extension == '.zip') {
+      imported.addAll(await importIconArchive(await source.readAsBytes(), group: group));
+      continue;
+    }
     final originalName = p
         .basenameWithoutExtension(item.name)
         .replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_');
@@ -3323,7 +3403,16 @@ class _IconPickerPageState extends State<IconPickerPage> {
       ),
     );
     if (!mounted || group == null) return;
-    final imported = await importCustomIcons(group: group);
+    List<String> imported;
+    try {
+      imported = await importCustomIcons(group: group);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo importar el archivo de iconos.')),
+      );
+      return;
+    }
     if (!mounted || imported.isEmpty) return;
 
     final keys = await loadCustomIconKeys();
@@ -3480,7 +3569,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                         padding: EdgeInsets.all(24),
                         child: Text(
                           'Todavía no hay iconos en este grupo. Pulsa '
-                          'GALERÍA... para importar PNG, JPG, WEBP o SVG.',
+                          'GALERÍA... para importar imágenes, SVG o un ZIP.',
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -3494,9 +3583,8 @@ class _IconPickerPageState extends State<IconPickerPage> {
                       final key = visibleKeys[index];
                       final custom = isCustomIconKey(key);
                       final selected = key == widget.currentKey;
-                      final color = custom
-                          ? const Color(0xFF4B535A)
-                          : appIconChoiceFor(key).defaultColor;
+                      final color = iconAppearance(key).line;
+                      final svgCircle = isEditableSvgIcon(key);
                       return Material(
                         color: selected
                             ? color.withValues(alpha: 0.12)
@@ -3518,11 +3606,11 @@ class _IconPickerPageState extends State<IconPickerPage> {
                                       ? const EdgeInsets.all(4)
                                       : EdgeInsets.zero,
                                   decoration: BoxDecoration(
-                                    color: color.withValues(alpha: 0.12),
-                                    borderRadius: custom
+                                    color: iconAppearance(key).circle,
+                                    borderRadius: custom && !svgCircle
                                         ? BorderRadius.circular(10)
                                         : null,
-                                    shape: custom
+                                    shape: custom && !svgCircle
                                         ? BoxShape.rectangle
                                         : BoxShape.circle,
                                   ),
@@ -3530,7 +3618,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                                     key,
                                     color: color,
                                     size: custom
-                                        ? 40
+                                        ? (svgCircle ? 26 : 40)
                                         : isElectricCollectionKey(key)
                                         ? 22
                                         : 28,
@@ -3565,6 +3653,161 @@ class _IconPickerPageState extends State<IconPickerPage> {
       ),
     );
   }
+}
+
+
+class IconColorsDialog extends StatefulWidget {
+  const IconColorsDialog({super.key, required this.iconKey});
+  final String iconKey;
+  @override
+  State<IconColorsDialog> createState() => _IconColorsDialogState();
+}
+class _IconColorsDialogState extends State<IconColorsDialog> {
+  late Color _lines;
+  late Color _circle;
+  @override
+  void initState() {
+    super.initState();
+    final initial = iconAppearance(widget.iconKey);
+    _lines = initial.line;
+    _circle = initial.circle;
+  }
+  Widget _palette(bool background) => Wrap(
+    spacing: 8, runSpacing: 8,
+    children: [
+      for (final value in optionColorPalette)
+        InkWell(
+          key: ValueKey('icon_${background ? "circle" : "line"}_$value'),
+          borderRadius: BorderRadius.circular(22),
+          onTap: () => setState(() {
+            if (background) {
+              _circle = Color(value).withValues(alpha: 0.16);
+            } else {
+              _lines = Color(value);
+            }
+          }),
+          child: Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: background ? Color(value).withValues(alpha: 0.16) : Color(value),
+              border: Border.all(
+                width: 2,
+                color: (background ? _circle : _lines).toARGB32() ==
+                  (background ? Color(value).withValues(alpha: 0.16) : Color(value)).toARGB32()
+                    ? const Color(0xFF20242A) : Colors.transparent,
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Colores del icono'),
+    content: SizedBox(
+      width: 340,
+      child: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            key: const ValueKey('icon_color_preview'),
+            width: 80, height: 80,
+            decoration: BoxDecoration(color: _circle, shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: iconWidgetForKey(widget.iconKey, color: _lines,
+                circleColor: _circle, size: 44),
+          ),
+          const SizedBox(height: 18),
+          const Text('Color del círculo'),
+          const SizedBox(height: 10),
+          _palette(true),
+          const SizedBox(height: 18),
+          const Text('Color de las líneas'),
+          const SizedBox(height: 10),
+          _palette(false),
+        ]),
+      ),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar')),
+      FilledButton(
+        onPressed: () => Navigator.pop(context,
+            IconAppearance(_lines.toARGB32(), _circle.toARGB32())),
+        child: const Text('Guardar'),
+      ),
+    ],
+  );
+}
+
+Future<List<String>> importIconArchive(List<int> bytes,
+    {String group = 'Mis iconos'}) async {
+  if (bytes.length > 20 * 1024 * 1024) {
+    throw const FormatException('El ZIP es demasiado grande');
+  }
+  final archive = ZipDecoder().decodeBytes(Uint8List.fromList(bytes));
+  if (archive.files.length > 1024 ||
+      archive.files.fold<int>(0, (sum, file) => sum + file.size) > 50 * 1024 * 1024) {
+    throw const FormatException('El paquete es demasiado grande');
+  }
+  final metadata = <String, Map>{};
+  for (final file in archive.files) {
+    if (file.isFile && p.posix.basename(file.name) == 'catalogo.json') {
+      final catalog = jsonDecode(utf8.decode(file.content));
+      if (catalog is Map && catalog['iconos'] is List) {
+        for (final entry in catalog['iconos'] as List) {
+          if (entry is Map && entry['archivo'] is String) {
+            metadata[p.posix.basename(entry['archivo'] as String)] = entry;
+          }
+        }
+      }
+    }
+  }
+  final packed = metadata.isNotEmpty && archive.files.any(
+    (file) => file.isFile && file.name.startsWith('iconos/'));
+  final candidates = archive.files.where((file) =>
+    file.isFile &&
+    (!packed || file.name.startsWith('iconos/')) &&
+    !p.posix.basename(file.name).startsWith('vista_previa') &&
+    ['.svg', '.png', '.jpg', '.jpeg', '.webp']
+        .contains(p.posix.extension(file.name).toLowerCase())).toList();
+  if (candidates.length > 512) throw const FormatException('Demasiados iconos');
+  final directory = await customIconsDirectory();
+  final imported = <String>[];
+  for (final file in candidates) {
+    if (file.size > 5 * 1024 * 1024) {
+      throw const FormatException('Un icono es demasiado grande');
+    }
+    final original = p.posix.basename(file.name);
+    final extension = p.posix.extension(original).toLowerCase();
+    final safeName = p.posix.basenameWithoutExtension(original)
+        .replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_');
+    final target = File(p.join(directory.path,
+        '${safeName.isEmpty ? "icono" : safeName}_${DateTime.now().microsecondsSinceEpoch}$extension'));
+    await target.writeAsBytes(file.content, flush: true);
+    final key = 'custom:${target.path}';
+    await saveCustomIconGroup(key, group);
+    final entry = metadata[original];
+    final label = entry?['nombre'];
+    if (label is String && label.trim().isNotEmpty) {
+      await saveIconName(key, label.trim());
+    } else {
+      await saveIconName(key, p.posix.basenameWithoutExtension(original).replaceAll('_', ' '));
+    }
+    int? parseColor(dynamic value) {
+      if (value is! String || !RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(value)) return null;
+      return int.parse('ff${value.substring(1)}', radix: 16);
+    }
+    if (extension == '.svg') {
+      final current = iconAppearance(key);
+      await saveIconAppearance(key, IconAppearance(
+        parseColor(entry?['color_lineas']) ?? current.lineValue,
+        parseColor(entry?['color_fondo']) ?? current.circleValue,
+      ));
+    }
+    imported.add(key);
+  }
+  return imported;
 }
 
 class IconManagementPage extends StatefulWidget {
@@ -3604,6 +3847,13 @@ class _IconManagementPageState extends State<IconManagementPage> {
     try {
       if (action == 'rename') {
         if (!await showIconRename(context, key)) return;
+      } else if (action == 'colors') {
+        final result = await showDialog<IconAppearance>(
+          context: context,
+          builder: (_) => IconColorsDialog(iconKey: key),
+        );
+        if (result == null) return;
+        await saveIconAppearance(key, result);
       } else if (action == 'favorite') {
         await updateIconSettings(key, favorite: !isIconFavorite(key));
       } else if (action == 'group') {
@@ -3661,9 +3911,20 @@ class _IconManagementPageState extends State<IconManagementPage> {
   }
 
   Future<void> _import() async {
-    await importCustomIcons(
-      group: iconGroups.contains(_group) ? _group : 'Mis iconos',
-    );
+    try {
+      final imported = await importCustomIcons(
+        group: iconGroups.contains(_group) ? _group : 'Mis iconos',
+      );
+      if (!mounted) return;
+      if (imported.isNotEmpty) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${imported.length} iconos importados')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo importar el archivo de iconos.')),
+      );
+    }
     if (mounted) await _load();
   }
 
@@ -3774,13 +4035,11 @@ class _IconManagementPageState extends State<IconManagementPage> {
                       separatorBuilder: (_, _) => const SizedBox(height: 6),
                       itemBuilder: (context, index) {
                         final key = visible[index];
-                        final color = isCustomIconKey(key)
-                            ? const Color(0xFF546E7A)
-                            : appIconChoiceFor(key).defaultColor;
+                        final color = iconAppearance(key).line;
                         return Card(
                           child: ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: color.withValues(alpha: 0.12),
+                              backgroundColor: iconAppearance(key).circle,
                               child: iconWidgetForKey(
                                 key,
                                 color: color,
@@ -3823,8 +4082,13 @@ class _IconManagementPageState extends State<IconManagementPage> {
                                             child: Text('Restaurar'),
                                           ),
                                         ]
-                                      : const [
-                                          PopupMenuItem(
+                                      : [
+                                          if (isEditableSvgIcon(key))
+                                            const PopupMenuItem(
+                                              value: 'colors',
+                                              child: Text('Cambiar colores'),
+                                            ),
+                                          const PopupMenuItem(
                                             value: 'rename',
                                             child: Text('Cambiar nombre'),
                                           ),
@@ -4128,8 +4392,9 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
 
     setState(() {
       _iconKey = selected;
-      if (!isCustomIconKey(selected)) {
-        _colorValue = appIconChoiceFor(selected).defaultColorValue;
+      _colorValue = iconAppearance(selected).lineValue;
+      if (hasIconCircle(selected)) {
+        _circleColorValue = iconAppearance(selected).circleValue;
       }
     });
   }
@@ -4204,7 +4469,7 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
                       colorValue: _colorValue,
                       circleColorValue: _circleColorValue,
                     ),
-                    size: isElectricCollectionKey(_iconKey) ? 44 : 28,
+                    size: hasIconCircle(_iconKey) ? 44 : 28,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -4218,7 +4483,7 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
               ),
             ),
             const SizedBox(height: 18),
-            if (isElectricCollectionKey(_iconKey)) ...[
+            if (hasIconCircle(_iconKey)) ...[
               const Text(
                 'Color del círculo',
                 style: TextStyle(fontWeight: FontWeight.w700),
@@ -4269,7 +4534,7 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
               ),
               const SizedBox(height: 18),
             ],
-            if (isCustomIconKey(_iconKey))
+            if (isCustomIconKey(_iconKey) && !isEditableSvgIcon(_iconKey))
               const Text(
                 'Este icono conserva sus colores originales.',
                 style: TextStyle(color: Color(0xFF6F747A), fontSize: 13),
