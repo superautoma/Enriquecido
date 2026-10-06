@@ -158,4 +158,59 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  for (final width in [320.0, 480.0, 800.0]) {
+    testWidgets('Picker views preserve filtering, colors and selection at $width',
+        (tester) async {
+      await tester.binding.setSurfaceSize(Size(width, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      String? selected;
+      await tester.pumpWidget(MaterialApp(home: Builder(
+        builder: (context) => Scaffold(body: TextButton(
+          onPressed: () async {
+            selected = await Navigator.push<String>(context,
+              MaterialPageRoute(builder: (_) => const IconPickerPage(
+                currentKey: 'electric_enchufe_schuko')));
+          },
+          child: const Text('Abrir selector'),
+        )),
+      )));
+      await tester.tap(find.text('Abrir selector'));
+      await finish(tester);
+      await tester.enterText(find.widgetWithText(TextField, 'Buscar iconos'), 'Enchufe Schuko');
+      await finish(tester);
+      expect(find.descendant(of: find.byType(GridView),
+        matching: find.text('Enchufe Schuko')), findsOneWidget);
+      for (final view in ['Conjunto compacto', 'Lista', 'Cuadrícula']) {
+        await tester.tap(find.byKey(const ValueKey('icon_picker_view')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(view));
+        await tester.pumpAndSettle();
+        expect(find.text('Enchufe Schuko').first, findsOneWidget);
+        final tile = view == 'Lista'
+            ? find.byType(ListTile)
+            : find.descendant(of: find.byType(GridView), matching: find.byType(InkWell));
+        expect(tile, findsOneWidget);
+        if (view == 'Conjunto compacto') {
+          expect(find.descendant(of: find.byType(GridView), matching: find.byType(Text)), findsNothing);
+        }
+        await tester.longPress(tile);
+        await tester.pumpAndSettle();
+        expect(find.text('Colores del icono'), findsOneWidget);
+        await tester.tap(find.text('Cancelar'));
+        await tester.pumpAndSettle();
+        expect(selected, isNull);
+        expect(tester.takeException(), isNull);
+      }
+      await tester.tap(find.byKey(const ValueKey('icon_picker_view')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Lista'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(ListTile));
+      await tester.pumpAndSettle();
+      expect(selected, 'electric_enchufe_schuko');
+      expect(find.text('Seleccionar icono'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
 }

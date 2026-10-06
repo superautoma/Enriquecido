@@ -3358,6 +3358,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
   late String _category;
   String _query = '';
   bool _editingColors = false;
+  String _view = 'grid';
 
   @override
   void initState() {
@@ -3403,6 +3404,37 @@ class _IconPickerPageState extends State<IconPickerPage> {
     }
   }
 
+  Widget _preview(String key) {
+    final custom = isCustomIconKey(key);
+    final svgCircle = isEditableSvgIcon(key);
+    final color = iconAppearance(key).line;
+    return Container(
+      width: custom ? 48 : 44,
+      height: custom ? 48 : 44,
+      padding: custom
+          ? const EdgeInsets.all(4)
+          : EdgeInsets.zero,
+      decoration: BoxDecoration(
+        color: iconAppearance(key).circle,
+        borderRadius: custom && !svgCircle
+            ? BorderRadius.circular(10)
+            : null,
+        shape: custom && !svgCircle
+            ? BoxShape.rectangle
+            : BoxShape.circle,
+      ),
+      child: iconWidgetForKey(
+        key,
+        color: color,
+        size: custom
+            ? (svgCircle ? 26 : 40)
+            : isElectricCollectionKey(key)
+            ? 22
+            : 28,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final builtInVisible = appIconChoices
@@ -3436,6 +3468,22 @@ class _IconPickerPageState extends State<IconPickerPage> {
           'Seleccionar icono',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
+        actions: [
+          PopupMenuButton<String>(
+            key: const ValueKey('icon_picker_view'),
+            tooltip: 'Vista',
+            icon: const Icon(Icons.view_module_outlined),
+            onSelected: (value) => setState(() => _view = value),
+            itemBuilder: (_) => [
+              CheckedPopupMenuItem(value: 'grid', checked: _view == 'grid',
+                child: const Text('Cuadrícula')),
+              CheckedPopupMenuItem(value: 'compact', checked: _view == 'compact',
+                child: const Text('Conjunto compacto')),
+              CheckedPopupMenuItem(value: 'list', checked: _view == 'list',
+                child: const Text('Lista')),
+            ],
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -3485,10 +3533,9 @@ class _IconPickerPageState extends State<IconPickerPage> {
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final columns = (constraints.maxWidth / 88).floor().clamp(
-                    2,
-                    6,
-                  );
+                  final compact = _view == 'compact';
+                  final columns = (constraints.maxWidth / (compact ? 64 : 88))
+                      .floor().clamp(2, compact ? 12 : 6);
                   final labelSize = MediaQuery.textScalerOf(context).scale(11);
                   final gridDelegate =
                       SliverGridDelegateWithFixedCrossAxisCount(
@@ -3496,7 +3543,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                         mainAxisSpacing: 8,
                         crossAxisSpacing: 8,
                         // Padding + icono + separación + dos líneas + margen.
-                        mainAxisExtent: 16 + 48 + 6 + labelSize * 2.4 + 8,
+                        mainAxisExtent: compact ? 64 : 16 + 48 + 6 + labelSize * 2.4 + 8,
                       );
                   if (_loadingCustom && showingCustom) {
                     return const Center(child: CircularProgressIndicator());
@@ -3513,17 +3560,49 @@ class _IconPickerPageState extends State<IconPickerPage> {
                       ),
                     );
                   }
+                  if (_view == 'list') {
+                    return ListView.separated(
+                      key: const ValueKey('icon_picker_list'),
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                      itemCount: visibleKeys.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 6),
+                      itemBuilder: (context, index) {
+                        final key = visibleKeys[index];
+                        return Card(
+                          margin: EdgeInsets.zero,
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            leading: _preview(key),
+                            title: Text(appIconLabel(key)),
+                            selected: key == widget.currentKey,
+                            selectedTileColor: iconAppearance(key).line.withValues(alpha: 0.12),
+                            trailing: key == widget.currentKey
+                                ? const Icon(Icons.check) : null,
+                            onTap: () => Navigator.pop(context, key),
+                            onLongPress: canEditIconColors(key)
+                                ? () => _editColors(key) : null,
+                          ),
+                        );
+                      },
+                    );
+                  }
                   return GridView.builder(
+                    key: ValueKey('icon_picker_$_view'),
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
                     gridDelegate: gridDelegate,
                     itemCount: visibleKeys.length,
                     itemBuilder: (context, index) {
                       final key = visibleKeys[index];
-                      final custom = isCustomIconKey(key);
                       final selected = key == widget.currentKey;
                       final color = iconAppearance(key).line;
-                      final svgCircle = isEditableSvgIcon(key);
-                      return Material(
+                      return Tooltip(
+                        message: appIconLabel(key),
+                        triggerMode: TooltipTriggerMode.manual,
+                        child: Semantics(
+                          label: compact ? appIconLabel(key) : null,
+                          button: true,
+                          selected: selected,
+                          child: Material(
                         color: selected
                             ? color.withValues(alpha: 0.12)
                             : Colors.white,
@@ -3539,39 +3618,15 @@ class _IconPickerPageState extends State<IconPickerPage> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Container(
-                                  width: custom ? 48 : 44,
-                                  height: custom ? 48 : 44,
-                                  padding: custom
-                                      ? const EdgeInsets.all(4)
-                                      : EdgeInsets.zero,
-                                  decoration: BoxDecoration(
-                                    color: iconAppearance(key).circle,
-                                    borderRadius: custom && !svgCircle
-                                        ? BorderRadius.circular(10)
-                                        : null,
-                                    shape: custom && !svgCircle
-                                        ? BoxShape.rectangle
-                                        : BoxShape.circle,
-                                  ),
-                                  child: iconWidgetForKey(
-                                    key,
-                                    color: color,
-                                    size: custom
-                                        ? (svgCircle ? 26 : 40)
-                                        : isElectricCollectionKey(key)
-                                        ? 22
-                                        : 28,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
+                                _preview(key),
+                                if (!compact) const SizedBox(height: 6),
+                                if (!compact) Text(
                                   appIconLabel(key),
                                   textAlign: TextAlign.center,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    fontSize: custom ? 10 : 11,
+                                    fontSize: isCustomIconKey(key) ? 10 : 11,
                                     height: 1.2,
                                     fontWeight: selected
                                         ? FontWeight.w700
@@ -3580,6 +3635,8 @@ class _IconPickerPageState extends State<IconPickerPage> {
                                 ),
                               ],
                             ),
+                          ),
+                        ),
                           ),
                         ),
                       );
