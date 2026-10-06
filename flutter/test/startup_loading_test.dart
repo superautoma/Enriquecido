@@ -146,7 +146,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Gestor de iconos'), findsOneWidget);
     expect(find.text('Importar'), findsOneWidget);
-    expect(find.text('Grupos'), findsOneWidget);
+    expect(find.byTooltip('Grupos'), findsOneWidget);
     expect(find.text('Configurar Tipo y Estado'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
