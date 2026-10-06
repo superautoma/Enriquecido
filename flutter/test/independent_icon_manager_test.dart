@@ -5,9 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import '../lib/main_quill_integrated_test.dart';
 
 Future<void> finish(WidgetTester tester) async {
-  for (var i = 0; i < 4; i++) {
-    await tester.pump();
+  // Navigation creates the next page during a frame. Start that frame in
+  // the real async zone so its file reads can finish outside the fake clock.
+  for (var i = 0; i < 20; i++) {
     await tester.runAsync(() async {
+      await tester.pump();
       await Future<void>.delayed(const Duration(milliseconds: 100));
     });
   }

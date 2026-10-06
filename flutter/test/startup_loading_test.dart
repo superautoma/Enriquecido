@@ -137,9 +137,9 @@ void main() {
       await tester.tap(find.byTooltip('Gestor de iconos'));
       await Future<void>.delayed(const Duration(milliseconds: 100));
     });
-    for (var i = 0; i < 4; i++) {
-      await tester.pump();
+    for (var i = 0; i < 20; i++) {
       await tester.runAsync(() async {
+        await tester.pump();
         await Future<void>.delayed(const Duration(milliseconds: 100));
       });
     }
