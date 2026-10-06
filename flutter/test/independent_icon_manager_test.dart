@@ -451,6 +451,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.widget<Text>(find.byKey(const ValueKey('icon_detail_name'))).data, initialName);
       await tester.ensureVisible(find.text('Cambiar colores'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Cambiar colores'));
       await tester.pumpAndSettle();
       expect(find.text('Colores del icono'), findsOneWidget);
@@ -459,6 +460,7 @@ void main() {
       await tester.tap(viewMenu);
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Favoritos y recientes'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Favoritos y recientes'));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('icon_quick_Favoritos')), findsOneWidget);
@@ -485,6 +487,7 @@ void main() {
     await tester.tap(find.text('Detalle'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Elegir este icono'));
+    await tester.pumpAndSettle();
     await tester.runAsync(() async { await tester.tap(find.text('Elegir este icono')); });
     await finish(tester);
     expect(selected, 'electric_enchufe_schuko');
