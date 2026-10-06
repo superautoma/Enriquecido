@@ -2999,6 +2999,7 @@ Future<Directory> customIconsDirectory() async {
 
 Set<String> _hiddenIconKeys = {};
 Set<String> _removedIconKeys = {};
+List<String> _recentIconIds = [];
 Set<String> _favoriteIconKeys = {};
 List<String> _customIconCategories = [];
 Map<String, String> _iconGroupOverrides = {};
@@ -3031,6 +3032,7 @@ Future<File> iconSettingsFile() async {
 Future<void> loadIconSettings() async {
   final hidden = <String>{};
   final removed = <String>{};
+  final recent = <String>[];
   final favorites = <String>{};
   final custom = <String>[];
   final groups = <String, String>{};
@@ -3048,6 +3050,11 @@ Future<void> loadIconSettings() async {
               appearances[entry.key as String] =
                   IconAppearance(value['line'] as int, value['circle'] as int);
             }
+          }
+        }
+        if (raw['recent'] is List) {
+          for (final id in (raw['recent'] as List).whereType<String>()) {
+            if (!recent.contains(id) && recent.length < 30) recent.add(id);
           }
         }
         if (raw['removed'] is List)
@@ -3087,6 +3094,7 @@ Future<void> loadIconSettings() async {
   } catch (_) {}
   _hiddenIconKeys = hidden;
   _removedIconKeys = removed;
+  _recentIconIds = recent;
   _favoriteIconKeys = favorites;
   _customIconCategories = custom;
   _iconGroupOverrides = groups;
@@ -3100,6 +3108,7 @@ Future<void> _persistIconSettings({
   required Map<String, String> groups,
   Map<String, IconAppearance>? appearances,
   Set<String>? removed,
+  List<String>? recent,
 }) async {
   final file = await iconSettingsFile();
   await file.parent.create(recursive: true);
@@ -3108,6 +3117,7 @@ Future<void> _persistIconSettings({
     jsonEncode({
       'hidden': hidden.toList(),
       'removed': (removed ?? _removedIconKeys).toList(),
+      'recent': recent ?? _recentIconIds,
       'favorites': favorites.toList(),
       'customGroups': customGroups,
       'groups': groups,
@@ -3126,8 +3136,134 @@ Future<void> _persistIconSettings({
   _iconGroupOverrides = groups;
   if (appearances != null) _iconAppearances = appearances;
   if (removed != null) _removedIconKeys = removed;
+  if (recent != null) _recentIconIds = recent;
 }
 
+
+
+List<String> recentIconKeys(Iterable<String> available, {bool includeHidden = false}) {
+  final byId = {
+    for (final key in available)
+      if (!isIconRemoved(key) && (includeHidden || !isIconHidden(key)))
+        iconNameStorageKey(key): key,
+  };
+  return [for (final id in _recentIconIds) if (byId.containsKey(id)) byId[id]!];
+}
+
+Future<void> recordRecentIcon(String key) async {
+  if (isIconHidden(key)) return;
+  final id = iconNameStorageKey(key);
+  final recent = [id, ..._recentIconIds.where((saved) => saved != id)].take(30).toList();
+  await _persistIconSettings(
+    hidden: Set<String>.from(_hiddenIconKeys),
+    favorites: Set<String>.from(_favoriteIconKeys),
+    customGroups: List<String>.from(_customIconCategories),
+    groups: Map<String, String>.from(_iconGroupOverrides),
+    recent: recent,
+  );
+}
+
+class _IconDetailCard extends StatelessWidget {
+  const _IconDetailCard({
+    required this.iconKey, required this.group, required this.position,
+    required this.total, required this.onPrevious, required this.onNext,
+    this.onColors, this.onFavorite, this.onManage, this.onSelect, this.onRestore,
+  });
+  final String iconKey, group;
+  final int position, total;
+  final VoidCallback? onPrevious, onNext, onColors, onFavorite, onManage, onSelect, onRestore;
+  String _hex(Color color) => '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+  Widget _color(String label, Color color) => Chip(
+    avatar: Container(width: 18, height: 18,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle,
+        border: Border.all(color: const Color(0xFF999999)))),
+    label: Text('$label: ${_hex(color)}'),
+  );
+  @override
+  Widget build(BuildContext context) {
+    final appearance = iconAppearance(iconKey);
+    return ListView(
+      key: const ValueKey('icon_detail'),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      children: [
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          IconButton(tooltip: 'Icono anterior', onPressed: onPrevious,
+            icon: const Icon(Icons.chevron_left)),
+          Flexible(child: Text('${position + 1} de $total', textAlign: TextAlign.center)),
+          IconButton(tooltip: 'Icono siguiente', onPressed: onNext,
+            icon: const Icon(Icons.chevron_right)),
+        ]),
+        Card(child: Padding(padding: const EdgeInsets.all(16),
+          child: Column(children: [
+            Container(width: 112, height: 112, padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: appearance.circle, shape: BoxShape.circle),
+              child: iconWidgetForKey(iconKey, color: appearance.line, size: 70)),
+            const SizedBox(height: 16),
+            Text(appIconLabel(iconKey), key: const ValueKey('icon_detail_name'),
+              textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text('Grupo: $group', textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 4, children: [
+              _color('Fondo', appearance.circle),
+              _color('Trazo', appearance.line),
+            ]),
+            const SizedBox(height: 8),
+            Text(isIconFavorite(iconKey) ? 'Favorito' : 'Sin marcar como favorito'),
+            const SizedBox(height: 12),
+            Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
+              if (onColors != null) OutlinedButton.icon(
+                onPressed: onColors, icon: const Icon(Icons.palette_outlined),
+                label: const Text('Cambiar colores')),
+              if (onFavorite != null) OutlinedButton.icon(
+                onPressed: onFavorite, icon: Icon(isIconFavorite(iconKey) ? Icons.star : Icons.star_border),
+                label: Text(isIconFavorite(iconKey) ? 'Quitar de favoritos' : 'Añadir a favoritos')),
+              if (onManage != null) OutlinedButton.icon(
+                onPressed: onManage, icon: const Icon(Icons.edit_outlined),
+                label: const Text('Más opciones')),
+              if (onRestore != null) FilledButton(
+                onPressed: onRestore, child: const Text('Restaurar')),
+              if (onSelect != null) FilledButton(
+                onPressed: onSelect, child: const Text('Elegir este icono')),
+            ]),
+          ]),
+        )),
+      ],
+    );
+  }
+}
+
+class _IconQuickView extends StatelessWidget {
+  const _IconQuickView({required this.keys, required this.tileBuilder,
+    required this.gridDelegate, this.includeHidden = false});
+  final List<String> keys;
+  final Widget Function(String) tileBuilder;
+  final SliverGridDelegate gridDelegate;
+  final bool includeHidden;
+  @override
+  Widget build(BuildContext context) {
+    final favorites = keys.where(isIconFavorite).toList();
+    final recent = recentIconKeys(keys, includeHidden: includeHidden);
+    return CustomScrollView(key: const ValueKey('icon_quick_view'), slivers: [
+      for (final section in {'Favoritos': favorites, 'Recientes': recent}.entries) ...[
+        SliverToBoxAdapter(child: _iconColorHeading(section.key, section.value.length,
+          ValueKey('icon_quick_${section.key}'))),
+        if (section.value.isEmpty)
+          SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.all(16),
+            child: Text(section.key == 'Favoritos'
+                ? 'Marca iconos como favoritos para tenerlos aquí.'
+                : 'Aquí aparecerán los últimos iconos que selecciones.')))
+        else
+          SliverPadding(padding: const EdgeInsets.symmetric(horizontal: 12),
+            sliver: SliverGrid(gridDelegate: gridDelegate,
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => tileBuilder(section.value[index]),
+                childCount: section.value.length))),
+      ],
+      const SliverToBoxAdapter(child: SizedBox(height: 100)),
+    ]);
+  }
+}
 
 class IconTrashResult {
   const IconTrashResult(this.emptied, this.keptForUsage);
@@ -3171,6 +3307,7 @@ Future<IconTrashResult> emptyIconTrash({Set<String>? protectedKeys}) async {
       customGroups: List<String>.from(_customIconCategories),
       groups: Map<String, String>.from(_iconGroupOverrides),
       removed: Set<String>.from(_removedIconKeys)..addAll(trash),
+      recent: _recentIconIds.where((id) => !trash.contains(id)).toList(),
     );
   } catch (_) {
     for (final entry in moved.entries) {
@@ -3430,10 +3567,13 @@ class _IconPickerPageState extends State<IconPickerPage> {
   bool _editingColors = false;
   String _view = 'grid';
   String _order = 'original';
+  String? _detailKey;
+  bool _selecting = false;
 
   @override
   void initState() {
     super.initState();
+    _detailKey = widget.currentKey;
     _category = isCustomIconKey(widget.currentKey)
         ? 'Mis iconos'
         : appIconChoiceFor(widget.currentKey).category;
@@ -3470,6 +3610,34 @@ class _IconPickerPageState extends State<IconPickerPage> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se pudieron guardar los colores.')),
       );
+    } finally {
+      _editingColors = false;
+    }
+  }
+
+
+  Future<void> _select(String key) async {
+    if (_selecting) return;
+    _selecting = true;
+    try {
+      await recordRecentIcon(key);
+    } catch (_) {
+      // Choosing an icon remains available if recent-history storage fails.
+    } finally {
+      if (mounted) Navigator.pop(context, key);
+      _selecting = false;
+    }
+  }
+
+  Future<void> _favorite(String key) async {
+    if (_editingColors || _selecting) return;
+    _editingColors = true;
+    try {
+      await updateIconSettings(key, favorite: !isIconFavorite(key));
+      if (mounted) setState(() {});
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo guardar el favorito.')));
     } finally {
       _editingColors = false;
     }
@@ -3557,6 +3725,10 @@ class _IconPickerPageState extends State<IconPickerPage> {
                 child: const Text('Galería ampliada')),
               CheckedPopupMenuItem(value: 'colors', checked: _view == 'colors',
                 child: const Text('Por colores')),
+              CheckedPopupMenuItem(value: 'detail', checked: _view == 'detail',
+                child: const Text('Detalle')),
+              CheckedPopupMenuItem(value: 'quick', checked: _view == 'quick',
+                child: const Text('Favoritos y recientes')),
             ],
           ),
           _IconOrderMenu(order: _order,
@@ -3639,6 +3811,22 @@ class _IconPickerPageState extends State<IconPickerPage> {
                       ),
                     );
                   }
+                  if (_view == 'detail') {
+                    final index = visibleKeys.contains(_detailKey)
+                        ? visibleKeys.indexOf(_detailKey!) : 0;
+                    final key = visibleKeys[index];
+                    return _IconDetailCard(
+                      iconKey: key, group: iconCategoryForKey(key, _customGroups),
+                      position: index, total: visibleKeys.length,
+                      onPrevious: index > 0
+                          ? () => setState(() => _detailKey = visibleKeys[index - 1]) : null,
+                      onNext: index + 1 < visibleKeys.length
+                          ? () => setState(() => _detailKey = visibleKeys[index + 1]) : null,
+                      onColors: canEditIconColors(key) ? () => _editColors(key) : null,
+                      onFavorite: () => _favorite(key),
+                      onSelect: () => _select(key),
+                    );
+                  }
                   if (_view == 'list') {
                     return ListView.separated(
                       key: const ValueKey('icon_picker_list'),
@@ -3657,7 +3845,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                             selectedTileColor: iconAppearance(key).line.withValues(alpha: 0.12),
                             trailing: key == widget.currentKey
                                 ? const Icon(Icons.check) : null,
-                            onTap: () => Navigator.pop(context, key),
+                            onTap: () => _select(key),
                             onLongPress: canEditIconColors(key)
                                 ? () => _editColors(key) : null,
                           ),
@@ -3682,7 +3870,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                         borderRadius: BorderRadius.circular(12),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
-                          onTap: () => Navigator.pop(context, key),
+                          onTap: () => _select(key),
                           onLongPress: canEditIconColors(key)
                               ? () => _editColors(key)
                               : null,
@@ -3715,6 +3903,10 @@ class _IconPickerPageState extends State<IconPickerPage> {
                       );
                   }
 
+                  if (_view == 'quick') {
+                    return _IconQuickView(keys: visibleKeys, gridDelegate: gridDelegate,
+                      tileBuilder: tile);
+                  }
                   if (_view == 'colors') {
                     final groups = <String, List<String>>{};
                     for (final key in visibleKeys) {
@@ -4013,6 +4205,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
   bool _saving = false;
   String _view = 'list';
   String _order = 'original';
+  String? _detailKey;
   @override
   void initState() {
     super.initState();
@@ -4313,6 +4506,20 @@ class _IconManagementPageState extends State<IconManagementPage> {
 
   Widget _collection(List<String> keys) {
     if (_view == 'list') return _list(keys);
+    if (_view == 'detail') {
+      final index = keys.contains(_detailKey) ? keys.indexOf(_detailKey!) : 0;
+      final key = keys[index];
+      return _IconDetailCard(
+        iconKey: key, group: iconCategoryForKey(key, _groups),
+        position: index, total: keys.length,
+        onPrevious: index > 0 ? () => setState(() => _detailKey = keys[index - 1]) : null,
+        onNext: index + 1 < keys.length ? () => setState(() => _detailKey = keys[index + 1]) : null,
+        onColors: !_trash && canEditIconColors(key) ? () => _change(key, 'colors') : null,
+        onFavorite: !_trash ? () => _change(key, 'favorite') : null,
+        onManage: !_trash ? () => _showActions(key) : null,
+        onRestore: _trash ? () => _change(key, 'restore') : null,
+      );
+    }
     return LayoutBuilder(builder: (context, constraints) {
       final compact = _view == 'compact';
       final gallery = _view == 'gallery';
@@ -4330,6 +4537,10 @@ class _IconManagementPageState extends State<IconManagementPage> {
           childCount: items.length,
         ),
       );
+      if (_view == 'quick') {
+        return _IconQuickView(keys: keys, gridDelegate: delegate,
+          includeHidden: _trash, tileBuilder: (key) => _tile(key, false));
+      }
       final groups = <String, List<String>>{};
       if (_view == 'groups' || _view == 'colors') {
         for (final key in keys) {
@@ -4393,7 +4604,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
             icon: const Icon(Icons.view_module_outlined),
             onSelected: (value) => setState(() => _view = value),
             itemBuilder: (_) => [
-              for (final entry in (const {'grid': 'Cuadrícula', 'compact': 'Conjunto compacto', 'list': 'Lista', 'groups': 'Por grupos', 'gallery': 'Galería ampliada', 'colors': 'Por colores'}).entries)
+              for (final entry in (const {'grid': 'Cuadrícula', 'compact': 'Conjunto compacto', 'list': 'Lista', 'groups': 'Por grupos', 'gallery': 'Galería ampliada', 'colors': 'Por colores', 'detail': 'Detalle', 'quick': 'Favoritos y recientes'}).entries)
                 CheckedPopupMenuItem(value: entry.key, checked: _view == entry.key,
                   child: Text(entry.value)),
             ],

@@ -205,8 +205,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Lista'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(ListTile));
-      await tester.pumpAndSettle();
+      await tester.runAsync(() async { await tester.tap(find.byType(ListTile)); });
+      await finish(tester);
       expect(selected, 'electric_enchufe_schuko');
       expect(find.text('Seleccionar icono'), findsNothing);
       expect(tester.takeException(), isNull);
@@ -399,5 +399,98 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  test('Recent icons persist, move to front and disappear when hidden or purged', () async {
+    const a = 'electric_bombilla', b = 'electric_enchufe_schuko';
+    await recordRecentIcon(a);
+    await recordRecentIcon(b);
+    await recordRecentIcon(a);
+    await loadIconSettings();
+    expect(recentIconKeys([a, b]), [a, b]);
+    await saveIconAppearance(a, const IconAppearance(0xFF1976D2, 0xFFEAF2FB));
+    await loadIconSettings();
+    expect(recentIconKeys([a, b]), [a, b]);
+    await updateIconSettings(a, hidden: true);
+    expect(recentIconKeys([a, b]), [b]);
+    await updateIconSettings(a, hidden: false);
+    expect(recentIconKeys([a, b]), [a, b]);
+    await updateIconSettings(a, hidden: true);
+    await emptyIconTrash(protectedKeys: {});
+    await loadIconSettings();
+    expect(recentIconKeys([a, b], includeHidden: true), [b]);
+    final fakeKeys = List.generate(35, (i) => 'test_recent_$i');
+    for (final key in fakeKeys) { await recordRecentIcon(key); }
+    expect(recentIconKeys(fakeKeys).length, 30);
+    expect(recentIconKeys(fakeKeys).first, 'test_recent_34');
+  });
+
+  for (final manager in [false, true]) {
+    testWidgets('Details navigate and quick view shows persisted favorites and recents: $manager',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      const a = 'electric_bombilla', b = 'electric_enchufe_schuko';
+      await tester.runAsync(() async {
+        await updateIconSettings(a, favorite: true);
+        await recordRecentIcon(b);
+        await tester.pumpWidget(MaterialApp(home: manager
+            ? const IconManagementPage() : const IconPickerPage(currentKey: b)));
+      });
+      await finish(tester);
+      final viewMenu = find.byKey(ValueKey(manager ? 'icon_manager_view' : 'icon_picker_view'));
+      await tester.tap(viewMenu);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Detalle'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('icon_detail')), findsOneWidget);
+      final initialName = tester.widget<Text>(find.byKey(const ValueKey('icon_detail_name'))).data;
+      await tester.tap(find.byTooltip('Icono siguiente'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(find.byKey(const ValueKey('icon_detail_name'))).data, isNot(initialName));
+      await tester.tap(find.byTooltip('Icono anterior'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(find.byKey(const ValueKey('icon_detail_name'))).data, initialName);
+      await tester.ensureVisible(find.text('Cambiar colores'));
+      await tester.tap(find.text('Cambiar colores'));
+      await tester.pumpAndSettle();
+      expect(find.text('Colores del icono'), findsOneWidget);
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+      await tester.tap(viewMenu);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Favoritos y recientes'));
+      await tester.tap(find.text('Favoritos y recientes'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('icon_quick_Favoritos')), findsOneWidget);
+      expect(find.byKey(const ValueKey('icon_quick_Recientes')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const ValueKey('icon_quick_view')),
+        matching: find.text('Bombilla')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const ValueKey('icon_quick_view')),
+        matching: find.text('Enchufe Schuko')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('Selecting from details saves recents and returns the chosen icon', (tester) async {
+    String? selected;
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) =>
+      Scaffold(body: TextButton(child: const Text('Abrir'), onPressed: () async {
+        selected = await Navigator.push<String>(context, MaterialPageRoute(
+          builder: (_) => const IconPickerPage(currentKey: 'electric_enchufe_schuko')));
+      })))));
+    await tester.tap(find.text('Abrir'));
+    await finish(tester);
+    await tester.tap(find.byKey(const ValueKey('icon_picker_view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Detalle'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Elegir este icono'));
+    await tester.runAsync(() async { await tester.tap(find.text('Elegir este icono')); });
+    await finish(tester);
+    expect(selected, 'electric_enchufe_schuko');
+    await tester.runAsync(() async { await loadIconSettings(); });
+    expect(recentIconKeys([selected!]), [selected!]);
+    expect(tester.takeException(), isNull);
+  });
 
 }
