@@ -288,4 +288,69 @@ void main() {
     expect(orderedIconKeys([c, a], 'az'), [c, a]);
   });
 
+  test('Empty trash removes unused files and preserves assigned icons across reloads', () async {
+    final directory = await customIconsDirectory();
+    final unused = File('${directory.path}/unused.svg');
+    final used = File('${directory.path}/used.svg');
+    final active = File('${directory.path}/active.svg');
+    for (final file in [unused, used, active]) {
+      await file.writeAsString('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M8 8L56 56"/></svg>');
+    }
+    final unusedKey = 'custom:${unused.path}';
+    final usedKey = 'custom:${used.path}';
+    final activeKey = 'custom:${active.path}';
+    const builtIn = 'electric_bombilla';
+    await saveIconName(usedKey, 'Asignado');
+    await saveIconAppearance(usedKey, const IconAppearance(0xFFE53935, 0xFFEAF2FB));
+    await File('${unused.path}.group.json').writeAsString('{"group":"Mis iconos"}');
+    for (final key in [unusedKey, usedKey, builtIn]) {
+      await updateIconSettings(key, hidden: true, favorite: true);
+    }
+    final result = await emptyIconTrash(protectedKeys: {usedKey, builtIn});
+    expect(result.emptied, 3);
+    expect(result.keptForUsage, 2);
+    expect(await unused.exists(), isFalse);
+    expect(await File('${unused.path}.group.json').exists(), isFalse);
+    expect(await used.exists(), isTrue);
+    expect(await active.exists(), isTrue);
+    await loadCustomIconKeys();
+    for (final key in [unusedKey, usedKey, builtIn]) {
+      expect(isIconRemoved(key), isTrue);
+      expect(isIconHidden(key), isTrue);
+      expect(isIconFavorite(key), isFalse);
+    }
+    expect(isIconRemoved(activeKey), isFalse);
+    expect(appIconLabel(usedKey), 'Asignado');
+    expect(iconAppearance(usedKey).lineValue, 0xFFE53935);
+    await updateIconSettings(activeKey, favorite: true);
+    await loadIconSettings();
+    expect(isIconRemoved(usedKey), isTrue);
+    final again = await emptyIconTrash(protectedKeys: {usedKey});
+    expect(again.emptied, 0);
+  });
+
+  testWidgets('Empty trash confirms all icons regardless of search and cancels safely',
+      (tester) async {
+    await updateIconSettings('electric_bombilla', hidden: true);
+    await updateIconSettings('electric_enchufe_schuko', hidden: true);
+    await tester.runAsync(() async {
+      await tester.pumpWidget(const MaterialApp(home: IconManagementPage()));
+    });
+    await finish(tester);
+    expect(find.byKey(const ValueKey('empty_icon_trash')), findsNothing);
+    await tester.tap(find.text('Papelera'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Buscar iconos'), 'no coincide');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('empty_icon_trash')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('los 2 iconos de toda la papelera'), findsOneWidget);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(isIconRemoved('electric_bombilla'), isFalse);
+    expect(isIconHidden('electric_bombilla'), isTrue);
+    expect(find.text('Gestor de iconos'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
 }

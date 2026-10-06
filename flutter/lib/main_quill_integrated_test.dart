@@ -2998,6 +2998,7 @@ Future<Directory> customIconsDirectory() async {
 }
 
 Set<String> _hiddenIconKeys = {};
+Set<String> _removedIconKeys = {};
 Set<String> _favoriteIconKeys = {};
 List<String> _customIconCategories = [];
 Map<String, String> _iconGroupOverrides = {};
@@ -3010,7 +3011,9 @@ List<String> get iconFilters => ['Todos', 'Favoritos', ...iconGroups];
 bool isIconFavorite(String key) =>
     _favoriteIconKeys.contains(iconNameStorageKey(key));
 bool isIconHidden(String key) =>
-    _hiddenIconKeys.contains(iconNameStorageKey(key));
+    _hiddenIconKeys.contains(iconNameStorageKey(key)) || isIconRemoved(key);
+bool isIconRemoved(String key) =>
+    _removedIconKeys.contains(iconNameStorageKey(key));
 String iconCategoryForKey(
   String key, [
   Map<String, String> customGroups = const {},
@@ -3027,6 +3030,7 @@ Future<File> iconSettingsFile() async {
 
 Future<void> loadIconSettings() async {
   final hidden = <String>{};
+  final removed = <String>{};
   final favorites = <String>{};
   final custom = <String>[];
   final groups = <String, String>{};
@@ -3046,6 +3050,8 @@ Future<void> loadIconSettings() async {
             }
           }
         }
+        if (raw['removed'] is List)
+          removed.addAll((raw['removed'] as List).whereType<String>());
         if (raw['hidden'] is List)
           hidden.addAll((raw['hidden'] as List).whereType<String>());
         if (raw['favorites'] is List)
@@ -3080,6 +3086,7 @@ Future<void> loadIconSettings() async {
     }
   } catch (_) {}
   _hiddenIconKeys = hidden;
+  _removedIconKeys = removed;
   _favoriteIconKeys = favorites;
   _customIconCategories = custom;
   _iconGroupOverrides = groups;
@@ -3092,6 +3099,7 @@ Future<void> _persistIconSettings({
   required List<String> customGroups,
   required Map<String, String> groups,
   Map<String, IconAppearance>? appearances,
+  Set<String>? removed,
 }) async {
   final file = await iconSettingsFile();
   await file.parent.create(recursive: true);
@@ -3099,6 +3107,7 @@ Future<void> _persistIconSettings({
   await temporary.writeAsString(
     jsonEncode({
       'hidden': hidden.toList(),
+      'removed': (removed ?? _removedIconKeys).toList(),
       'favorites': favorites.toList(),
       'customGroups': customGroups,
       'groups': groups,
@@ -3116,6 +3125,67 @@ Future<void> _persistIconSettings({
   _customIconCategories = customGroups;
   _iconGroupOverrides = groups;
   if (appearances != null) _iconAppearances = appearances;
+  if (removed != null) _removedIconKeys = removed;
+}
+
+
+class IconTrashResult {
+  const IconTrashResult(this.emptied, this.keptForUsage);
+  final int emptied;
+  final int keptForUsage;
+}
+
+Future<IconTrashResult> emptyIconTrash({Set<String>? protectedKeys}) async {
+  // Read assignments before moving any file. If the database cannot be read,
+  // abort rather than treating all icons as unused.
+  if (protectedKeys == null) {
+    final db = await ToolsDatabase.instance.database;
+    final rows = await db.query('field_options', columns: ['icon_key']);
+    protectedKeys = rows.map((row) => row['icon_key']).whereType<String>().toSet();
+  }
+  final protectedIds = protectedKeys.map(iconNameStorageKey).toSet();
+  final keys = await loadCustomIconKeys();
+  final trash = Set<String>.from(_hiddenIconKeys)..removeAll(_removedIconKeys);
+  if (trash.isEmpty) return const IconTrashResult(0, 0);
+  final directory = await customIconsDirectory();
+  final staged = Directory(p.join(directory.path,
+      'purge_pending_${DateTime.now().microsecondsSinceEpoch}'));
+  final moved = <String, String>{};
+  try {
+    for (final key in keys) {
+      final id = iconNameStorageKey(key);
+      if (!trash.contains(id) || protectedIds.contains(id)) continue;
+      final path = customIconPathFromKey(key);
+      for (final candidate in [path, '$path.group.json']) {
+        final file = File(candidate);
+        if (!await file.exists()) continue;
+        await staged.create(recursive: true);
+        final target = p.join(staged.path, p.basename(candidate));
+        await file.rename(target);
+        moved[candidate] = target;
+      }
+    }
+    await _persistIconSettings(
+      hidden: Set<String>.from(_hiddenIconKeys)..removeAll(trash),
+      favorites: Set<String>.from(_favoriteIconKeys)..removeAll(trash),
+      customGroups: List<String>.from(_customIconCategories),
+      groups: Map<String, String>.from(_iconGroupOverrides),
+      removed: Set<String>.from(_removedIconKeys)..addAll(trash),
+    );
+  } catch (_) {
+    for (final entry in moved.entries) {
+      final file = File(entry.value);
+      if (await file.exists()) await file.rename(entry.key);
+    }
+    if (await staged.exists()) await staged.delete(recursive: true);
+    rethrow;
+  }
+  // Staged files have no remaining assignments. A cleanup failure does not
+  // make them visible again or affect the original files kept for usage.
+  try {
+    if (await staged.exists()) await staged.delete(recursive: true);
+  } catch (_) {}
+  return IconTrashResult(trash.length, trash.intersection(protectedIds).length);
 }
 
 Future<void> updateIconSettings(
@@ -3967,6 +4037,46 @@ class _IconManagementPageState extends State<IconManagementPage> {
     }
   }
 
+
+  Future<void> _emptyTrash() async {
+    if (_saving || _loading) return;
+    final count = _keys.where((key) => isIconHidden(key) && !isIconRemoved(key)).length;
+    if (count == 0) return;
+    setState(() => _saving = true);
+    try {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Vaciar papelera'),
+          content: Text('Se retirarán definitivamente los $count iconos de toda la papelera, '
+              'incluidos los que no aparecen por los filtros. No podrás restaurarlos desde el gestor. '
+              'Los iconos asignados a tipos o estados se conservarán para que las herramientas sigan mostrándolos.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(context, true),
+              child: const Text('Vaciar papelera')),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+      final result = await emptyIconTrash();
+      if (!mounted) return;
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result.keptForUsage == 0
+            ? 'Papelera vaciada: ${result.emptied} iconos.'
+            : 'Papelera vaciada. ${result.keptForUsage} iconos siguen disponibles en las herramientas que los usan.'),
+      ));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo vaciar la papelera. Inténtalo de nuevo.')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _import() async {
     try {
       final imported = await importCustomIcons(
@@ -4193,6 +4303,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
     final filtered = _keys
         .where(
           (key) =>
+              !isIconRemoved(key) &&
               isIconHidden(key) == _trash &&
               (_group == 'Todos' ||
                   (_group == 'Favoritos' && isIconFavorite(key)) ||
@@ -4288,6 +4399,14 @@ class _IconManagementPageState extends State<IconManagementPage> {
                 ],
               ),
             ),
+            if (_trash)
+              TextButton.icon(
+                key: const ValueKey('empty_icon_trash'),
+                onPressed: _saving || _loading || !_keys.any((key) => isIconHidden(key) && !isIconRemoved(key))
+                    ? null : _emptyTrash,
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('Vaciar papelera'),
+              ),
             Text(
               '${visible.length} iconos',
               style: const TextStyle(color: Color(0xFF6F747A)),
