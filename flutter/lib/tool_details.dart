@@ -37,7 +37,7 @@ class ToolDetailsForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(children: [
-    ExpansionTile(key: const PageStorageKey('tool_identification'),
+    ExpansionTile(key: const ValueKey('tool_identification'),
       tilePadding: EdgeInsets.zero,
       leading: const Icon(Icons.badge_outlined, color: managementColor),
       title: const Text('Identificación'),
@@ -48,7 +48,7 @@ class ToolDetailsForm extends StatelessWidget {
         _field('serial_number', 'Número de serie', serialNumber, Icons.tag),
         const SizedBox(height: 10),
       ]),
-    ExpansionTile(key: const PageStorageKey('tool_location'),
+    ExpansionTile(key: const ValueKey('tool_location'),
       tilePadding: EdgeInsets.zero,
       leading: const Icon(Icons.location_on_outlined, color: managementColor),
       title: const Text('Ubicación'),
