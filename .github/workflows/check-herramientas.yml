@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       apk_run_id:
-        description: 'Existing APK build run; blank selects the latest successful build on this branch'
+        description: 'Existing APK build run; blank selects the latest compiled and signed APK on this branch'
         required: false
         type: string
   push:
@@ -80,6 +80,11 @@ jobs:
                           and not path.rsplit('/', 1)[-1].startswith('test_')))
               return {item['path']: item['sha'] for item in tree['tree']
                       if item['type'] == 'blob' and compiled(item['path'])}
+          def verified_apk(run):
+              jobs = get(f"actions/runs/{run['id']}/jobs")['jobs']
+              required = {'Build optimized APK', 'Verify stable APK signature', 'Upload APK'}
+              return any(required.issubset({step['name'] for step in job['steps']
+                  if step['conclusion'] == 'success'}) for job in jobs)
           selected = os.environ.get('APK_RUN_INPUT', '').strip()
           if selected:
               if not re.fullmatch(r'[0-9]+', selected):
@@ -87,14 +92,14 @@ jobs:
               runs = [get('actions/runs/' + selected)]
           else:
               query = urllib.parse.urlencode({'branch': os.environ['GITHUB_REF_NAME'],
-                  'status': 'success', 'per_page': 20})
+                  'status': 'completed', 'per_page': 20})
               runs = get('actions/workflows/build-integrated-quill-apk.yml/runs?' + query)['workflow_runs']
           current = application_sources(os.environ['GITHUB_SHA'])
           for run in runs:
               artifacts = get(f"actions/runs/{run['id']}/artifacts")['artifacts']
               artifact = next((a for a in artifacts if a['name'] == 'gestor-quill-integrado-apk'
                   and not a['expired']), None)
-              if artifact and application_sources(run['head_sha']) == current:
+              if artifact and application_sources(run['head_sha']) == current and verified_apk(run):
                   with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
                       output.write(f"ready=true\nrun_id={run['id']}\n")
                   print(f"Reusing APK from build run {run['id']}; application sources match")

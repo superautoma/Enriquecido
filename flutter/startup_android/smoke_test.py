@@ -18,7 +18,7 @@ def screenshot(name):
     (output / name).write_bytes(adb("exec-out", "screencap", "-p"))
 
 
-def wait_for(label):
+def wait_for(label, exclude_class=None):
     deadline = time.monotonic() + 120
     while time.monotonic() < deadline:
         try:
@@ -28,7 +28,7 @@ def wait_for(label):
             root = ET.fromstring(xml)
             for node in root.iter("node"):
                 text = node.get("text", "") + node.get("content-desc", "")
-                if label in text:
+                if label in text and node.get('class') != exclude_class:
                     return node
         except (subprocess.SubprocessError, ET.ParseError):
             pass
@@ -37,8 +37,8 @@ def wait_for(label):
     raise AssertionError(f"Android did not display {label!r}")
 
 
-def tap(label):
-    node = wait_for(label)
+def tap(label, exclude_class=None):
+    node = wait_for(label, exclude_class=exclude_class)
     tap_node(node)
 
 
@@ -232,7 +232,7 @@ wait_for('103 artículos')
 tap_field(0)
 adb('shell','input','text','Destornillador%saislado')
 adb('shell','input','keyevent','4')
-tap('Destornillador aislado')
+tap('Destornillador aislado', exclude_class='android.widget.EditText')
 tap('Prestada: ver préstamo')
 wait_for('Con cargador y bateria')
 adb('shell','input','keyevent','4')
