@@ -149,7 +149,9 @@ void main() {
           initial: const InventoryPreferences(), items: tools, facts: InventoryFacts(tools),
           conditionOptions: defaultFieldOptions('condition'))); }, child: const Text('Abrir'))))));
     await tester.tap(find.text('Abrir')); await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Herramienta eléctrica')); await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Herramienta eléctrica'), 150,
+      scrollable: find.descendant(of: find.byType(InventoryFilterSheet), matching: find.byType(Scrollable)));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Herramienta eléctrica')); await tester.pumpAndSettle();
     expect(selected, isNull);
     await tester.tap(find.text('Ver 1 resultados')); await tester.pumpAndSettle();

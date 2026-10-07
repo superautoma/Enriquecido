@@ -95,11 +95,16 @@ class _InventoryFilterSheetState extends State<InventoryFilterSheet> {
           CheckboxListTile(contentPadding: EdgeInsets.zero, title: const Text('Con fotografías'),
             value: _value.withPhotos, onChanged: (value) => setState(() => _value = _value.copyWith(withPhotos: value))),
         ])),
-        Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-          TextButton(onPressed: () => setState(() => _value = _value.clearFilters()), child: const Text('Limpiar filtros')),
-          const SizedBox(width: 8),
-          Expanded(child: FilledButton(onPressed: () => Navigator.pop(context, _value), child: Text('Ver $count resultados'))),
-        ])),
+        Padding(padding: const EdgeInsets.all(12), child: LayoutBuilder(builder: (context, constraints) {
+          final clear = TextButton(onPressed: () => setState(() => _value = _value.clearFilters()),
+            child: const Text('Limpiar filtros'));
+          final apply = FilledButton(onPressed: () => Navigator.pop(context, _value),
+            child: Text('Ver $count resultados'));
+          if (MediaQuery.textScalerOf(context).scale(14) > 20) {
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [apply, clear]);
+          }
+          return Row(children: [clear, const SizedBox(width: 8), Expanded(child: apply)]);
+        })),
       ])));
   }
 }
@@ -161,7 +166,7 @@ class InventoryToolTile extends StatelessWidget {
       child: InkWell(borderRadius: BorderRadius.circular(14), onTap: onTap,
         child: Padding(padding: EdgeInsets.all(compact ? 10 : 12), child: grid ?
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Center(child: _picture(78)), const SizedBox(height: 10), Expanded(child: details)]) :
+            Center(child: _picture(78)), const SizedBox(height: 10), details]) :
           Row(children: [_picture(compact ? 38 : 52), SizedBox(width: compact ? 10 : 12),
             Expanded(child: details), const Icon(Icons.chevron_right, size: 20, color: Color(0xFF9AA0A6))]))));
   }
@@ -192,11 +197,17 @@ class InventoryResults extends StatelessWidget {
       results = LayoutBuilder(builder: (context, constraints) {
         final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
         final columns = (constraints.maxWidth / (scale > 1.3 ? 300 : 175)).floor().clamp(1, 4).toInt();
-        return GridView.builder(physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 92), itemCount: items.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: columns,
-            mainAxisExtent: 125 + 180 * scale, crossAxisSpacing: 8, mainAxisSpacing: 8),
-          itemBuilder: (_, index) => tile(index));
+        final rows = (items.length / columns).ceil();
+        return ListView.separated(physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 92), itemCount: rows,
+          separatorBuilder: (_, _) => const SizedBox(height: 8),
+          itemBuilder: (_, row) => IntrinsicHeight(child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [for (var column = 0; column < columns; column++) ...[
+              if (column > 0) const SizedBox(width: 8),
+              Expanded(child: row * columns + column < items.length ?
+                tile(row * columns + column) : const SizedBox()),
+            ]])));
       });
     } else {
       results = ListView.separated(physics: const AlwaysScrollableScrollPhysics(),
