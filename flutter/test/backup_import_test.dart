@@ -223,6 +223,10 @@ void main() {
       data: MediaQueryData(textScaler: TextScaler.linear(2)), child: ImportBackupPage())));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+    await tester.scrollUntilVisible(find.text('Seleccionar archivo ZIP'), 150,
+      scrollable: find.byType(Scrollable));
+    await tester.pumpAndSettle();
     expect(find.text('Seleccionar archivo ZIP'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

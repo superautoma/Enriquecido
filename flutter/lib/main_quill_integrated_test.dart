@@ -3066,7 +3066,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     if (!mounted) return false;
     final imported = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const ImportBackupPage()));
-    if (imported == true && mounted) await _loadItems();
+    if (mounted) await _loadItems();
     return imported == true;
   }
 
@@ -5925,8 +5925,8 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
   }
 
   Future<void> _import() async {
-    final imported = await widget.onImportBackup();
-    if (mounted && imported) _refreshUi();
+    await widget.onImportBackup();
+    if (mounted) _refreshUi();
   }
 
   Future<void> _restore() async {
