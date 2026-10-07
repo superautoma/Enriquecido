@@ -19,6 +19,7 @@ import 'package:share_plus/share_plus.dart';
 part 'tool_management.dart';
 part 'tool_management_ui.dart';
 part 'tool_inventory.dart';
+part 'tool_details.dart';
 part 'tool_inventory_ui.dart';
 part 'backup_import.dart';
 part 'backup_import_ui.dart';
@@ -1669,6 +1670,8 @@ class ToolItem {
     required this.condition,
     this.type = '',
     this.voltage = '',
+    this.brand = '', this.model = '', this.serialNumber = '',
+    this.locationSite = '', this.locationRack = '', this.locationShelf = '', this.locationContainer = '',
     this.activeLoan,
     this.loanDraft,
     this.returnLoanOn,
@@ -1690,6 +1693,10 @@ class ToolItem {
   String condition;
   String type;
   String voltage;
+  String brand, model, serialNumber;
+  String locationSite, locationRack, locationShelf, locationContainer;
+  ToolLocation get location => ToolLocation(site: locationSite, rack: locationRack,
+    shelf: locationShelf, container: locationContainer);
   List<ToolImage> images;
   ToolLoan? activeLoan;
   LoanDraft? loanDraft;
@@ -1720,6 +1727,8 @@ class ToolItem {
     condition: condition,
     type: type,
     voltage: voltage,
+    brand: brand, model: model, serialNumber: serialNumber,
+    locationSite: locationSite, locationRack: locationRack, locationShelf: locationShelf, locationContainer: locationContainer,
     activeLoan: activeLoan,
     loanDraft: loanDraft,
     returnLoanOn: returnLoanOn,
@@ -1741,6 +1750,9 @@ class ToolItem {
     'condition': condition,
     'tool_type': type,
     'voltage': voltage,
+    'brand': brand, 'model': model, 'serial_number': serialNumber,
+    'location_site': locationSite, 'location_rack': locationRack,
+    'location_shelf': locationShelf, 'location_container': locationContainer,
     // Se conserva para compatibilidad con versiones antiguas.
     'image_path': imagePath,
     'parent_id': parentId, 'is_set': isSet ? 1 : 0,
@@ -1760,6 +1772,10 @@ class ToolItem {
     condition: (map['condition'] as String?) ?? 'Bueno',
     type: (map['tool_type'] as String?) ?? '',
     voltage: (map['voltage'] as String?) ?? '',
+    brand: map['brand'] as String? ?? '', model: map['model'] as String? ?? '',
+    serialNumber: map['serial_number'] as String? ?? '',
+    locationSite: map['location_site'] as String? ?? '', locationRack: map['location_rack'] as String? ?? '',
+    locationShelf: map['location_shelf'] as String? ?? '', locationContainer: map['location_container'] as String? ?? '',
     parentId: map['parent_id'] as int?, isSet: map['is_set'] == 1,
     outOfService: map['out_of_service'] == 1,
     serviceNotes: map['service_notes'] as String? ?? '',
@@ -1794,7 +1810,7 @@ class ToolsDatabase with ToolManagementDatabase {
 
     _database = await openDatabase(
       path,
-      version: 9,
+      version: toolsDatabaseVersion,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -1820,6 +1836,7 @@ class ToolsDatabase with ToolManagementDatabase {
         await _createToolImagesTable(db);
         await _createLoansTable(db);
         await createManagementTables(db);
+        await ensureToolDetailColumns(db);
         await _createFieldOptionsTable(db);
         await _seedDefaultFieldOptions(db);
       },
@@ -1883,6 +1900,7 @@ class ToolsDatabase with ToolManagementDatabase {
         }
         if (oldVersion < 8) await _createLoansTable(db);
         if (oldVersion < 9) await createManagementTables(db);
+        if (oldVersion < 10) await ensureToolDetailColumns(db);
 
   }
 
@@ -6692,6 +6710,9 @@ class _EditToolPageState extends State<EditToolPage> {
   late String _descriptionPlain;
   late String _descriptionDelta;
   late final TextEditingController _barcode;
+  late final TextEditingController _brand, _model, _serialNumber;
+  late final TextEditingController _locationSite, _locationRack, _locationShelf, _locationContainer;
+  String _inheritedLocation = '';
   late final TextEditingController _quantity;
   late final TextEditingController _unit;
   late final TextEditingController _minimumStock;
@@ -6729,6 +6750,13 @@ class _EditToolPageState extends State<EditToolPage> {
     _descriptionPlain = item?.description ?? '';
     _descriptionDelta = item?.descriptionDelta ?? '';
     _barcode = TextEditingController(text: item?.barcode ?? '');
+    _brand = TextEditingController(text: item?.brand ?? '');
+    _model = TextEditingController(text: item?.model ?? '');
+    _serialNumber = TextEditingController(text: item?.serialNumber ?? '');
+    _locationSite = TextEditingController(text: item?.locationSite ?? '');
+    _locationRack = TextEditingController(text: item?.locationRack ?? '');
+    _locationShelf = TextEditingController(text: item?.locationShelf ?? '');
+    _locationContainer = TextEditingController(text: item?.locationContainer ?? '');
     _quantity = TextEditingController(
       text: item == null ? '1' : formatNumber(item.quantity),
     );
@@ -6754,9 +6782,12 @@ class _EditToolPageState extends State<EditToolPage> {
     final conditions = await ToolsDatabase.instance.loadFieldOptions(
       'condition',
     );
+    final parentId = _currentItem?.parentId;
+    final parent = parentId == null ? null : await ToolsDatabase.instance.loadTool(parentId);
     if (!mounted) return;
 
     setState(() {
+      _inheritedLocation = parent?.location.label ?? '';
       _typeOptions = types.isEmpty ? defaultFieldOptions('type') : types;
       _conditionOptions = conditions.isEmpty
           ? defaultFieldOptions('condition')
@@ -6772,6 +6803,8 @@ class _EditToolPageState extends State<EditToolPage> {
   void dispose() {
     _name.dispose();
     _barcode.dispose();
+    for (final controller in [_brand, _model, _serialNumber,
+      _locationSite, _locationRack, _locationShelf, _locationContainer]) { controller.dispose(); }
     _quantity.dispose();
     _unit.dispose();
     _minimumStock.dispose();
@@ -6789,6 +6822,9 @@ class _EditToolPageState extends State<EditToolPage> {
       description: _descriptionPlain,
       descriptionDelta: _descriptionDelta,
       barcode: _barcode.text.trim(),
+      brand: _brand.text.trim(), model: _model.text.trim(), serialNumber: _serialNumber.text.trim(),
+      locationSite: _locationSite.text.trim(), locationRack: _locationRack.text.trim(),
+      locationShelf: _locationShelf.text.trim(), locationContainer: _locationContainer.text.trim(),
       quantity: _number(_quantity.text),
       unit: _unit.text.trim().isEmpty ? 'ud' : _unit.text.trim(),
       minimumStock: _number(_minimumStock.text),
@@ -7498,6 +7534,10 @@ class _EditToolPageState extends State<EditToolPage> {
                   prefixIcon: Icon(Icons.qr_code_scanner),
                 ),
               ),
+              const SizedBox(height: 12),
+              ToolDetailsForm(brand: _brand, model: _model, serialNumber: _serialNumber,
+                site: _locationSite, rack: _locationRack, shelf: _locationShelf, container: _locationContainer,
+                inheritedLocation: _inheritedLocation),
               const SizedBox(height: 22),
               const SectionTitle('Existencias'),
               const SizedBox(height: 10),

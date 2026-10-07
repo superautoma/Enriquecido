@@ -21,12 +21,14 @@ class InventoryPreferences {
   const InventoryPreferences({this.view = InventoryView.cards,
     this.sort = InventorySort.newest, this.types = const {},
     this.conditions = const {}, this.voltages = const {},
+    this.sites = const {}, this.racks = const {}, this.shelves = const {},
+    this.containers = const {}, this.brands = const {},
     this.availability = InventoryAvailability.all, this.stock = InventoryStock.all,
     this.content = InventoryContent.all, this.maintenance = InventoryMaintenance.all,
     this.includePieces = false, this.withDocuments = false, this.withPhotos = false});
   final InventoryView view;
   final InventorySort sort;
-  final Set<String> types, conditions, voltages;
+  final Set<String> types, conditions, voltages, sites, racks, shelves, containers, brands;
   final InventoryAvailability availability;
   final InventoryStock stock;
   final InventoryContent content;
@@ -34,18 +36,22 @@ class InventoryPreferences {
   final bool includePieces, withDocuments, withPhotos;
 
   int get filterCount => [types.isNotEmpty, conditions.isNotEmpty, voltages.isNotEmpty,
+    sites.isNotEmpty, racks.isNotEmpty, shelves.isNotEmpty, containers.isNotEmpty, brands.isNotEmpty,
     availability != InventoryAvailability.all, stock != InventoryStock.all,
     content != InventoryContent.all, maintenance != InventoryMaintenance.all,
     includePieces, withDocuments, withPhotos].where((value) => value).length;
 
   InventoryPreferences copyWith({InventoryView? view, InventorySort? sort,
     Set<String>? types, Set<String>? conditions, Set<String>? voltages,
+    Set<String>? sites, Set<String>? racks, Set<String>? shelves, Set<String>? containers, Set<String>? brands,
     InventoryAvailability? availability, InventoryStock? stock,
     InventoryContent? content, InventoryMaintenance? maintenance,
     bool? includePieces, bool? withDocuments, bool? withPhotos}) => InventoryPreferences(
       view: view ?? this.view, sort: sort ?? this.sort,
       types: types ?? this.types, conditions: conditions ?? this.conditions,
-      voltages: voltages ?? this.voltages, availability: availability ?? this.availability,
+      voltages: voltages ?? this.voltages,
+      sites: sites ?? this.sites, racks: racks ?? this.racks, shelves: shelves ?? this.shelves,
+      containers: containers ?? this.containers, brands: brands ?? this.brands, availability: availability ?? this.availability,
       stock: stock ?? this.stock, content: content ?? this.content,
       maintenance: maintenance ?? this.maintenance,
       includePieces: includePieces ?? this.includePieces,
@@ -54,6 +60,8 @@ class InventoryPreferences {
   InventoryPreferences clearFilters() => InventoryPreferences(view: view, sort: sort);
   Map<String, Object> toMap() => {'view': view.name, 'sort': sort.name,
     'types': types.toList(), 'conditions': conditions.toList(), 'voltages': voltages.toList(),
+    'sites': sites.toList(), 'racks': racks.toList(), 'shelves': shelves.toList(),
+    'containers': containers.toList(), 'brands': brands.toList(),
     'availability': availability.name, 'stock': stock.name, 'content': content.name,
     'maintenance': maintenance.name, 'includePieces': includePieces,
     'withDocuments': withDocuments, 'withPhotos': withPhotos};
@@ -65,6 +73,8 @@ class InventoryPreferences {
     return InventoryPreferences(view: choice(InventoryView.values, 'view'),
       sort: choice(InventorySort.values, 'sort'), types: values('types'),
       conditions: values('conditions'), voltages: values('voltages'),
+      sites: values('sites'), racks: values('racks'), shelves: values('shelves'),
+      containers: values('containers'), brands: values('brands'),
       availability: choice(InventoryAvailability.values, 'availability'),
       stock: choice(InventoryStock.values, 'stock'), content: choice(InventoryContent.values, 'content'),
       maintenance: choice(InventoryMaintenance.values, 'maintenance'),
@@ -90,6 +100,8 @@ class InventoryFacts {
     (item.parentId != null && (byId[item.parentId]?.outOfService ?? false));
   bool childServiceBlock(ToolItem item) => (children[item.id] ?? []).any((tool) => tool.outOfService);
   bool serviceBlocked(ToolItem item) => ownServiceBlock(item) || childServiceBlock(item);
+  ToolLocation locationFor(ToolItem item) => item.location.isEmpty && item.parentId != null
+    ? byId[item.parentId]?.location ?? item.location : item.location;
   bool hasPhotos(ToolItem item) => related(item).any((tool) => tool.images.isNotEmpty);
 }
 
@@ -104,6 +116,12 @@ List<ToolItem> selectInventoryTools(List<ToolItem> items, InventoryPreferences p
     if (preferences.content == InventoryContent.individual && (item.isSet || item.parentId != null)) return false;
     if (preferences.content == InventoryContent.pieces && item.parentId == null) return false;
     if (preferences.types.isNotEmpty && !preferences.types.contains(item.type)) return false;
+    final location = facts.locationFor(item);
+    if (preferences.sites.isNotEmpty && !preferences.sites.contains(location.site)) return false;
+    if (preferences.racks.isNotEmpty && !preferences.racks.contains(location.rack)) return false;
+    if (preferences.shelves.isNotEmpty && !preferences.shelves.contains(location.shelf)) return false;
+    if (preferences.containers.isNotEmpty && !preferences.containers.contains(location.container)) return false;
+    if (preferences.brands.isNotEmpty && !preferences.brands.contains(item.brand)) return false;
     final state = item.activeLoans.isNotEmpty || item.activeLoan != null ? 'Prestado' : item.condition;
     if (preferences.conditions.isNotEmpty && !preferences.conditions.contains(state)) return false;
     if (preferences.voltages.isNotEmpty && !preferences.voltages.contains(item.voltage)) return false;
@@ -129,8 +147,9 @@ List<ToolItem> selectInventoryTools(List<ToolItem> items, InventoryPreferences p
         !facts.hasRelated(item, facts.overdueMaintenanceTools)) return false;
     if (text.isNotEmpty) {
       final search = [item.name, item.description, item.barcode, item.type, item.voltage,
-        item.condition, ...loans.map((loan) => loan.borrower),
-        ...facts.children[item.id]?.map((tool) => tool.name) ?? <String>[],
+        item.condition, item.brand, item.model, item.serialNumber, location.label, ...loans.map((loan) => loan.borrower),
+        ...facts.children[item.id]?.map((tool) =>
+          [tool.name, tool.brand, tool.model, tool.serialNumber, facts.locationFor(tool).label].join(' ')) ?? <String>[],
         if (item.parentId != null) facts.byId[item.parentId]?.name ?? ''].join(' ');
       if (!inventorySearchText(search).contains(text)) return false;
     }

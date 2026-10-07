@@ -63,11 +63,11 @@ class BackupImportPlan {
       }
       source = await openDatabase(databaseFile.path, readOnly: true, singleInstance: false);
       final version = await source.getVersion();
-      if (version < 1 || version > 9 || (await source.rawQuery('PRAGMA integrity_check')).any((row) => row.values.first != 'ok')) {
+      if (version < 1 || version > toolsDatabaseVersion || (await source.rawQuery('PRAGMA integrity_check')).any((row) => row.values.first != 'ok')) {
         throw const FormatException('La base está dañada o necesita una versión más nueva de la aplicación.');
       }
       await source.close(); source = null;
-      source = await openDatabase(databaseFile.path, version: 9, singleInstance: false,
+      source = await openDatabase(databaseFile.path, version: toolsDatabaseVersion, singleInstance: false,
         onUpgrade: ToolsDatabase._upgradeSchema);
       if ((await source.rawQuery('PRAGMA foreign_key_check')).isNotEmpty) {
         throw const FormatException('La copia tiene registros relacionados que faltan.');

@@ -54,7 +54,7 @@ void main(){
     expect(loaded.id,42);expect(loaded.description,'Siete piezas');expect(loaded.voltage,'24 V');
     expect(loaded.activeLoan!.borrower,'Ana');expect(loaded.activeLoan!.pendingQuantity,1);
     expect(loaded.images.single.path,'/foto.jpg');
-    expect(await (await ToolsDatabase.instance.database).getVersion(),9);
+    expect(await (await ToolsDatabase.instance.database).getVersion(),toolsDatabaseVersion);
     await ToolsDatabase.instance.returnLoan(loaded.activeLoan!.id,DateTime.now());
     expect((await ToolsDatabase.instance.loadTool(42))!.condition,'Bueno');
   });

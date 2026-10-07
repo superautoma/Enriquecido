@@ -124,6 +124,11 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
         final tools = List.generate(100, (index) => item(index + 1,
           name: 'Maletín de herramientas con nombre largo y varias piezas de prueba', set: true));
+        for (final tool in tools) {
+          tool.brand = 'Marca de herramientas'; tool.model = 'Modelo de nombre largo';
+          tool.locationSite = 'Taller principal'; tool.locationRack = 'Estantería de herramientas';
+          tool.locationShelf = 'Balda número tres'; tool.locationContainer = 'Maletín de reparaciones';
+        }
         tools.first.activeLoans = [loan(1, 1, 'Ana', overdue: true)];
         tools.first.outOfService = true;
         await tester.pumpWidget(MaterialApp(home: MediaQuery(

@@ -51,6 +51,14 @@ class _InventoryFilterSheetState extends State<InventoryFilterSheet> {
           .firstMatch(s)?.group(0)?.replaceAll(',', '.') ?? '') ?? -1;
         return number(a).compareTo(number(b));
       });
+    List<String> options(Iterable<String> values, Set<String> selected) => {...values, ...selected}.toList()
+      ..sort((a, b) => inventorySearchText(a).compareTo(inventorySearchText(b)));
+    final locations = widget.items.map(widget.facts.locationFor).toList();
+    final sites = options(locations.map((l) => l.site), _value.sites);
+    final racks = options(locations.map((l) => l.rack), _value.racks);
+    final shelves = options(locations.map((l) => l.shelf), _value.shelves);
+    final containers = options(locations.map((l) => l.container), _value.containers);
+    final brands = options(widget.items.map((item) => item.brand), _value.brands);
     final count = selectInventoryTools(widget.items, _value, widget.facts, query: widget.query).length;
     return SafeArea(child: SizedBox(height: MediaQuery.sizeOf(context).height * .88,
       child: Column(children: [
@@ -75,6 +83,16 @@ class _InventoryFilterSheetState extends State<InventoryFilterSheet> {
           _multiple(conditions, _value.conditions, (value) => _value = _value.copyWith(conditions: value)),
           _title('Tensión · selección múltiple'),
           _multiple(voltages, _value.voltages, (value) => _value = _value.copyWith(voltages: value)),
+          _title('Lugar / taller'),
+          _multiple(sites, _value.sites, (value) => _value = _value.copyWith(sites: value)),
+          _title('Estantería'),
+          _multiple(racks, _value.racks, (value) => _value = _value.copyWith(racks: value)),
+          _title('Balda'),
+          _multiple(shelves, _value.shelves, (value) => _value = _value.copyWith(shelves: value)),
+          _title('Caja / maletín'),
+          _multiple(containers, _value.containers, (value) => _value = _value.copyWith(containers: value)),
+          _title('Marca'),
+          _multiple(brands, _value.brands, (value) => _value = _value.copyWith(brands: value)),
           _title('Existencias'),
           _choices(const {InventoryStock.all: 'Todas', InventoryStock.low: 'Bajo mínimo',
             InventoryStock.empty: 'Sin existencias'}, _value.stock,
@@ -135,11 +153,19 @@ class InventoryToolTile extends StatelessWidget {
     final blocked = facts.serviceBlocked(item);
     final overdue = item.activeLoans.any((loan) => loan.isOverdue) || (item.activeLoan?.isOverdue ?? false);
     final parent = facts.byId[item.parentId];
+    final location = facts.locationFor(item);
+    final identification = [item.brand, item.model].where((s) => s.isNotEmpty).join(' ');
     final details = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(item.name, maxLines: grid ? 3 : compact ? 2 : null, overflow: grid || compact ? TextOverflow.ellipsis : null,
         style: TextStyle(fontSize: compact ? 14 : 16, fontWeight: FontWeight.w800, color: const Color(0xFF25292D))),
       if (parent != null) Text('Pieza de ${parent.name}', maxLines: 1, overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontSize: 12, color: managementColor)),
+      if (!compact && identification.isNotEmpty) Text(identification, maxLines: 1,
+        overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: managementColor)),
+      if (!location.isEmpty) Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [
+        const Icon(Icons.location_on_outlined, size: 14, color: managementColor), const SizedBox(width: 4),
+        Expanded(child: Text(location.label, maxLines: grid ? 2 : 1, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12, color: managementColor)))])),
       if (!compact && item.voltage.isNotEmpty) Text(item.voltage, style: const TextStyle(fontSize: 13, color: managementColor)),
       const SizedBox(height: 5),
       Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [

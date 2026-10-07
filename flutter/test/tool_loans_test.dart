@@ -45,7 +45,7 @@ void main() {
     expect(loaded.description, 'Con maletín');
     expect(loaded.condition, 'Revisar');
     expect(loaded.images.single.path, '/photo.jpg');
-    expect(await (await ToolsDatabase.instance.database).getVersion(), 9);
+    expect(await (await ToolsDatabase.instance.database).getVersion(), toolsDatabaseVersion);
     expect(await ToolsDatabase.instance.loadLoans(), isEmpty);
   });
 

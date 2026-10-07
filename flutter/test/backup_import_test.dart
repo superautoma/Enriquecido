@@ -35,6 +35,8 @@ void main() {
     final images = Directory('${active.path}/tool_images'); await images.create();
     final photo = File('${images.path}/shared.jpg'); await photo.writeAsBytes([1, 2, 3, 4]);
     final kit = fixtureTool(1, 'Juego importado', set: true, quantity: 1)
+      ..brand = 'Bosch'..model = 'Juego completo'..serialNumber = 'ORIGEN-1'
+      ..locationSite = 'Taller origen'..locationRack = '2'..locationShelf = '3'..locationContainer = 'Caja azul'
       ..images = [ToolImage(toolId: 1, path: photo.path, isPrimary: true)];
     await ToolsDatabase.instance.saveTool(kit);
     await ToolsDatabase.instance.saveTool(fixtureTool(2, 'Pieza importada', parent: 1, quantity: 2));
@@ -87,6 +89,7 @@ void main() {
     final photo = File('${images.path}/shared.jpg'); await photo.writeAsBytes([9, 8, 7]);
     await File('${images.path}/icon_names.json').writeAsString('{"handyman":"Mi nombre original"}');
     final own = fixtureTool(1, 'Mi herramienta real')
+      ..brand = 'Mi marca'..serialNumber = 'MIA-1'..locationSite = 'Mi taller'
       ..images = [ToolImage(toolId: 1, path: photo.path, isPrimary: true)]
       ..loanDraft = LoanDraft(borrower: 'Ana', startedOn: DateTime.now(), quantity: 1,
         contact: 'Mi contacto original', notes: 'No cambiar estas notas');
@@ -130,6 +133,8 @@ void main() {
       final kit = tools.singleWhere((row) => row['name'] == 'Juego importado');
       final child = tools.singleWhere((row) => row['name'] == 'Pieza importada');
       expect(child['parent_id'], kit['id']); expect(kit['id'], isNot(1));
+      expect(kit['brand'], 'Bosch'); expect(kit['serial_number'], 'ORIGEN-1');
+      expect(kit['location_site'], 'Taller origen'); expect(kit['location_container'], 'Caja azul');
       expect(await File('${active.path}/tool_images/shared.jpg').readAsBytes(), [9, 8, 7]);
       expect(await File('${active.path}/tool_documents/shared.pdf').readAsString(), 'Mi documento original');
       expect(await File(kit['image_path'] as String).readAsBytes(), [1, 2, 3, 4]);
@@ -213,7 +218,7 @@ void main() {
     try { expect(plan.tools, 1); await plan.apply(); } finally { await plan.dispose(); }
     expect(await ToolsDatabase.instance.loadTools(), hasLength(2));
     expect((await ToolsDatabase.instance.loadTool(1))!.name, 'Mi herramienta real');
-    expect(await (await ToolsDatabase.instance.database).getVersion(), 9);
+    expect(await (await ToolsDatabase.instance.database).getVersion(), toolsDatabaseVersion);
   });
 
   testWidgets('Import screen remains usable on a narrow display with large text', (tester) async {

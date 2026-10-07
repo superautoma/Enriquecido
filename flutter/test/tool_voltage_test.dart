@@ -19,7 +19,8 @@ ToolItem sampleTool({String voltage = ''}) => ToolItem(
       purchasePrice: 50,
       condition: 'Bueno',
       type: 'Herramienta eléctrica',
-      voltage: voltage,
+      voltage: voltage, brand: 'Bosch', model: 'GSB', serialNumber: 'SER-42',
+      locationSite: 'Taller', locationRack: '2', locationShelf: '3', locationContainer: 'Azul',
     );
 
 void main() {
@@ -98,7 +99,7 @@ void main() {
     expect(tools.single.type, legacy.type);
     expect(tools.single.images.single.path, '/existing/photo.jpg');
     expect(tools.single.voltage, isEmpty);
-    expect(await (await ToolsDatabase.instance.database).getVersion(), 9);
+    expect(await (await ToolsDatabase.instance.database).getVersion(), toolsDatabaseVersion);
   });
 
   test('Each requested voltage survives saving and reopening SQLite', () async {
@@ -188,6 +189,8 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
     });
     expect(saved?.voltage, '230 V');
+    expect(saved?.serialNumber, 'SER-42');
+    expect(saved?.location.label, 'Taller → 2 → 3 → Azul');
     await tester.runAsync(() async {
       await ToolsDatabase.instance.saveTool(saved!);
       await ToolsDatabase.instance.closeForBackup();
