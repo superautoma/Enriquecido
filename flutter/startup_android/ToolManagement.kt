@@ -88,11 +88,15 @@ class ToolDocumentProvider : ContentProvider() {
         val file = document(uri)
         val columns = projection ?: arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)
         val cursor = MatrixCursor(columns)
-        cursor.addRow(columns.map { when (it) {
-            OpenableColumns.DISPLAY_NAME -> file.name
-            OpenableColumns.SIZE -> file.length()
-            else -> null
-        } }.toTypedArray())
+        val row = arrayOfNulls<Any>(columns.size)
+        columns.forEachIndexed { index, column ->
+            row[index] = when (column) {
+                OpenableColumns.DISPLAY_NAME -> file.name
+                OpenableColumns.SIZE -> file.length()
+                else -> null
+            }
+        }
+        cursor.addRow(row)
         return cursor
     }
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
