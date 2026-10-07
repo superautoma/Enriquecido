@@ -1911,6 +1911,27 @@ class ToolsDatabase {
     await db.transaction((txn) => _returnLoan(txn, loanId, returnedOn));
   }
 
+  Future<void> updateLoan(int loanId, LoanDraft draft) async {
+    final error = draft.validate();
+    if (error != null) throw StateError(error);
+    final db = await database;
+    await db.transaction((txn) async {
+      final rows = await txn.query('tool_loans', where: 'id = ?', whereArgs: [loanId]);
+      if (rows.isEmpty) throw StateError('El préstamo ya no existe');
+      final loan = ToolLoan.fromMap(rows.single);
+      if (loan.returnedOn != null &&
+          loanDay(draft.startedOn).isAfter(loanDay(loan.returnedOn!))) {
+        throw StateError('La fecha de préstamo no puede ser posterior a la devolución real');
+      }
+      await txn.update('tool_loans', {
+        'borrower': draft.borrower.trim(),
+        'started_on': loanDay(draft.startedOn).toIso8601String(),
+        'due_on': draft.dueOn == null ? null : loanDay(draft.dueOn!).toIso8601String(),
+        'notes': draft.notes.trim(),
+      }, where: 'id = ?', whereArgs: [loanId]);
+    });
+  }
+
   static Future<void> _createFieldOptionsTable(DatabaseExecutor db) async {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS field_options (
@@ -2773,7 +2794,10 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       ),
     );
 
-    if (result == null) return;
+    if (result == null) {
+      if (mounted) await _loadItems();
+      return;
+    }
 
     try {
       await ToolsDatabase.instance.saveTool(result);
@@ -6059,12 +6083,13 @@ class _DatabaseStatCard extends StatelessWidget {
 
 class LoanStatusButton extends StatelessWidget {
   const LoanStatusButton({super.key, this.loan, this.legacy = false,
-    required this.onLend, required this.onReturn, this.onHistory});
+    required this.onLend, required this.onReturn, this.onHistory, this.onEdit});
   final ToolLoan? loan;
   final bool legacy;
   final VoidCallback onLend;
   final VoidCallback onReturn;
   final VoidCallback? onHistory;
+  final VoidCallback? onEdit;
 
   void _open(BuildContext context) {
     showModalBottomSheet<void>(
@@ -6080,6 +6105,9 @@ class LoanStatusButton extends StatelessWidget {
             onReturn: () { Navigator.pop(sheetContext); onReturn(); },
             onHistory: onHistory == null ? null : () {
               Navigator.pop(sheetContext); onHistory!();
+            },
+            onEdit: onEdit == null ? null : () {
+              Navigator.pop(sheetContext); onEdit!();
             },
           ),
         ),
@@ -6103,12 +6131,13 @@ class LoanStatusButton extends StatelessWidget {
 
 class LoanStatusCard extends StatelessWidget {
   const LoanStatusCard({super.key, this.loan, this.legacy = false,
-    required this.onLend, required this.onReturn, this.onHistory});
+    required this.onLend, required this.onReturn, this.onHistory, this.onEdit});
   final ToolLoan? loan;
   final bool legacy;
   final VoidCallback onLend;
   final VoidCallback onReturn;
   final VoidCallback? onHistory;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -6141,6 +6170,9 @@ class LoanStatusCard extends StatelessWidget {
             child: Text('Esta ficha estaba marcada como prestada. Completa los datos '
               'del préstamo o cambia el estado si ya se devolvió.')),
           const SizedBox(height: 12),
+          if (active && onEdit != null) OutlinedButton.icon(
+            key: const ValueKey('edit_loan'), onPressed: onEdit,
+            icon: const Icon(Icons.edit_outlined), label: const Text('Editar préstamo')),
           FilledButton.icon(
             key: ValueKey(active ? 'return_tool' : 'lend_tool'),
             onPressed: active ? onReturn : onLend,
@@ -6158,10 +6190,11 @@ class LoanStatusCard extends StatelessWidget {
 
 class LoanFormPage extends StatefulWidget {
   const LoanFormPage({super.key, required this.toolName,
-    required this.quantity, required this.unit});
+    required this.quantity, required this.unit, this.initialLoan});
   final String toolName;
   final double quantity;
   final String unit;
+  final ToolLoan? initialLoan;
   @override
   State<LoanFormPage> createState() => _LoanFormPageState();
 }
@@ -6172,12 +6205,25 @@ class _LoanFormPageState extends State<LoanFormPage> {
   final _notes = TextEditingController();
   DateTime _startedOn = loanDay(DateTime.now());
   DateTime? _dueOn;
+  bool _saving = false;
+  @override
+  void initState() {
+    super.initState();
+    final loan = widget.initialLoan;
+    if (loan != null) {
+      _borrower.text = loan.borrower;
+      _notes.text = loan.notes;
+      _startedOn = loanDay(loan.startedOn);
+      _dueOn = loan.dueOn == null ? null : loanDay(loan.dueOn!);
+    }
+  }
   @override
   void dispose() { _borrower.dispose(); _notes.dispose(); super.dispose(); }
 
   Future<void> _chooseDate(bool due) async {
     final first = due ? _startedOn : DateTime(1900);
-    final last = due ? DateTime(2200) : loanDay(DateTime.now());
+    final last = due ? DateTime(2200) :
+        loanDay(widget.initialLoan?.returnedOn ?? DateTime.now());
     var initial = due ? _dueOn ?? _startedOn.add(const Duration(days: 7)) : _startedOn;
     if (initial.isBefore(first)) initial = first;
     final date = await showDatePicker(context: context,
@@ -6192,7 +6238,8 @@ class _LoanFormPageState extends State<LoanFormPage> {
     });
   }
 
-  void _confirm() {
+  Future<void> _confirm() async {
+    if (_saving) return;
     if (!(_form.currentState?.validate() ?? false)) return;
     final draft = LoanDraft(borrower: _borrower.text.trim(), startedOn: _startedOn,
       dueOn: _dueOn, notes: _notes.text.trim());
@@ -6202,18 +6249,35 @@ class _LoanFormPageState extends State<LoanFormPage> {
         error ?? 'No hay existencias para prestar')));
       return;
     }
+    if (widget.initialLoan != null) {
+      setState(() => _saving = true);
+      try {
+        await ToolsDatabase.instance.updateLoan(widget.initialLoan!.id, draft);
+      } catch (error) {
+        if (mounted) {
+          setState(() => _saving = false);
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('No se pudo guardar el préstamo: $error')));
+        }
+        return;
+      }
+      if (!mounted) return;
+    }
     Navigator.of(context).pop(draft);
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Prestar herramienta')),
+    appBar: AppBar(title: Text(widget.initialLoan == null ?
+      'Prestar herramienta' : 'Editar préstamo')),
     body: SafeArea(child: Form(key: _form, child: ListView(
       padding: const EdgeInsets.all(16), children: [
         Text(widget.toolName, style: const TextStyle(fontSize: 20,
           fontWeight: FontWeight.w800)),
         const SizedBox(height: 6),
-        Text('Se presta esta ficha completa: ${formatNumber(widget.quantity)} ${widget.unit}.'),
+        Text('${widget.initialLoan == null ? 'Se presta esta ficha completa' : 'Cantidad prestada'}: ${formatNumber(widget.quantity)} ${widget.unit}.'),
+        if (widget.initialLoan?.returnedOn != null)
+          Text('Devuelto: ${loanDateText(widget.initialLoan!.returnedOn!)}'),
         const SizedBox(height: 20),
         TextFormField(key: const ValueKey('loan_borrower'), controller: _borrower,
           textCapitalization: TextCapitalization.words,
@@ -6237,8 +6301,10 @@ class _LoanFormPageState extends State<LoanFormPage> {
           minLines: 2, maxLines: 5,
           decoration: const InputDecoration(labelText: 'Observaciones (opcional)')),
         const SizedBox(height: 24),
-        FilledButton.icon(key: const ValueKey('confirm_loan'), onPressed: _confirm,
-          icon: const Icon(Icons.check), label: const Text('Confirmar préstamo')),
+        FilledButton.icon(key: const ValueKey('confirm_loan'),
+          onPressed: _saving ? null : _confirm,
+          icon: const Icon(Icons.check), label: Text(_saving ? 'Guardando…' :
+            widget.initialLoan == null ? 'Confirmar préstamo' : 'Guardar cambios')),
       ],
     ))),
   );
@@ -6324,6 +6390,21 @@ class _LoansPageState extends State<LoansPage> {
       if (mounted) setState(() => _busy = false);
     }
   }
+  Future<void> _edit(ToolLoan loan) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final result = await Navigator.of(context).push<LoanDraft>(MaterialPageRoute(
+        builder: (_) => LoanFormPage(toolName: loan.toolName, quantity: loan.quantity,
+          unit: loan.unit, initialLoan: loan)));
+      if (result == null || !mounted) return;
+      await _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Préstamo actualizado')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
   @override
   Widget build(BuildContext context) {
     final counts = [_loans.where((l) => l.isActive).length,
@@ -6382,6 +6463,10 @@ class _LoansPageState extends State<LoansPage> {
                         icon: const Icon(Icons.assignment_turned_in_outlined),
                         label: const Text('Registrar devolución')),
                     ],
+                    OutlinedButton.icon(key: ValueKey('edit_loan_${loan.id}'),
+                      onPressed: _busy ? null : () => _edit(loan),
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Editar préstamo')),
                   ],
                 ),
               ));
@@ -6557,6 +6642,21 @@ class _EditToolPageState extends State<EditToolPage> {
     if (date == null || !mounted) return;
     _returnLoanOn = date;
     _save();
+  }
+
+  Future<void> _editActiveLoan() async {
+    final item = widget.item;
+    final loan = item?.activeLoan;
+    if (item == null || loan == null) return;
+    final result = await Navigator.of(context).push<LoanDraft>(MaterialPageRoute(
+      builder: (_) => LoanFormPage(toolName: loan.toolName, quantity: loan.quantity,
+        unit: loan.unit, initialLoan: loan)));
+    if (result == null || !mounted) return;
+    final loans = await ToolsDatabase.instance.loadLoans(toolId: item.id);
+    if (!mounted) return;
+    setState(() => item.activeLoan = loans.where((loan) => loan.isActive).firstOrNull);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Préstamo actualizado')));
   }
 
   Future<Directory> _toolImagesDirectory() async {
@@ -7013,6 +7113,7 @@ class _EditToolPageState extends State<EditToolPage> {
             loan: widget.item?.activeLoan,
             legacy: isLoanCondition(_condition) && widget.item?.activeLoan == null,
             onLend: _prepareLoan, onReturn: _prepareReturn,
+            onEdit: widget.item?.activeLoan == null ? null : _editActiveLoan,
             onHistory: _isEditing ? _openLoanHistory : null,
           ),
           TextButton(

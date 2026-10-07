@@ -37,6 +37,13 @@ def wait_for(label):
     raise AssertionError(f"Android did not display {label!r}")
 
 
+def tap(label):
+    node = wait_for(label)
+    coords = [int(value) for value in re.findall(r"\d+", node.attrib["bounds"])]
+    adb("shell", "input", "tap", str((coords[0] + coords[2]) // 2),
+        str((coords[1] + coords[3]) // 2))
+
+
 adb("install", "-r", "build/app/outputs/flutter-apk/app-release.apk")
 adb("shell", "am", "force-stop", package)
 adb("shell", "am", "start", "-n", f"{package}/.StartupActivity")
@@ -54,8 +61,30 @@ adb("shell", "input", "tap", str((coords[0] + coords[2]) // 2),
     str((coords[1] + coords[3]) // 2))
 wait_for("Disponible para préstamo")
 screenshot("loan-options-open.png")
+tap("Prestar")
+tap("Prestado a")
+adb("shell", "input", "text", "Pedro")
+adb("shell", "input", "keyevent", "4")
+tap("Observaciones")
+adb("shell", "input", "text", "Con%scargador")
+adb("shell", "input", "keyevent", "4")
+tap("Confirmar préstamo")
+wait_for("Mis herramientas")
+tap("Destornillador aislado")
+tap("Prestada: ver préstamo")
+tap("Editar préstamo")
+wait_for("Con cargador")
+tap("Observaciones")
+adb("shell", "input", "keyevent", "KEYCODE_MOVE_END")
+adb("shell", "input", "text", "%sy%sbateria")
+adb("shell", "input", "keyevent", "4")
+tap("Guardar cambios")
+wait_for("Editar artículo")
+tap("Prestada: ver préstamo")
+wait_for("Con cargador y bateria")
+screenshot("loan-edited.png")
 adb("shell", "input", "keyevent", "4")
 wait_for("Editar artículo")
 adb("shell", "input", "keyevent", "4")
 wait_for("Mis herramientas")
-print("Android startup, Flutter handoff and editor back navigation passed.")
+print("Android startup, loan creation, editing persistence and back navigation passed.")

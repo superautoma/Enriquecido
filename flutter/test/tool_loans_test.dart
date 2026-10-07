@@ -98,6 +98,90 @@ void main() {
     await expectLater(ToolsDatabase.instance.returnLoan(loan.id, DateTime.now()), throwsStateError);
   });
 
+  test('Editing keeps the same loan, history, availability and updated backup', () async {
+    await ToolsDatabase.instance.saveTool(sample()..loanDraft = draft());
+    final original = (await ToolsDatabase.instance.loadLoans()).single;
+    final extended = loanDay(DateTime.now()).add(const Duration(days: 10));
+    await ToolsDatabase.instance.updateLoan(original.id, LoanDraft(borrower: 'Ana',
+      startedOn: original.startedOn, dueOn: extended, notes: 'Añadido cargador'));
+    await ToolsDatabase.instance.closeForBackup();
+    var edited = (await ToolsDatabase.instance.loadLoans()).single;
+    expect(edited.id, original.id); expect(edited.toolId, original.toolId);
+    expect(edited.borrower, 'Ana'); expect(edited.dueOn, extended);
+    expect(edited.notes, 'Añadido cargador'); expect(edited.returnedOn, isNull);
+    expect(edited.quantity, 2); expect(edited.previousCondition, 'Revisar');
+    expect((await ToolsDatabase.instance.loadTools()).single.condition, 'Prestado');
+    final backup = await BackupManager.createBackup();
+    await ToolsDatabase.instance.updateLoan(original.id, LoanDraft(borrower: 'Ana',
+      startedOn: original.startedOn, notes: 'Sin fecha'));
+    expect((await ToolsDatabase.instance.loadLoans()).single.dueOn, isNull);
+    await BackupManager.restoreBackup(backup.path);
+    expect((await ToolsDatabase.instance.loadLoans()).single.dueOn, extended);
+    await ToolsDatabase.instance.returnLoan(original.id, DateTime.now());
+    await ToolsDatabase.instance.updateLoan(original.id, LoanDraft(borrower: 'Ana',
+      startedOn: original.startedOn, notes: 'Se devolvió con el cargador'));
+    await ToolsDatabase.instance.closeForBackup();
+    edited = (await ToolsDatabase.instance.loadLoans()).single;
+    expect(edited.isActive, isFalse); expect(edited.id, original.id);
+    expect(edited.notes, 'Se devolvió con el cargador');
+    expect((await ToolsDatabase.instance.loadTools()).single.condition, 'Revisar');
+  });
+
+  test('Invalid edits preserve data and do not reopen a returned loan', () async {
+    await ToolsDatabase.instance.saveTool(sample()..loanDraft = draft());
+    final original = (await ToolsDatabase.instance.loadLoans()).single;
+    await expectLater(ToolsDatabase.instance.updateLoan(original.id,
+      draft(borrower: ' ')), throwsStateError);
+    await expectLater(ToolsDatabase.instance.updateLoan(original.id,
+      draft(due: original.startedOn.subtract(const Duration(days: 1)))), throwsStateError);
+    await expectLater(ToolsDatabase.instance.updateLoan(-1, draft()), throwsStateError);
+    final returnedOn = original.startedOn.add(const Duration(days: 1));
+    await ToolsDatabase.instance.returnLoan(original.id, returnedOn);
+    await expectLater(ToolsDatabase.instance.updateLoan(original.id, LoanDraft(
+      borrower: 'Ana', startedOn: returnedOn.add(const Duration(days: 1)))), throwsStateError);
+    final unchanged = (await ToolsDatabase.instance.loadLoans()).single;
+    expect(unchanged.borrower, original.borrower); expect(unchanged.notes, original.notes);
+    expect(unchanged.returnedOn, returnedOn);
+  });
+
+  testWidgets('Edit form prefills data, saves notes and removes the due date', (tester) async {
+    final due = loanDay(DateTime.now()).add(const Duration(days: 5));
+    await ToolsDatabase.instance.saveTool(sample()..loanDraft = draft(due: due));
+    final loan = (await ToolsDatabase.instance.loadLoans()).single;
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
+      body: TextButton(onPressed: () => Navigator.push<LoanDraft>(context,
+        MaterialPageRoute(builder: (_) => LoanFormPage(toolName: loan.toolName,
+          quantity: loan.quantity, unit: loan.unit, initialLoan: loan))),
+        child: const Text('Editar'))))));
+    await tester.tap(find.text('Editar')); await tester.pumpAndSettle();
+    expect(find.text('Editar préstamo'), findsOneWidget);
+    expect(find.text(loan.borrower), findsOneWidget);
+    expect(find.text(loan.notes), findsOneWidget);
+    expect(find.text('Devolución prevista: ${loanDateText(due)}'), findsOneWidget);
+    await tester.tap(find.text('Quitar fecha prevista')); await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('loan_notes')), 'También incluye batería');
+    await tester.ensureVisible(find.byKey(const ValueKey('confirm_loan')));
+    await tester.tap(find.byKey(const ValueKey('confirm_loan'))); await tester.pumpAndSettle();
+    final edited = (await ToolsDatabase.instance.loadLoans()).single;
+    expect(edited.notes, 'También incluye batería'); expect(edited.dueOn, isNull);
+    expect(edited.id, loan.id); expect(edited.isActive, isTrue);
+    expect(find.text('Editar préstamo'), findsNothing); expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Cancelling an edit keeps the saved loan unchanged', (tester) async {
+    await ToolsDatabase.instance.saveTool(sample()..loanDraft = draft());
+    final loan = (await ToolsDatabase.instance.loadLoans()).single;
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
+      body: TextButton(onPressed: () => Navigator.push<LoanDraft>(context,
+        MaterialPageRoute(builder: (_) => LoanFormPage(toolName: loan.toolName,
+          quantity: loan.quantity, unit: loan.unit, initialLoan: loan))),
+        child: const Text('Editar'))))));
+    await tester.tap(find.text('Editar')); await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('loan_notes')), 'No guardar');
+    await tester.pageBack(); await tester.pumpAndSettle();
+    expect((await ToolsDatabase.instance.loadLoans()).single.notes, loan.notes);
+  });
+
   test('Cannot create a new loan state without a borrower record', () async {
     await expectLater(ToolsDatabase.instance.saveTool(sample()..condition = 'Prestado'),
       throwsStateError);
