@@ -5366,6 +5366,12 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
+          LoanStatusButton(
+            loan: widget.item?.activeLoan,
+            legacy: isLoanCondition(_condition) && widget.item?.activeLoan == null,
+            onLend: _prepareLoan, onReturn: _prepareReturn,
+            onHistory: _isEditing ? _openLoanHistory : null,
+          ),
           TextButton(
             onPressed: _save,
             child: const Text(
@@ -6053,6 +6059,50 @@ class _DatabaseStatCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class LoanStatusButton extends StatelessWidget {
+  const LoanStatusButton({super.key, this.loan, this.legacy = false,
+    required this.onLend, required this.onReturn, this.onHistory});
+  final ToolLoan? loan;
+  final bool legacy;
+  final VoidCallback onLend;
+  final VoidCallback onReturn;
+  final VoidCallback? onHistory;
+
+  void _open(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: LoanStatusCard(
+            loan: loan, legacy: legacy,
+            onLend: () { Navigator.pop(sheetContext); onLend(); },
+            onReturn: () { Navigator.pop(sheetContext); onReturn(); },
+            onHistory: onHistory == null ? null : () {
+              Navigator.pop(sheetContext); onHistory!();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lent = loan != null || legacy;
+    return IconButton(
+      key: const ValueKey('tool_loan_status'),
+      tooltip: loan != null ? 'Prestada: ver préstamo' : legacy ?
+          'Prestada: completar datos' : 'Disponible: prestar herramienta',
+      onPressed: () => _open(context),
+      icon: Icon(lent ? Icons.handshake_outlined : Icons.inventory_2_outlined,
+        color: lent ? const Color(0xFF967346) : const Color(0xFF697780)),
     );
   }
 }
@@ -6958,8 +7008,10 @@ class _EditToolPageState extends State<EditToolPage> {
       appBar: AppBar(
         title: Text(
           _isEditing
-              ? 'Editar artículo · QUILL V22'
-              : 'Nuevo artículo · QUILL V22',
+              ? 'Editar artículo'
+              : 'Nuevo artículo',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -6979,13 +7031,6 @@ class _EditToolPageState extends State<EditToolPage> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
             children: [
-              LoanStatusCard(
-                loan: widget.item?.activeLoan,
-                legacy: isLoanCondition(_condition) && widget.item?.activeLoan == null,
-                onLend: _prepareLoan, onReturn: _prepareReturn,
-                onHistory: _isEditing ? _openLoanHistory : null,
-              ),
-              const SizedBox(height: 18),
               const SectionTitle('Información básica'),
               const SizedBox(height: 10),
               TextFormField(

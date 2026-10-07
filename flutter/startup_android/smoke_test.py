@@ -47,6 +47,15 @@ coords = [int(value) for value in re.findall(r"\d+", item.attrib["bounds"])]
 adb("shell", "input", "tap", str((coords[0] + coords[2]) // 2),
     str((coords[1] + coords[3]) // 2))
 wait_for("Editar artículo")
+loan_icon = wait_for("Disponible: prestar herramienta")
+screenshot("editor-loan-icon.png")
+coords = [int(value) for value in re.findall(r"\d+", loan_icon.attrib["bounds"])]
+adb("shell", "input", "tap", str((coords[0] + coords[2]) // 2),
+    str((coords[1] + coords[3]) // 2))
+wait_for("Disponible para préstamo")
+screenshot("loan-options-open.png")
+adb("shell", "input", "keyevent", "4")
+wait_for("Editar artículo")
 adb("shell", "input", "keyevent", "4")
 wait_for("Mis herramientas")
 print("Android startup, Flutter handoff and editor back navigation passed.")

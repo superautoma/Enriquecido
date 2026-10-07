@@ -156,17 +156,38 @@ void main() {
     expect(result?.dueOn, isNull); expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Loan status handles long names and large text on narrow mobile', (tester) async {
+  testWidgets('Loan icon changes state and keeps details hidden until tapped', (tester) async {
     tester.view.physicalSize = const Size(320, 900); tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
     final loan = ToolLoan(id: 1, toolId: 101, toolName: 'Taladro',
       borrower: 'Juan García Fernández nombre muy largo', startedOn: DateTime(2026, 1, 1),
       dueOn: DateTime(2026, 1, 2), notes: 'Con su cargador y su maletín',
       previousCondition: 'Bueno', quantity: 1, unit: 'ud');
-    await tester.pumpWidget(MaterialApp(home: MediaQuery(
-      data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-      child: Scaffold(body: ListView(children: [LoanStatusCard(loan: loan,
-        onLend: () {}, onReturn: () {}, onHistory: () {})])))));
-    await tester.pumpAndSettle(); expect(tester.takeException(), isNull);
+    for (final lent in [false, true]) {
+      var acted = false;
+      await tester.pumpWidget(MaterialApp(home: MediaQuery(
+        data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+        child: Scaffold(appBar: AppBar(
+          title: const Text('Editar artículo', maxLines: 1, overflow: TextOverflow.ellipsis),
+          actions: [LoanStatusButton(loan: lent ? loan : null,
+            onLend: () => acted = true, onReturn: () => acted = true,
+            onHistory: () {}), TextButton(onPressed: () {}, child: const Text('GUARDAR'))]),
+          body: const Text('Información básica')))));
+      await tester.pumpAndSettle();
+      expect(find.byType(LoanStatusCard), findsNothing);
+      expect(find.text(loan.borrower), findsNothing);
+      expect(find.byIcon(lent ? Icons.handshake_outlined : Icons.inventory_2_outlined),
+        findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('tool_loan_status')));
+      await tester.pumpAndSettle();
+      expect(find.byType(LoanStatusCard), findsOneWidget);
+      if (lent) expect(find.text(loan.borrower), findsOneWidget);
+      final action = find.byKey(ValueKey(lent ? 'return_tool' : 'lend_tool'));
+      await tester.ensureVisible(action);
+      await tester.tap(action); await tester.pumpAndSettle();
+      expect(acted, isTrue);
+      expect(find.byType(LoanStatusCard), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
   });
 }
