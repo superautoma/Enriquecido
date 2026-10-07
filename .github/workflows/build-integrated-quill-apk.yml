@@ -8,12 +8,12 @@ on:
       - iconos-electricos-50
       - prestamos-herramientas
     paths:
-      - "flutter/lib/main_quill_integrated_test.dart"
+      - "flutter/lib/**"
       - "flutter/pubspec.yaml"
       - "flutter/assets/**"
       - "flutter/startup_android/install_startup.py"
       - "flutter/startup_android/StartupActivity.java"
-      - "flutter/startup_android/MainActivity.kt"
+      - "flutter/startup_android/*.kt"
       - "flutter/startup_android/res/**"
       - ".github/dev-signing/android-debug.keystore.b64"
 

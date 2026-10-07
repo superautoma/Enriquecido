@@ -90,6 +90,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        ToolManagement.attach(this, flutterEngine)
         flutterEngine.renderer.addIsDisplayingFlutterUiListener(uiListener)
         if (flutterEngine.renderer.isDisplayingFlutterUi) {
             uiListener.onFlutterUiDisplayed()

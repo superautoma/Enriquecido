@@ -10,6 +10,7 @@ package = 'org.gestorherramientas.gestor_herramientas_quill_test'
 sources = android / 'kotlin' / Path(package.replace('.', '/'))
 sources.mkdir(parents=True, exist_ok=True)
 shutil.copy2(root / 'MainActivity.kt', sources / 'MainActivity.kt')
+shutil.copy2(root / 'ToolManagement.kt', sources / 'ToolManagement.kt')
 java = android / 'java' / Path(package.replace('.', '/'))
 java.mkdir(parents=True, exist_ok=True)
 shutil.copy2(root / 'StartupActivity.java', java / 'StartupActivity.java')
@@ -23,7 +24,23 @@ tree = ET.parse(path)
 manifest = tree.getroot()
 if not any(p.get(attr('name')) == 'android.permission.INTERNET' for p in manifest.findall('uses-permission')):
     ET.SubElement(manifest, 'uses-permission', {attr('name'): 'android.permission.INTERNET'})
+for permission in ['android.permission.POST_NOTIFICATIONS', 'android.permission.RECEIVE_BOOT_COMPLETED']:
+    if not any(p.get(attr('name')) == permission for p in manifest.findall('uses-permission')):
+        ET.SubElement(manifest, 'uses-permission', {attr('name'): permission})
 application = manifest.find('application')
+if not any(p.get(attr('name')) == '.ToolDocumentProvider' for p in application.findall('provider')):
+    ET.SubElement(application, 'provider', {
+        attr('name'): '.ToolDocumentProvider', attr('authorities'): package + '.documents',
+        attr('exported'): 'false', attr('grantUriPermissions'): 'true',
+    })
+if not any(r.get(attr('name')) == '.ReminderReceiver' for r in application.findall('receiver')):
+    receiver = ET.SubElement(application, 'receiver', {
+        attr('name'): '.ReminderReceiver', attr('exported'): 'false',
+    })
+    intent = ET.SubElement(receiver, 'intent-filter')
+    for action in ['android.intent.action.BOOT_COMPLETED', 'android.intent.action.MY_PACKAGE_REPLACED',
+                   'android.intent.action.TIME_SET', 'android.intent.action.TIMEZONE_CHANGED']:
+        ET.SubElement(intent, 'action', {attr('name'): action})
 main = next(a for a in application.findall('activity') if a.get(attr('name')) == '.MainActivity')
 for intent in list(main.findall('intent-filter')):
     if any(a.get(attr('name')) == 'android.intent.action.MAIN' for a in intent.findall('action')):

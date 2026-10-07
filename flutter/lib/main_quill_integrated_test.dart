@@ -15,6 +15,9 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 import 'package:share_plus/share_plus.dart';
 
+part 'tool_management.dart';
+part 'tool_management_ui.dart';
+
 void main() {
   runApp(const GestorHerramientasApp());
 }
@@ -1576,7 +1579,14 @@ bool isLoanCondition(String value) =>
 
 class LoanDraft {
   LoanDraft({required this.borrower, required this.startedOn, this.dueOn,
-    this.notes = ''});
+    this.notes = '', this.quantity, this.contact = '', this.deliveryCondition = '',
+    this.accessories = '', this.reminderDays = 1, this.contents});
+  final double? quantity;
+  final String contact;
+  final String deliveryCondition;
+  final String accessories;
+  final int reminderDays;
+  final Map<int, double>? contents;
   final String borrower;
   final DateTime startedOn;
   final DateTime? dueOn;
@@ -1598,7 +1608,8 @@ class ToolLoan {
   ToolLoan({required this.id, required this.toolId, required this.toolName,
     required this.borrower, required this.startedOn, required this.notes,
     required this.previousCondition, required this.quantity, required this.unit,
-    this.dueOn, this.returnedOn});
+    this.dueOn, this.returnedOn, this.returnedQuantity = 0, this.contact = '',
+    this.deliveryCondition = '', this.accessories = '', this.reminderDays = 1});
   final int id;
   final int toolId;
   final String toolName;
@@ -1610,6 +1621,12 @@ class ToolLoan {
   final String previousCondition;
   final double quantity;
   final String unit;
+  final double returnedQuantity;
+  final String contact;
+  final String deliveryCondition;
+  final String accessories;
+  final int reminderDays;
+  double get pendingQuantity => quantity - returnedQuantity;
   bool get isActive => returnedOn == null;
   bool get isOverdue => isOverdueOn(DateTime.now());
   bool isOverdueOn(DateTime date) => isActive && dueOn != null &&
@@ -1625,6 +1642,11 @@ class ToolLoan {
     notes: row['notes'] as String,
     previousCondition: row['previous_condition'] as String,
     quantity: (row['quantity'] as num).toDouble(), unit: row['unit'] as String,
+    returnedQuantity: (row['returned_quantity'] as num?)?.toDouble() ?? 0,
+    contact: row['contact'] as String? ?? '',
+    deliveryCondition: row['delivery_condition'] as String? ?? '',
+    accessories: row['accessories'] as String? ?? '',
+    reminderDays: row['reminder_days'] as int? ?? 1,
   );
 }
 
@@ -1645,6 +1667,9 @@ class ToolItem {
     this.activeLoan,
     this.loanDraft,
     this.returnLoanOn,
+    this.parentId, this.isSet = false, this.outOfService = false,
+    this.serviceNotes = '', this.availableQuantity,
+    this.activeLoans = const [],
     List<ToolImage>? images,
   }) : images = images ?? <ToolImage>[];
 
@@ -1664,6 +1689,12 @@ class ToolItem {
   ToolLoan? activeLoan;
   LoanDraft? loanDraft;
   DateTime? returnLoanOn;
+  int? parentId;
+  bool isSet;
+  bool outOfService;
+  String serviceNotes;
+  double? availableQuantity;
+  List<ToolLoan> activeLoans;
 
   String get imagePath {
     if (images.isEmpty) return '';
@@ -1687,6 +1718,8 @@ class ToolItem {
     activeLoan: activeLoan,
     loanDraft: loanDraft,
     returnLoanOn: returnLoanOn,
+    parentId: parentId, isSet: isSet, outOfService: outOfService,
+    serviceNotes: serviceNotes, availableQuantity: availableQuantity, activeLoans: activeLoans,
     images: images.map((image) => image.copy()).toList(),
   );
 
@@ -1705,6 +1738,8 @@ class ToolItem {
     'voltage': voltage,
     // Se conserva para compatibilidad con versiones antiguas.
     'image_path': imagePath,
+    'parent_id': parentId, 'is_set': isSet ? 1 : 0,
+    'out_of_service': outOfService ? 1 : 0, 'service_notes': serviceNotes,
   };
 
   factory ToolItem.fromMap(Map<String, Object?> map) => ToolItem(
@@ -1720,6 +1755,9 @@ class ToolItem {
     condition: (map['condition'] as String?) ?? 'Bueno',
     type: (map['tool_type'] as String?) ?? '',
     voltage: (map['voltage'] as String?) ?? '',
+    parentId: map['parent_id'] as int?, isSet: map['is_set'] == 1,
+    outOfService: map['out_of_service'] == 1,
+    serviceNotes: map['service_notes'] as String? ?? '',
   );
 }
 
@@ -1737,7 +1775,7 @@ class DatabaseStats {
   final int imagesBytes;
 }
 
-class ToolsDatabase {
+class ToolsDatabase with ToolManagementDatabase {
   ToolsDatabase._();
 
   static final ToolsDatabase instance = ToolsDatabase._();
@@ -1751,7 +1789,7 @@ class ToolsDatabase {
 
     _database = await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -1776,6 +1814,7 @@ class ToolsDatabase {
 
         await _createToolImagesTable(db);
         await _createLoansTable(db);
+        await createManagementTables(db);
         await _createFieldOptionsTable(db);
         await _seedDefaultFieldOptions(db);
       },
@@ -1832,6 +1871,7 @@ class ToolsDatabase {
           }
         }
         if (oldVersion < 8) await _createLoansTable(db);
+        if (oldVersion < 9) await createManagementTables(db);
       },
     );
 
@@ -1860,8 +1900,8 @@ class ToolsDatabase {
   Future<List<ToolLoan>> loadLoans({int? toolId}) async {
     final db = await database;
     final rows = await db.query('tool_loans',
-      where: toolId == null ? null : 'tool_id = ?',
-      whereArgs: toolId == null ? null : [toolId],
+      where: toolId == null ? null : 'tool_id = ? OR tool_id IN (SELECT id FROM tools WHERE parent_id = ?)',
+      whereArgs: toolId == null ? null : [toolId, toolId],
       orderBy: 'started_on DESC, id DESC');
     return rows.map(ToolLoan.fromMap).toList();
   }
@@ -1870,23 +1910,70 @@ class ToolsDatabase {
       LoanDraft draft) async {
     final error = draft.validate();
     if (error != null) throw StateError(error);
+    if (item.outOfService) throw StateError('La herramienta está fuera de servicio');
     if (!item.quantity.isFinite || item.quantity <= 0) {
       throw StateError('No hay existencias para prestar');
     }
-    final active = await txn.query('tool_loans', where:
-      'tool_id = ? AND returned_on IS NULL', whereArgs: [item.id]);
-    if (active.isNotEmpty) throw StateError('Esta herramienta ya está prestada');
-    await txn.insert('tool_loans', {
+    if (item.parentId != null) {
+      final parent = await txn.query('tools', where: 'id=?', whereArgs: [item.parentId]);
+      if (parent.isNotEmpty && parent.single['out_of_service'] == 1) {
+        throw StateError('El conjunto está fuera de servicio');
+      }
+    }
+    final children = await txn.query('tools', where: 'parent_id=?', whereArgs: [item.id]);
+    final contents = draft.contents ?? <int, double>{};
+    final selected = <int, double>{};
+    // Selecting contents lends pieces; leaving contents null lends the complete set.
+    final piecesOnly = item.isSet && draft.contents != null;
+    final quantity = piecesOnly ? 0.0 : draft.quantity ?? item.quantity;
+    final reserved = await reservedQuantity(txn, item.id);
+    if (!piecesOnly && (!quantity.isFinite || quantity <= 0 || quantity > item.quantity - reserved + 0.000001)) {
+      throw StateError('La cantidad supera las existencias disponibles');
+    }
+    if (item.isSet && !piecesOnly && children.isNotEmpty &&
+        (quantity != 1 || item.quantity != 1)) {
+      throw StateError('Registra una ficha por conjunto para controlar sus piezas');
+    }
+    for (final child in children) {
+      final id = child['id'] as int;
+      final amount = piecesOnly ? contents[id] ?? 0 : (child['quantity'] as num).toDouble();
+      if (!amount.isFinite || amount < 0) throw StateError('Cantidad de pieza no válida');
+      if (amount == 0) continue;
+      if (child['out_of_service'] == 1) throw StateError('${child['name']} está fuera de servicio');
+      if (amount > (child['quantity'] as num).toDouble() - await reservedQuantity(txn, id) + 0.000001) {
+        throw StateError('${child['name']} no tiene esa cantidad disponible');
+      }
+      selected[id] = amount;
+    }
+    if (piecesOnly && (selected.isEmpty || contents.keys.any((id) => !children.any((c) => c['id'] == id)))) {
+      throw StateError('Selecciona al menos una pieza disponible del conjunto');
+    }
+    final existing = await txn.query('tool_loans', where: 'tool_id=? AND returned_on IS NULL',
+      whereArgs: [item.id], orderBy: 'id ASC');
+    final previous = existing.isNotEmpty ? existing.first['previous_condition'] as String :
+      isLoanCondition(item.condition) ? 'Bueno' : item.condition;
+    final loanId = await txn.insert('tool_loans', {
       'tool_id': item.id, 'tool_name': item.name,
       'borrower': draft.borrower.trim(),
       'started_on': loanDay(draft.startedOn).toIso8601String(),
       'due_on': draft.dueOn == null ? null : loanDay(draft.dueOn!).toIso8601String(),
-      'notes': draft.notes.trim(),
-      'previous_condition': isLoanCondition(item.condition) ? 'Bueno' : item.condition,
-      'quantity': item.quantity, 'unit': item.unit,
+      'notes': draft.notes.trim(), 'previous_condition': previous,
+      'quantity': quantity, 'unit': item.unit, 'contact': draft.contact.trim(),
+      'delivery_condition': draft.deliveryCondition.trim(), 'accessories': draft.accessories.trim(),
+      'reminder_days': draft.reminderDays,
     });
-    await txn.update('tools', {'condition': 'Prestado'}, where: 'id = ?',
-      whereArgs: [item.id]);
+    for (final entry in selected.entries) {
+      final child = children.firstWhere((r) => r['id'] == entry.key);
+      await txn.insert('loan_contents', {'loan_id': loanId, 'component_id': entry.key,
+        'name': child['name'], 'quantity': entry.value});
+    }
+    await txn.insert('borrowers', {'name': draft.borrower.trim(), 'contact': draft.contact.trim()},
+      conflictAlgorithm: ConflictAlgorithm.replace);
+    await addLoanEvent(txn, loanId, 'Entrega', performedOn: draft.startedOn,
+      quantity: piecesOnly ? selected.values.fold<double>(0, (a,b) => a+b) : quantity,
+      condition: draft.deliveryCondition, notes: draft.notes,
+      details: draft.accessories);
+    await txn.update('tools', {'condition': 'Prestado'}, where: 'id = ?', whereArgs: [item.id]);
   }
 
   static Future<void> _returnLoan(DatabaseExecutor txn, int loanId,
@@ -1900,15 +1987,17 @@ class ToolsDatabase {
         day.isAfter(loanDay(DateTime.now()))) {
       throw StateError('La fecha de devolución debe estar entre el préstamo y hoy');
     }
-    await txn.update('tool_loans', {'returned_on': day.toIso8601String()},
+    await txn.rawUpdate('UPDATE loan_contents SET returned_quantity=quantity WHERE loan_id=?', [loanId]);
+    await addLoanEvent(txn, loanId, 'Devolución', performedOn: day, quantity: loan.pendingQuantity);
+    await txn.update('tool_loans', {'returned_on': day.toIso8601String(), 'returned_quantity': loan.quantity},
       where: 'id = ?', whereArgs: [loanId]);
-    await txn.update('tools', {'condition': loan.previousCondition},
-      where: 'id = ?', whereArgs: [loan.toolId]);
+    await refreshLoanCondition(txn, loan.toolId, loan.previousCondition);
   }
 
   Future<void> returnLoan(int loanId, DateTime returnedOn) async {
     final db = await database;
     await db.transaction((txn) => _returnLoan(txn, loanId, returnedOn));
+    await syncManagementReminders();
   }
 
   Future<void> updateLoan(int loanId, LoanDraft draft) async {
@@ -1923,13 +2012,26 @@ class ToolsDatabase {
           loanDay(draft.startedOn).isAfter(loanDay(loan.returnedOn!))) {
         throw StateError('La fecha de préstamo no puede ser posterior a la devolución real');
       }
+      final returns = await txn.query('loan_events', where: 'loan_id=? AND kind=? AND performed_on < ?',
+        whereArgs: [loanId, 'Devolución', loanDay(draft.startedOn).toIso8601String()]);
+      if (returns.isNotEmpty) throw StateError('La entrega no puede ser posterior a una devolución parcial');
+      await addLoanEvent(txn, loanId, 'Modificación', details:
+        'Destinatario: ${loan.borrower} → ${draft.borrower.trim()}\n'
+        'Plazo: ${loan.dueOn == null ? "Sin fecha" : loanDateText(loan.dueOn!)} → '
+        '${draft.dueOn == null ? "Sin fecha" : loanDateText(draft.dueOn!)}\n'
+        'Observaciones anteriores: ${loan.notes}', notes: draft.notes);
+      await txn.insert('borrowers', {'name': draft.borrower.trim(), 'contact': draft.contact.trim()},
+        conflictAlgorithm: ConflictAlgorithm.replace);
       await txn.update('tool_loans', {
+        'contact': draft.contact.trim(), 'delivery_condition': draft.deliveryCondition.trim(),
+        'accessories': draft.accessories.trim(), 'reminder_days': draft.reminderDays,
         'borrower': draft.borrower.trim(),
         'started_on': loanDay(draft.startedOn).toIso8601String(),
         'due_on': draft.dueOn == null ? null : loanDay(draft.dueOn!).toIso8601String(),
         'notes': draft.notes.trim(),
       }, where: 'id = ?', whereArgs: [loanId]);
     });
+    await syncManagementReminders();
   }
 
   static Future<void> _createFieldOptionsTable(DatabaseExecutor db) async {
@@ -1986,17 +2088,28 @@ class ToolsDatabase {
     );
   }
 
-  Future<List<ToolItem>> loadTools() async {
+  Future<List<ToolItem>> loadTools({bool includeComponents = false}) async {
     final db = await database;
-    final rows = await db.query('tools', orderBy: 'id DESC');
+    final rows = await db.query('tools', where: includeComponents ? null : 'parent_id IS NULL', orderBy: 'id DESC');
     final tools = rows.map(ToolItem.fromMap).toList();
 
     if (tools.isEmpty) return tools;
-    final activeLoans = {
-      for (final row in await db.query('tool_loans', where: 'returned_on IS NULL'))
-        row['tool_id'] as int: ToolLoan.fromMap(row),
-    };
-    for (final tool in tools) { tool.activeLoan = activeLoans[tool.id]; }
+    final activeLoans = (await db.query('tool_loans', where: 'returned_on IS NULL'))
+      .map(ToolLoan.fromMap).toList();
+    for (final tool in tools) {
+      final children = await db.query('tools', where: 'parent_id=?', whereArgs: [tool.id]);
+      final childIds = children.map((c) => c['id']).toSet();
+      tool.activeLoans = activeLoans.where((l) => l.toolId == tool.id || childIds.contains(l.toolId)).toList();
+      tool.activeLoan = tool.activeLoans.firstOrNull;
+      tool.availableQuantity = tool.quantity - await reservedQuantity(db, tool.id);
+      if (tool.isSet) {
+        for (final child in children) {
+          if (child['out_of_service'] == 1 || await reservedQuantity(db, child['id'] as int) > 0) {
+            tool.availableQuantity = 0; break;
+          }
+        }
+      }
+    }
 
     final imageRows = await db.query(
       'tool_images',
@@ -2064,6 +2177,26 @@ class ToolsDatabase {
     await db.transaction((txn) async {
       final activeRows = await txn.query('tool_loans', where:
           'tool_id = ? AND returned_on IS NULL', whereArgs: [item.id]);
+      if (!item.quantity.isFinite || item.quantity < 0) throw StateError('Cantidad no válida');
+      if (item.parentId != null) {
+        final parent = await txn.query('tools', where: 'id=?', whereArgs: [item.parentId]);
+        if (item.parentId == item.id || parent.isEmpty || parent.single['is_set'] != 1 || item.isSet) {
+          throw StateError('Las piezas deben pertenecer a un conjunto válido');
+        }
+      }
+      final children = await txn.query('tools', where: 'parent_id=?', whereArgs: [item.id]);
+      if (children.isNotEmpty && !item.isSet) throw StateError('Desvincula las piezas antes de quitar la opción de conjunto');
+      if (children.isNotEmpty && item.quantity != 1) throw StateError('Cada conjunto con piezas debe tener cantidad 1');
+      if (item.quantity + 0.000001 < await reservedQuantity(txn, item.id)) {
+        throw StateError('La cantidad no puede ser menor que las unidades prestadas');
+      }
+      final oldItem = await txn.query('tools', where: 'id=?', whereArgs: [item.id]);
+      if (item.parentId != null && (oldItem.isEmpty || oldItem.single['parent_id'] != item.parentId) &&
+          await reservedQuantity(txn, item.parentId!) > 0) {
+        throw StateError('Devuelve el conjunto antes de modificar su contenido');
+      }
+      if (oldItem.isNotEmpty && oldItem.single['parent_id'] != item.parentId &&
+          await reservedQuantity(txn, item.id) > 0) throw StateError('Devuelve primero la pieza antes de cambiar de conjunto');
       if (activeRows.isNotEmpty) {
         // Availability is owned by the loan, even when an old editor saves.
         item.condition = 'Prestado';
@@ -2083,10 +2216,10 @@ class ToolsDatabase {
       if (changed == 0) await txn.insert('tools', item.toMap());
       if (item.loanDraft != null) await _startLoan(txn, item, item.loanDraft!);
       if (item.returnLoanOn != null) {
-        if (activeRows.isEmpty || activeRows.single['id'] != item.activeLoan?.id) {
+        if (activeRows.isEmpty || !activeRows.any((r) => r['id'] == item.activeLoan?.id)) {
           throw StateError('El préstamo ha cambiado. Reabre la ficha para actualizarlo');
         }
-        await _returnLoan(txn, activeRows.single['id'] as int, item.returnLoanOn!);
+        await _returnLoan(txn, item.activeLoan!.id, item.returnLoanOn!);
       }
 
       await txn.delete(
@@ -2101,6 +2234,7 @@ class ToolsDatabase {
       }
     });
 
+    await syncManagementReminders();
     final newPaths = item.images.map((image) => image.path).toSet();
     final stalePaths = oldPaths.difference(newPaths);
 
@@ -2362,7 +2496,7 @@ class ToolsDatabase {
 class BackupManager {
   BackupManager._();
 
-  static const int formatVersion = 1;
+  static const int formatVersion = 2;
 
   static Future<Directory> _imagesDirectory() async {
     final docs = await getApplicationDocumentsDirectory();
@@ -2407,13 +2541,15 @@ class BackupManager {
         await backupImagesDir.create(recursive: true);
       }
 
+      await _copyDirectory(await toolDocumentsDirectory(),
+        Directory(p.join(workDir.path, 'tool_documents')));
       final manifest = <String, Object?>{
         'format': 'gestor_herramientas_backup',
         'format_version': formatVersion,
         'created_at': DateTime.now().toIso8601String(),
         'database': 'database/gestor_herramientas.db',
-        'images': 'tool_images',
-        'note': 'Copia completa de SQLite e imágenes. Incluye automáticamente campos futuros guardados en la base de datos.',
+        'images': 'tool_images', 'documents': 'tool_documents',
+        'note': 'Copia completa de herramientas, piezas, préstamos, mantenimiento, imágenes y documentos.',
       };
       await File(p.join(workDir.path, 'manifest.json')).writeAsString(
         const JsonEncoder.withIndent('  ').convert(manifest),
@@ -2504,6 +2640,7 @@ class BackupManager {
       final dbDestination = await ToolsDatabase.instance.databasePath;
       final imagesDestination = await _imagesDirectory();
       final restoredImages = Directory(p.join(restoreDir.path, 'tool_images'));
+      final documentsDestination = await toolDocumentsDirectory();
 
       await ToolsDatabase.instance.closeForBackup();
 
@@ -2521,9 +2658,22 @@ class BackupManager {
         } else {
           await imagesDestination.create(recursive: true);
         }
+        if (await documentsDestination.exists()) await documentsDestination.delete(recursive: true);
+        final sourceDocuments = Directory(p.join(restoreDir.path, 'tool_documents'));
+        if (await sourceDocuments.exists()) {
+          await _copyDirectory(sourceDocuments, documentsDestination);
+        } else { await documentsDestination.create(recursive: true); }
       } finally {
         await ToolsDatabase.instance.reopen();
       }
+      final db = await ToolsDatabase.instance.database;
+      final images = await db.query('tool_images');
+      for (final image in images) {
+        final path = p.join(imagesDestination.path, p.basename(image['path'] as String));
+        if (await File(path).exists()) await db.update('tool_images', {'path': path},
+          where: 'id=?', whereArgs: [image['id']]);
+      }
+      await syncManagementReminders();
     } finally {
       if (await restoreDir.exists()) {
         try {
@@ -2727,7 +2877,9 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     _loadItems();
   }
 
+  int _nextId = 1;
   Future<void> _loadItems() async {
+    _nextId = await ToolsDatabase.instance.nextToolId();
     setState(() {
       _loading = true;
       _loadError = false;
@@ -2787,9 +2939,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       MaterialPageRoute(
         builder: (_) => EditToolPage(
           item: item?.copy(),
-          nextId: _items.isEmpty
-              ? 1
-              : _items.map((e) => e.id).reduce((a, b) => a > b ? a : b) + 1,
+          nextId: _nextId,
         ),
       ),
     );
@@ -2940,7 +3090,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mis herramientas · QUILL V22',
+          'Mis herramientas',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -2954,6 +3104,10 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
             icon: const Icon(Icons.more_vert),
             onSelected: (value) {
               switch (value) {
+                case 'management':
+                  Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ManagementHubPage())).then((_) { if (mounted) _loadItems(); });
+                case 'maintenance':
+                  Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const MaintenancePage())).then((_) { if (mounted) _loadItems(); });
                 case 'loans':
                   _openLoans();
                 case 'icons':
@@ -2969,6 +3123,10 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
               }
             },
             itemBuilder: (context) => const [
+              PopupMenuItem(value: 'management', child: ListTile(contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.dashboard_outlined), title: Text('Gestión de herramientas'))),
+              PopupMenuItem(value: 'maintenance', child: ListTile(contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.build_outlined), title: Text('Mantenimientos'))),
               PopupMenuItem(value: 'loans', child: ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.handshake_outlined), title: Text('Préstamos'))),
@@ -3147,6 +3305,9 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                                           runSpacing: 6,
                                           crossAxisAlignment: WrapCrossAlignment.center,
                                           children: [
+                                            if (item.isSet) const Icon(Icons.widgets_outlined, size: 20, color: managementColor),
+                                            if (item.outOfService) const Text('Fuera de servicio', style: TextStyle(color: Colors.red)),
+                                            if (item.activeLoan != null) Text(item.isSet ? 'Contenido prestado' : '${formatNumber(item.availableQuantity ?? 0)} disponibles', style: const TextStyle(fontSize: 12)),
                                             Container(
                                               padding:
                                                   const EdgeInsets.symmetric(
@@ -6180,6 +6341,8 @@ class LoanStatusCard extends StatelessWidget {
             label: Text(active ? 'Registrar devolución' : legacy ?
               'Completar préstamo' : 'Prestar'),
           ),
+          if (active) OutlinedButton.icon(onPressed: onLend, icon: const Icon(Icons.add),
+            label: const Text('Prestar unidades o piezas disponibles')),
           if (onHistory != null) TextButton.icon(onPressed: onHistory,
             icon: const Icon(Icons.history), label: const Text('Historial de préstamos')),
         ],
@@ -6190,11 +6353,13 @@ class LoanStatusCard extends StatelessWidget {
 
 class LoanFormPage extends StatefulWidget {
   const LoanFormPage({super.key, required this.toolName,
-    required this.quantity, required this.unit, this.initialLoan});
+    required this.quantity, required this.unit, this.initialLoan, this.toolId, this.isSet = false});
   final String toolName;
   final double quantity;
   final String unit;
   final ToolLoan? initialLoan;
+  final int? toolId;
+  final bool isSet;
   @override
   State<LoanFormPage> createState() => _LoanFormPageState();
 }
@@ -6206,19 +6371,51 @@ class _LoanFormPageState extends State<LoanFormPage> {
   DateTime _startedOn = loanDay(DateTime.now());
   DateTime? _dueOn;
   bool _saving = false;
+  final _quantity = TextEditingController();
+  final _contact = TextEditingController();
+  final _deliveryCondition = TextEditingController();
+  final _accessories = TextEditingController();
+  final _pieces = <int, TextEditingController>{};
+  List<ToolItem> _components = [];
+  List<Map<String, Object?>> _borrowers = [];
+  int _reminderDays = 1;
+  bool _piecesOnly = false;
+  bool _loadingContents = false;
+  String? _contentError;
   @override
   void initState() {
     super.initState();
+    _quantity.text = formatNumber(widget.quantity);
     final loan = widget.initialLoan;
     if (loan != null) {
       _borrower.text = loan.borrower;
+      _contact.text = loan.contact;
+      _deliveryCondition.text = loan.deliveryCondition;
+      _accessories.text = loan.accessories;
+      _reminderDays = loan.reminderDays;
       _notes.text = loan.notes;
       _startedOn = loanDay(loan.startedOn);
       _dueOn = loan.dueOn == null ? null : loanDay(loan.dueOn!);
     }
+    if (widget.toolId != null) _loadContents();
+  }
+  Future<void> _loadContents() async {
+    setState(() => _loadingContents = true);
+    try {
+      final borrowers = await ToolsDatabase.instance.loadBorrowers();
+      final components = widget.isSet && widget.initialLoan == null ?
+        await ToolsDatabase.instance.loadComponents(widget.toolId!) : <ToolItem>[];
+      for (final c in components) _pieces[c.id] = TextEditingController(text: '0');
+      if (mounted) setState(() { _components = components; _borrowers = borrowers; _loadingContents = false; });
+    } catch (error) {
+      if (mounted) setState(() { _contentError = '$error'; _loadingContents = false; });
+    }
   }
   @override
-  void dispose() { _borrower.dispose(); _notes.dispose(); super.dispose(); }
+  void dispose() { _borrower.dispose(); _notes.dispose(); _quantity.dispose(); _contact.dispose();
+    _deliveryCondition.dispose(); _accessories.dispose();
+    for (final controller in _pieces.values) { controller.dispose(); }
+    super.dispose(); }
 
   Future<void> _chooseDate(bool due) async {
     final first = due ? _startedOn : DateTime(1900);
@@ -6242,9 +6439,14 @@ class _LoanFormPageState extends State<LoanFormPage> {
     if (_saving) return;
     if (!(_form.currentState?.validate() ?? false)) return;
     final draft = LoanDraft(borrower: _borrower.text.trim(), startedOn: _startedOn,
-      dueOn: _dueOn, notes: _notes.text.trim());
+      dueOn: _dueOn, notes: _notes.text.trim(),
+      quantity: double.tryParse(_quantity.text.replaceAll(',', '.')),
+      contact: _contact.text, deliveryCondition: _deliveryCondition.text,
+      accessories: _accessories.text, reminderDays: _reminderDays,
+      contents: _piecesOnly ? {for (final c in _components)
+        c.id: double.tryParse(_pieces[c.id]!.text.replaceAll(',', '.')) ?? 0} : null);
     final error = draft.validate();
-    if (error != null || !widget.quantity.isFinite || widget.quantity <= 0) {
+    if (error != null || !widget.quantity.isFinite || (widget.quantity <= 0 && widget.initialLoan == null && !_piecesOnly)) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
         error ?? 'No hay existencias para prestar')));
       return;
@@ -6275,7 +6477,7 @@ class _LoanFormPageState extends State<LoanFormPage> {
         Text(widget.toolName, style: const TextStyle(fontSize: 20,
           fontWeight: FontWeight.w800)),
         const SizedBox(height: 6),
-        Text('${widget.initialLoan == null ? 'Se presta esta ficha completa' : 'Cantidad prestada'}: ${formatNumber(widget.quantity)} ${widget.unit}.'),
+        Text('${widget.initialLoan == null ? 'Disponible' : 'Cantidad prestada'}: ${formatNumber(widget.quantity)} ${widget.unit}.'),
         if (widget.initialLoan?.returnedOn != null)
           Text('Devuelto: ${loanDateText(widget.initialLoan!.returnedOn!)}'),
         const SizedBox(height: 20),
@@ -6300,9 +6502,55 @@ class _LoanFormPageState extends State<LoanFormPage> {
         TextFormField(key: const ValueKey('loan_notes'), controller: _notes,
           minLines: 2, maxLines: 5,
           decoration: const InputDecoration(labelText: 'Observaciones (opcional)')),
+        const SizedBox(height: 12),
+        if (_loadingContents) const LinearProgressIndicator(),
+        if (_contentError != null) Text(_contentError!),
+        if (widget.initialLoan == null && _components.isNotEmpty) SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero, secondary: const Icon(Icons.widgets_outlined),
+          title: const Text('Prestar piezas seleccionadas'), value: _piecesOnly,
+          onChanged: (value) => setState(() => _piecesOnly = value)),
+        if (widget.initialLoan == null && !_piecesOnly) TextFormField(
+          key: const ValueKey('loan_quantity'), controller: _quantity,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Cantidad a prestar'),
+          validator: (text) { final n = double.tryParse((text ?? '').replaceAll(',', '.'));
+            return n == null || !n.isFinite || n <= 0 || n > widget.quantity + 0.000001 ?
+              'Indica una cantidad disponible' : null; }),
+        if (_piecesOnly) ...[
+          const Text('Indica 0 en las piezas que se quedan.'),
+          for (final c in _components) Padding(padding: const EdgeInsets.only(top: 12),
+            child: TextFormField(controller: _pieces[c.id],
+              key: ValueKey('lend_piece_${c.id}'), keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(labelText: c.name, helperText:
+                c.outOfService ? 'Fuera de servicio' : '${formatNumber(c.availableQuantity ?? c.quantity)} disponibles'),
+              validator: (text) { final n = double.tryParse((text ?? '').replaceAll(',', '.'));
+                return n == null || !n.isFinite || n < 0 || n > (c.outOfService ? 0 : c.availableQuantity ?? c.quantity) + 0.000001 ?
+                  'Cantidad no disponible' : null; })),
+        ],
+        const SizedBox(height: 12),
+        ExpansionTile(tilePadding: EdgeInsets.zero,
+          title: const Text('Contacto, accesorios y avisos'),
+          leading: const Icon(Icons.fact_check_outlined), children: [
+            if (_borrowers.isNotEmpty) DropdownButtonFormField<String>(isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Personas habituales'),
+              items: [for (final person in _borrowers) DropdownMenuItem(
+                value: person['name'] as String, child: Text(person['name'] as String))],
+              onChanged: (value) { if (value == null) return;
+                final person = _borrowers.firstWhere((p) => p['name'] == value);
+                _borrower.text = value; _contact.text = person['contact'] as String; }),
+            const SizedBox(height: 12), TextFormField(controller: _contact,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Teléfono / contacto (opcional)', prefixIcon: Icon(Icons.phone_outlined))),
+            const SizedBox(height: 12), TextFormField(controller: _deliveryCondition,
+              decoration: const InputDecoration(labelText: 'Estado al entregar', prefixIcon: Icon(Icons.fact_check_outlined))),
+            const SizedBox(height: 12), TextFormField(controller: _accessories, minLines: 2, maxLines: 5,
+              decoration: const InputDecoration(labelText: 'Accesorios entregados', hintText: 'Batería, cargador, maletín…')),
+            const SizedBox(height: 12), ReminderSelector(value: _reminderDays, onChanged: (value) => _reminderDays = value),
+            const SizedBox(height: 12),
+          ]),
         const SizedBox(height: 24),
         FilledButton.icon(key: const ValueKey('confirm_loan'),
-          onPressed: _saving ? null : _confirm,
+          onPressed: _saving || _loadingContents || _contentError != null ? null : _confirm,
           icon: const Icon(Icons.check), label: Text(_saving ? 'Guardando…' :
             widget.initialLoan == null ? 'Confirmar préstamo' : 'Guardar cambios')),
       ],
@@ -6376,9 +6624,8 @@ class _LoansPageState extends State<LoansPage> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      final date = await askLoanReturn(context, loan);
-      if (date == null || !mounted) return;
-      await ToolsDatabase.instance.returnLoan(loan.id, date);
+      await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => LoanDetailsPage(loan: loan)));
+      if (!mounted) return;
       if (!mounted) return;
       await _load();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -6396,7 +6643,7 @@ class _LoansPageState extends State<LoansPage> {
     try {
       final result = await Navigator.of(context).push<LoanDraft>(MaterialPageRoute(
         builder: (_) => LoanFormPage(toolName: loan.toolName, quantity: loan.quantity,
-          unit: loan.unit, initialLoan: loan)));
+          unit: loan.unit, initialLoan: loan, toolId: loan.toolId)));
       if (result == null || !mounted) return;
       await _load();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -6440,7 +6687,9 @@ class _LoansPageState extends State<LoansPage> {
             separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (_, index) {
               final loan = visible[index];
-              return Card(margin: EdgeInsets.zero, child: Padding(
+              return Card(margin: EdgeInsets.zero, child: InkWell(
+                onTap: () async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => LoanDetailsPage(loan: loan))); if (mounted) await _load(); },
+                child: Padding(
                 padding: const EdgeInsets.all(16), child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Text(loan.toolName, style: const TextStyle(fontSize: 17,
@@ -6469,7 +6718,7 @@ class _LoansPageState extends State<LoansPage> {
                       label: const Text('Editar préstamo')),
                   ],
                 ),
-              ));
+              )));
             },
           )),
         ),
@@ -6510,7 +6759,11 @@ class _EditToolPageState extends State<EditToolPage> {
   late List<ToolImage> _images;
   final ImagePicker _imagePicker = ImagePicker();
 
-  bool get _isEditing => widget.item != null;
+  ToolItem? _managedItem;
+  ToolItem? get _currentItem => _managedItem ?? widget.item;
+  late bool _isSet;
+  bool _managementBusy = false;
+  bool get _isEditing => _currentItem != null;
 
   bool get _showVoltage =>
       isElectricalToolType(_type) ||
@@ -6521,7 +6774,8 @@ class _EditToolPageState extends State<EditToolPage> {
   @override
   void initState() {
     super.initState();
-    final item = widget.item;
+    final item = _currentItem;
+    _isSet = item?.isSet ?? false;
 
     _name = TextEditingController(text: item?.name ?? '');
     _descriptionPlain = item?.description ?? '';
@@ -6581,11 +6835,8 @@ class _EditToolPageState extends State<EditToolPage> {
     return double.tryParse(value.replaceAll(',', '.').trim()) ?? 0;
   }
 
-  void _save() {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-
-    final result = ToolItem(
-      id: widget.item?.id ?? widget.nextId,
+  ToolItem _buildItem() => ToolItem(
+      id: _currentItem?.id ?? widget.nextId,
       name: _name.text.trim(),
       description: _descriptionPlain,
       descriptionDelta: _descriptionDelta,
@@ -6597,27 +6848,54 @@ class _EditToolPageState extends State<EditToolPage> {
       condition: _condition,
       type: _type,
       voltage: _showVoltage ? _voltage : '',
-      activeLoan: widget.item?.activeLoan,
+      activeLoan: _currentItem?.activeLoan,
       loanDraft: _loanDraft,
       returnLoanOn: _returnLoanOn,
+      parentId: _currentItem?.parentId, isSet: _isSet,
+      outOfService: _currentItem?.outOfService ?? false,
+      serviceNotes: _currentItem?.serviceNotes ?? '',
       images: _images.map((image) => image.copy()).toList(),
     );
 
-    Navigator.of(context).pop(result);
+  void _save() {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    Navigator.of(context).pop(_buildItem());
+  }
+
+  Future<void> _openManagement(String section) async {
+    if (_managementBusy || !(_formKey.currentState?.validate() ?? false)) return;
+    setState(() => _managementBusy = true);
+    try {
+      final item = _buildItem();
+      await ToolsDatabase.instance.saveTool(item);
+      _loanDraft = null; _returnLoanOn = null;
+      _managedItem = await ToolsDatabase.instance.loadTool(item.id);
+      if (!mounted || _managedItem == null) return;
+      await openToolManagement(context, _managedItem!, section);
+      final refreshed = await ToolsDatabase.instance.loadTool(item.id);
+      if (mounted && refreshed != null) setState(() {
+        _managedItem = refreshed; _condition = refreshed.condition; _isSet = refreshed.isSet;
+      });
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+    } finally {
+      if (mounted) setState(() => _managementBusy = false);
+    }
   }
 
   Future<void> _prepareLoan() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final draft = await Navigator.of(context).push<LoanDraft>(MaterialPageRoute(
       builder: (_) => LoanFormPage(toolName: _name.text.trim(),
-        quantity: _number(_quantity.text), unit: _unit.text.trim())));
+        quantity: _currentItem?.availableQuantity ?? _number(_quantity.text), unit: _unit.text.trim(),
+        toolId: _currentItem?.id, isSet: _isSet)));
     if (draft == null || !mounted) return;
     _loanDraft = draft;
     _save();
   }
 
   Future<void> _openLoanHistory() async {
-    final item = widget.item;
+    final item = _currentItem;
     if (item == null) return;
     await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) =>
       LoansPage(toolId: item.id, toolName: item.name)));
@@ -6636,21 +6914,20 @@ class _EditToolPageState extends State<EditToolPage> {
 
   Future<void> _prepareReturn() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    final loan = widget.item?.activeLoan;
+    final loan = _currentItem?.activeLoan;
     if (loan == null) return;
-    final date = await askLoanReturn(context, loan);
-    if (date == null || !mounted) return;
-    _returnLoanOn = date;
-    _save();
+    await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => LoanDetailsPage(loan: loan)));
+    final refreshed = await ToolsDatabase.instance.loadTool(_currentItem!.id);
+    if (mounted && refreshed != null) setState(() { _managedItem = refreshed; _condition = refreshed.condition; });
   }
 
   Future<void> _editActiveLoan() async {
-    final item = widget.item;
+    final item = _currentItem;
     final loan = item?.activeLoan;
     if (item == null || loan == null) return;
     final result = await Navigator.of(context).push<LoanDraft>(MaterialPageRoute(
       builder: (_) => LoanFormPage(toolName: loan.toolName, quantity: loan.quantity,
-        unit: loan.unit, initialLoan: loan)));
+        unit: loan.unit, initialLoan: loan, toolId: loan.toolId)));
     if (result == null || !mounted) return;
     final loans = await ToolsDatabase.instance.loadLoans(toolId: item.id);
     if (!mounted) return;
@@ -6671,7 +6948,7 @@ class _EditToolPageState extends State<EditToolPage> {
   void _appendStoredImage(String path) {
     setState(() {
       final image = ToolImage(
-        toolId: widget.item?.id ?? widget.nextId,
+        toolId: _currentItem?.id ?? widget.nextId,
         path: path,
         position: _images.length,
         isPrimary: _images.isEmpty,
@@ -7110,10 +7387,10 @@ class _EditToolPageState extends State<EditToolPage> {
         ),
         actions: [
           LoanStatusButton(
-            loan: widget.item?.activeLoan,
-            legacy: isLoanCondition(_condition) && widget.item?.activeLoan == null,
+            loan: _currentItem?.activeLoan,
+            legacy: isLoanCondition(_condition) && _currentItem?.activeLoan == null,
             onLend: _prepareLoan, onReturn: _prepareReturn,
-            onEdit: widget.item?.activeLoan == null ? null : _editActiveLoan,
+            onEdit: _currentItem?.activeLoan == null ? null : _editActiveLoan,
             onHistory: _isEditing ? _openLoanHistory : null,
           ),
           TextButton(
@@ -7132,6 +7409,8 @@ class _EditToolPageState extends State<EditToolPage> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
             children: [
+              ManagementShortcuts(onOpen: _managementBusy ? null : _openManagement),
+              const SizedBox(height: 16),
               const SectionTitle('Información básica'),
               const SizedBox(height: 10),
               TextFormField(
@@ -7199,6 +7478,15 @@ class _EditToolPageState extends State<EditToolPage> {
                     ? 'Selecciona el tipo'
                     : null,
               ),
+              if (_currentItem?.parentId == null) SwitchListTile.adaptive(
+                key: const ValueKey('tool_is_set'), contentPadding: EdgeInsets.zero,
+                secondary: const Icon(Icons.widgets_outlined, color: managementColor),
+                title: const Text('Es un conjunto'),
+                subtitle: const Text('Gestionar sus piezas por separado'),
+                value: _isSet, onChanged: (value) => setState(() => _isSet = value)),
+              if (_currentItem?.outOfService ?? false) const ListTile(
+                contentPadding: EdgeInsets.zero, leading: Icon(Icons.build_outlined, color: Colors.red),
+                title: Text('Fuera de servicio'), subtitle: Text('Consulta Mantenimiento para habilitarla')),
               if (_showVoltage) ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
@@ -7348,7 +7636,7 @@ class _EditToolPageState extends State<EditToolPage> {
                       ),
                     )
                     .toList(),
-                onChanged: widget.item?.activeLoan != null ? null : (value) {
+                onChanged: _currentItem?.activeLoan != null ? null : (value) {
                   if (value == null) return;
                   if (isLoanCondition(value)) {
                     _prepareLoan();
