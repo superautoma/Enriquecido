@@ -45,12 +45,20 @@ def tap(label, exclude_class=None):
 def scroll_tap(label):
     for _ in range(6):
         adb('shell', 'uiautomator', 'dump', '/sdcard/startup-window.xml')
-        root = ET.fromstring(adb('shell', 'cat', '/sdcard/startup-window.xml').decode())
+        xml = adb('shell', 'cat', '/sdcard/startup-window.xml').decode()
+        (output / 'window.xml').write_text(xml)
+        root = ET.fromstring(xml)
         for node in root.iter('node'):
             if label in node.get('text', '') + node.get('content-desc', ''):
                 tap_node(node)
                 return
-        adb('shell', 'input', 'swipe', '450', '850', '450', '300', '350')
+        screen = next(root.iter('node'))
+        left, top, right, bottom = map(int, re.findall(r'\d+', screen.attrib['bounds']))
+        x = (left + right) // 2
+        start_y = top + int((bottom - top) * .8)
+        end_y = top + int((bottom - top) * .35)
+        adb('shell', 'input', 'swipe', str(x), str(start_y), str(x), str(end_y), '350')
+    screenshot('scroll-failed.png')
     raise AssertionError(f'Could not scroll to {label}')
 
 
