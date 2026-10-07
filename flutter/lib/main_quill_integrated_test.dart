@@ -1099,41 +1099,35 @@ Widget iconWidgetForKey(
   );
 }
 
-Widget fieldOptionIconWidget(FieldOption option, {double size = 24}) {
+// A single badge owns the available space in buttons, lists and selectors.
+// Do not wrap it in a second CircleAvatar: that shrinks imported artwork twice.
+Widget iconBadgeWidget(
+  String key, {
+  required Color color,
+  required Color circleColor,
+  double size = 48,
+}) {
+  final svg = isEditableSvgIcon(key);
+  final artworkSize = size * (svg ? 0.90
+      : isElectricCollectionKey(key) || isCustomIconKey(key) ? 0.85 : 0.65);
   final glyph = iconWidgetForKey(
-    option.iconKey,
-    color: option.color,
-    // Imported SVGs already include their own artwork margins. Avoid
-    // shrinking those margins a second time inside the option circle.
-    size: isEditableSvgIcon(option.iconKey)
-        ? size * 0.90
-        : hasIconCircle(option.iconKey)
-        ? size * 0.55
-        : size,
-    circleColor: option.circleColor,
+    key, color: color, circleColor: circleColor, size: artworkSize,
   );
-  if (!hasIconCircle(option.iconKey)) return glyph;
   return Container(
     width: size,
     height: size,
-    alignment: Alignment.center,
-    decoration: BoxDecoration(
-      color: option.circleColor,
-      shape: BoxShape.circle,
+    decoration: BoxDecoration(color: circleColor, shape: BoxShape.circle),
+    child: ClipOval(
+      child: Center(
+        child: svg ? Transform.scale(scale: 1.30, child: glyph) : glyph,
+      ),
     ),
-    // Enlarge only the presentation; saved SVGs and their colors stay intact.
-    child: isEditableSvgIcon(option.iconKey)
-        ? ClipOval(
-            child: SizedBox.square(
-              dimension: size,
-              child: Center(
-                child: Transform.scale(scale: 1.30, child: glyph),
-              ),
-            ),
-          )
-        : glyph,
   );
 }
+
+Widget fieldOptionIconWidget(FieldOption option, {double size = 32}) =>
+    iconBadgeWidget(option.iconKey, color: option.color,
+        circleColor: option.circleColor, size: size);
 
 const optionColorPalette = <int>[
   0xFF1976D2,
@@ -2957,7 +2951,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                                                 children: [
                                                   fieldOptionIconWidget(
                                                     style,
-                                                    size: 15,
+                                                    size: 22,
                                                   ),
                                                   const SizedBox(width: 4),
                                                   Text(
@@ -3211,9 +3205,8 @@ class _IconDetailCard extends StatelessWidget {
         ]),
         Card(child: Padding(padding: const EdgeInsets.all(16),
           child: Column(children: [
-            Container(width: 112, height: 112, padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: appearance.circle, shape: BoxShape.circle),
-              child: iconWidgetForKey(iconKey, color: appearance.line, size: 70)),
+            iconBadgeWidget(iconKey, color: appearance.line,
+              circleColor: appearance.circle, size: 112),
             const SizedBox(height: 16),
             Text(appIconLabel(iconKey), key: const ValueKey('icon_detail_name'),
               textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge),
@@ -3671,34 +3664,9 @@ class _IconPickerPageState extends State<IconPickerPage> {
   }
 
   Widget _preview(String key, {bool enlarged = false}) {
-    final custom = isCustomIconKey(key);
-    final svgCircle = isEditableSvgIcon(key);
-    final color = iconAppearance(key).line;
-    return Container(
-      width: enlarged ? 80 : custom ? 48 : 44,
-      height: enlarged ? 80 : custom ? 48 : 44,
-      padding: custom
-          ? const EdgeInsets.all(4)
-          : EdgeInsets.zero,
-      decoration: BoxDecoration(
-        color: iconAppearance(key).circle,
-        borderRadius: custom && !svgCircle
-            ? BorderRadius.circular(10)
-            : null,
-        shape: custom && !svgCircle
-            ? BoxShape.rectangle
-            : BoxShape.circle,
-      ),
-      child: iconWidgetForKey(
-        key,
-        color: color,
-        size: enlarged ? 50 : custom
-            ? (svgCircle ? 26 : 40)
-            : isElectricCollectionKey(key)
-            ? 22
-            : 28,
-      ),
-    );
+    final appearance = iconAppearance(key);
+    return iconBadgeWidget(key, color: appearance.line,
+      circleColor: appearance.circle, size: enlarged ? 80 : 48);
   }
 
   @override
@@ -4032,13 +4000,10 @@ class _IconColorsDialogState extends State<IconColorsDialog> {
       width: 340,
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
+          KeyedSubtree(
             key: const ValueKey('icon_color_preview'),
-            width: 80, height: 80,
-            decoration: BoxDecoration(color: _circle, shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: iconWidgetForKey(widget.iconKey, color: _lines,
-                circleColor: _circle, size: 44),
+            child: iconBadgeWidget(widget.iconKey, color: _lines,
+                circleColor: _circle, size: 80),
           ),
           const SizedBox(height: 18),
           const Text('Color del círculo'),
@@ -4462,14 +4427,8 @@ class _IconManagementPageState extends State<IconManagementPage> {
                         final color = iconAppearance(key).line;
                         return Card(
                           child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: iconAppearance(key).circle,
-                              child: iconWidgetForKey(
-                                key,
-                                color: color,
-                                size: 22,
-                              ),
-                            ),
+                            leading: iconBadgeWidget(key, color: color,
+                              circleColor: iconAppearance(key).circle, size: 48),
                             title: Text(
                               appIconLabel(key),
                               maxLines: 2,
@@ -4584,11 +4543,8 @@ class _IconManagementPageState extends State<IconManagementPage> {
             padding: const EdgeInsets.all(8),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               Stack(children: [
-                CircleAvatar(
-                  radius: gallery ? 40 : 22,
-                  backgroundColor: iconAppearance(key).circle,
-                  child: iconWidgetForKey(key, color: iconAppearance(key).line, size: gallery ? 50 : 26),
-                ),
+                iconBadgeWidget(key, color: iconAppearance(key).line,
+                  circleColor: iconAppearance(key).circle, size: gallery ? 80 : 48),
                 if (isIconFavorite(key))
                   const Positioned(right: 0, top: 0,
                     child: Icon(Icons.star, size: 12, color: Color(0xFFB77900))),
@@ -4881,8 +4837,8 @@ class _IconDuplicatesPageState extends State<IconDuplicatesPage> {
               children: [
                 for (final key in _groups[i])
                   ListTile(
-                    leading: CircleAvatar(backgroundColor: iconAppearance(key).circle,
-                      child: iconWidgetForKey(key, color: iconAppearance(key).line, size: 24)),
+                    leading: iconBadgeWidget(key, color: iconAppearance(key).line,
+                      circleColor: iconAppearance(key).circle, size: 48),
                     title: Text(appIconLabel(key)),
                     subtitle: Text(p.basename(customIconPathFromKey(key))),
                     trailing: IconButton(tooltip: 'Mover copia a la papelera',
@@ -5247,7 +5203,7 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
                       colorValue: _colorValue,
                       circleColorValue: _circleColorValue,
                     ),
-                    size: hasIconCircle(_iconKey) ? 44 : 28,
+                    size: 48,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -5383,7 +5339,7 @@ class _FieldOptionsManagementPageState
                             value: item.label,
                             child: Row(
                               children: [
-                                fieldOptionIconWidget(item, size: 20),
+                                fieldOptionIconWidget(item, size: 32),
                                 const SizedBox(width: 8),
                                 Text(item.label),
                               ],
@@ -5525,15 +5481,7 @@ class _FieldOptionsManagementPageState
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
                           child: ListTile(
-                            leading: isElectricCollectionKey(option.iconKey)
-                                ? fieldOptionIconWidget(option, size: 40)
-                                : CircleAvatar(
-                                    backgroundColor: option.circleColor,
-                                    child: fieldOptionIconWidget(
-                                      option,
-                                      size: 24,
-                                    ),
-                                  ),
+                            leading: fieldOptionIconWidget(option, size: 48),
                             title: Text(
                               option.label,
                               style: const TextStyle(
@@ -6519,7 +6467,7 @@ class _EditToolPageState extends State<EditToolPage> {
                   prefixIcon: Center(
                     widthFactor: 1,
                     heightFactor: 1,
-                    child: fieldOptionIconWidget(typeStyle, size: 24),
+                    child: fieldOptionIconWidget(typeStyle, size: 36),
                   ),
                 ),
                 hint: const Text('Selecciona el tipo'),
@@ -6529,7 +6477,7 @@ class _EditToolPageState extends State<EditToolPage> {
                         value: option.label,
                         child: Row(
                           children: [
-                            fieldOptionIconWidget(option, size: 20),
+                            fieldOptionIconWidget(option, size: 32),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -6676,7 +6624,7 @@ class _EditToolPageState extends State<EditToolPage> {
                   prefixIcon: Center(
                     widthFactor: 1,
                     heightFactor: 1,
-                    child: fieldOptionIconWidget(style, size: 24),
+                    child: fieldOptionIconWidget(style, size: 36),
                   ),
                 ),
                 items: _conditionOptions
@@ -6685,7 +6633,7 @@ class _EditToolPageState extends State<EditToolPage> {
                         value: option.label,
                         child: Row(
                           children: [
-                            fieldOptionIconWidget(option, size: 20),
+                            fieldOptionIconWidget(option, size: 32),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
