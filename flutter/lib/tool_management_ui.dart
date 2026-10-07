@@ -738,7 +738,7 @@ class _ManagedReturnPageState extends State<ManagedReturnPage>{
       const SizedBox(height:12),TextFormField(controller:_condition,decoration:const InputDecoration(labelText:'Estado al devolver (opcional)',prefixIcon:Icon(Icons.fact_check_outlined))),
       const SizedBox(height:12),TextFormField(controller:_notes,minLines:2,maxLines:6,decoration:const InputDecoration(labelText:'Observaciones de devolución')),
       SwitchListTile.adaptive(contentPadding:EdgeInsets.zero,secondary:const Icon(Icons.build_outlined),
-        title:const Text('Necesita mantenimiento'),subtitle:const Text('Las unidades o piezas devueltas quedarán fuera de servicio'),
+        title:const Text('Necesita mantenimiento'),subtitle:const Text('La herramienta o las piezas devueltas quedarán fuera de servicio'),
         value:_maintenance,onChanged:(v)=>setState(()=>_maintenance=v)),
       const SizedBox(height:16),const Text('El préstamo seguirá abierto mientras quede algo por devolver.'),
       const SizedBox(height:16),FilledButton.icon(key:const ValueKey('confirm_partial_return'),onPressed:_saving?null:_save,

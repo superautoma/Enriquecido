@@ -1900,8 +1900,9 @@ class ToolsDatabase with ToolManagementDatabase {
   Future<List<ToolLoan>> loadLoans({int? toolId}) async {
     final db = await database;
     final rows = await db.query('tool_loans',
-      where: toolId == null ? null : 'tool_id = ? OR tool_id IN (SELECT id FROM tools WHERE parent_id = ?)',
-      whereArgs: toolId == null ? null : [toolId, toolId],
+      where: toolId == null ? null : 'tool_id = ? OR tool_id IN (SELECT id FROM tools WHERE parent_id = ?) '
+        'OR id IN (SELECT loan_id FROM loan_contents WHERE component_id = ?)',
+      whereArgs: toolId == null ? null : [toolId, toolId, toolId],
       orderBy: 'started_on DESC, id DESC');
     return rows.map(ToolLoan.fromMap).toList();
   }
@@ -2019,6 +2020,9 @@ class ToolsDatabase with ToolManagementDatabase {
         'Destinatario: ${loan.borrower} → ${draft.borrower.trim()}\n'
         'Plazo: ${loan.dueOn == null ? "Sin fecha" : loanDateText(loan.dueOn!)} → '
         '${draft.dueOn == null ? "Sin fecha" : loanDateText(draft.dueOn!)}\n'
+        'Contacto: ${loan.contact} → ${draft.contact}\n'
+        'Accesorios: ${loan.accessories} → ${draft.accessories}\n'
+        'Estado de entrega: ${loan.deliveryCondition} → ${draft.deliveryCondition}\n'
         'Observaciones anteriores: ${loan.notes}', notes: draft.notes);
       await txn.insert('borrowers', {'name': draft.borrower.trim(), 'contact': draft.contact.trim()},
         conflictAlgorithm: ConflictAlgorithm.replace);
@@ -2100,6 +2104,9 @@ class ToolsDatabase with ToolManagementDatabase {
       final children = await db.query('tools', where: 'parent_id=?', whereArgs: [tool.id]);
       final childIds = children.map((c) => c['id']).toSet();
       tool.activeLoans = activeLoans.where((l) => l.toolId == tool.id || childIds.contains(l.toolId)).toList();
+      final inherited = await db.rawQuery('''SELECT l.* FROM loan_contents c JOIN tool_loans l ON l.id=c.loan_id
+        WHERE c.component_id=? AND l.returned_on IS NULL AND c.quantity>c.returned_quantity''', [tool.id]);
+      tool.activeLoans.addAll(inherited.map(ToolLoan.fromMap));
       tool.activeLoan = tool.activeLoans.firstOrNull;
       tool.availableQuantity = tool.quantity - await reservedQuantity(db, tool.id);
       if (tool.isSet) {
@@ -2879,7 +2886,6 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
 
   int _nextId = 1;
   Future<void> _loadItems() async {
-    _nextId = await ToolsDatabase.instance.nextToolId();
     setState(() {
       _loading = true;
       _loadError = false;
@@ -2888,6 +2894,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     var loadStage = 'Abrir los datos guardados';
     try {
       await ToolsDatabase.instance.seedIfEmpty(_defaultItems);
+      _nextId = await ToolsDatabase.instance.nextToolId();
       loadStage = 'Leer las herramientas';
       final items = await ToolsDatabase.instance.loadTools();
       loadStage = 'Leer los iconos';
@@ -6791,7 +6798,7 @@ class _EditToolPageState extends State<EditToolPage> {
     _purchasePrice = TextEditingController(
       text: item == null ? '' : item.purchasePrice.toStringAsFixed(2),
     );
-    _condition = item?.condition ?? 'Bueno';
+    _condition = item?.activeLoan != null ? 'Prestado' : item?.condition ?? 'Bueno';
     _type = item?.type ?? '';
     _voltage = item?.voltage ?? '';
     _loanDraft = item?.loanDraft;
