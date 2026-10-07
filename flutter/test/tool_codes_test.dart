@@ -131,4 +131,22 @@ void main() {
     await tester.ensureVisible(find.text('Compartir PDF'));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Manual fallback preserves leading zeros, ignores blanks and cancels cleanly', (tester) async {
+    String? result;
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
+      body: TextButton(onPressed: () async {
+        result = await showDialog<String>(context: context, builder: (_) => const ManualToolCodeDialog());
+      }, child: const Text('Abrir'))))));
+    await tester.tap(find.text('Abrir')); await tester.pumpAndSettle();
+    await tester.tap(find.text('Usar código')); await tester.pumpAndSettle();
+    expect(find.byType(ManualToolCodeDialog), findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('scan_manual_code')), ' 001AbC ');
+    await tester.tap(find.text('Usar código')); await tester.pumpAndSettle();
+    expect(result, '001AbC'); expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Abrir')); await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('scan_manual_code')), 'NO-GUARDAR');
+    await tester.tap(find.text('Cancelar')); await tester.pumpAndSettle();
+    expect(result, isNull); expect(tester.takeException(), isNull);
+  });
 }

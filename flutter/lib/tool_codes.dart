@@ -55,6 +55,7 @@ class ToolCodeScannerPage extends StatefulWidget {
 class _ToolCodeScannerPageState extends State<ToolCodeScannerPage> {
   final _controller = ms.MobileScannerController(detectionSpeed: ms.DetectionSpeed.noDuplicates);
   bool _handling = false;
+  bool get _current => mounted && ModalRoute.of(context)?.isCurrent == true;
 
   @override
   void dispose() {
@@ -67,18 +68,18 @@ class _ToolCodeScannerPageState extends State<ToolCodeScannerPage> {
   }
 
   Future<void> _resume() async {
-    if (!mounted) return;
+    if (!_current) return;
     _handling = false;
     try { await _controller.start(); } catch (_) { /* The preview displays the permission/camera error. */ }
   }
 
   Future<void> _detected(ms.BarcodeCapture capture) async {
-    if (_handling || !mounted) return;
+    if (_handling || !_current) return;
     final codes = detectedToolCodes(capture.barcodes.map((barcode) => barcode.rawValue));
     if (codes.isEmpty) return;
     _handling = true;
     try { await _controller.stop(); } catch (_) { /* Still-image reading works without camera permission. */ }
-    if (!mounted) return;
+    if (!_current) return;
     String? code = codes.length == 1 ? codes.single : await showModalBottomSheet<String>(
       context: context, useSafeArea: true, builder: (context) => SafeArea(child: SizedBox(
         height: MediaQuery.sizeOf(context).height * .5, child: Column(children: [
@@ -86,41 +87,31 @@ class _ToolCodeScannerPageState extends State<ToolCodeScannerPage> {
           Expanded(child: ListView(children: codes.map((value) => ListTile(title: Text(value),
             onTap: () => Navigator.pop(context, value))).toList())),
         ]))));
-    if (!mounted) return;
+    if (!_current) return;
     if (code != null) { Navigator.pop(context, code); } else { await _resume(); }
   }
 
   Future<void> _manual() async {
-    if (_handling) return;
+    if (_handling || !_current) return;
     _handling = true;
     try { await _controller.stop(); } catch (_) { /* Camera may be unavailable. */ }
-    if (!mounted) return;
-    final input = TextEditingController();
-    final code = await showDialog<String>(context: context, builder: (context) => AlertDialog(
-      title: const Text('Introducir código'),
-      content: TextField(controller: input, autofocus: true, key: const ValueKey('scan_manual_code'),
-        decoration: const InputDecoration(labelText: 'Código de barras o QR'),
-        onSubmitted: (value) { if (value.trim().isNotEmpty) Navigator.pop(context, value.trim()); }),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-        FilledButton(onPressed: () { if (input.text.trim().isNotEmpty) Navigator.pop(context, input.text.trim()); },
-          child: const Text('Usar código'))]));
-    // The dialog route can still be animating out with the field attached.
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    input.dispose();
-    if (!mounted) return;
+    if (!_current) return;
+    final code = await showDialog<String>(context: context, builder: (_) => const ManualToolCodeDialog());
+    if (!_current) return;
     if (code != null) { Navigator.pop(context, code); } else { await _resume(); }
   }
 
   Future<void> _image() async {
-    if (_handling) return;
+    if (_handling || !_current) return;
     _handling = true;
     try { await _controller.stop(); } catch (_) { /* Gallery works when camera permission is denied. */ }
+    if (!_current) return;
     try {
       final image = await ImagePicker().pickImage(source: ImageSource.gallery);
-      if (!mounted) return;
+      if (!_current) return;
       if (image != null) {
         final capture = await _controller.analyzeImage(image.path);
-        if (!mounted) return;
+        if (!_current) return;
         if (capture != null && detectedToolCodes(capture.barcodes.map((b) => b.rawValue)).isNotEmpty) {
           _handling = false;
           await _detected(capture);
@@ -169,6 +160,29 @@ class _ToolCodeScannerPageState extends State<ToolCodeScannerPage> {
         ])),
     ])),
   );
+}
+
+class ManualToolCodeDialog extends StatefulWidget {
+  const ManualToolCodeDialog({super.key});
+  @override
+  State<ManualToolCodeDialog> createState() => _ManualToolCodeDialogState();
+}
+
+class _ManualToolCodeDialogState extends State<ManualToolCodeDialog> {
+  final _input = TextEditingController();
+  @override
+  void dispose() { _input.dispose(); super.dispose(); }
+  void _accept() {
+    final code = _input.text.trim();
+    if (code.isNotEmpty) Navigator.pop(context, code);
+  }
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Introducir código'),
+    content: TextField(controller: _input, autofocus: true, key: const ValueKey('scan_manual_code'),
+      decoration: const InputDecoration(labelText: 'Código de barras o QR'), onSubmitted: (_) => _accept()),
+    actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+      FilledButton(onPressed: _accept, child: const Text('Usar código'))]);
 }
 
 Future<Uint8List> toolLabelPdf(ToolItem tool) async {
