@@ -45,11 +45,16 @@ void main() {
   });
 
   testWidgets('Search, rename, delete and restore through the manager', (tester) async {
-    Future<void> finish() async {
-      await tester.runAsync(() async {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-      });
-      await tester.pumpAndSettle();
+    Future<void> finish({Finder? absent}) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      do {
+        await tester.runAsync(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        });
+        await tester.pumpAndSettle();
+        if (absent == null || absent.evaluate().isEmpty) return;
+      } while (DateTime.now().isBefore(deadline));
+      throw TestFailure('The icon update did not finish within five seconds');
     }
     await tester.runAsync(() async {
       await tester.pumpWidget(const MaterialApp(home: IconManagementPage()));
@@ -71,13 +76,13 @@ void main() {
     await tester.runAsync(() async { await tester.tap(find.text('Eliminar')); });
     await tester.pumpAndSettle();
     await tester.runAsync(() async { await tester.tap(find.widgetWithText(FilledButton, 'Eliminar')); });
-    await finish();
+    await finish(absent: find.widgetWithText(ListTile, 'Toma del taller'));
     expect(find.widgetWithText(ListTile, 'Toma del taller'), findsNothing);
     await tester.tap(find.text('Papelera'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(ListTile, 'Toma del taller'), findsOneWidget);
     await tester.runAsync(() async { await tester.tap(find.widgetWithText(ListTile, 'Toma del taller')); });
-    await finish();
+    await finish(absent: find.widgetWithText(ListTile, 'Toma del taller'));
     expect(find.widgetWithText(ListTile, 'Toma del taller'), findsNothing);
     await tester.tap(find.text('Iconos activos'));
     await tester.pumpAndSettle();
