@@ -159,7 +159,8 @@ void main() {
             quantity: loan.quantity, unit: loan.unit, initialLoan: loan))));
       },
         child: const Text('Editar'))))));
-    await tester.tap(find.text('Editar')); await tester.pumpAndSettle();
+    await tester.runAsync(() => tester.tap(find.text('Editar')));
+    await tester.pumpAndSettle();
     expect(find.text('Editar préstamo'), findsOneWidget);
     expect(find.text(loan.borrower), findsOneWidget);
     expect(find.text(loan.notes), findsOneWidget);
