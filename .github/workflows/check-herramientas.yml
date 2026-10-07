@@ -1,0 +1,140 @@
+name: Check Tools Without Rebuilding APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      apk_run_id:
+        description: 'Existing APK build run; blank selects the latest successful build on this branch'
+        required: false
+        type: string
+  push:
+    branches:
+      - main
+      - iconos-electricos-50
+      - prestamos-herramientas
+    paths:
+      - 'flutter/test/**'
+      - 'flutter/startup_android/smoke_test.py'
+      - 'flutter/startup_android/test_*.py'
+      - '.github/workflows/check-herramientas.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: tools-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: flutter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos lib/main_quill_integrated_test.dart
+      - run: python3 -m unittest discover -s startup_android -p 'test_*.py'
+      - run: flutter test
+        timeout-minutes: 6
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find an APK with matching application sources
+        id: apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APK_RUN_INPUT: ${{ inputs.apk_run_id }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, urllib.request, urllib.parse
+          repo = os.environ['GITHUB_REPOSITORY']
+          root = f'https://api.github.com/repos/{repo}/'
+          def get(path):
+              request = urllib.request.Request(root + path, headers={
+                  'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                  'Accept': 'application/vnd.github+json',
+                  'X-GitHub-Api-Version': '2022-11-28'})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+          def application_sources(commit):
+              tree_sha = get('git/commits/' + commit)['tree']['sha']
+              tree = get('git/trees/' + tree_sha + '?recursive=1')
+              if tree.get('truncated'):
+                  raise RuntimeError('Cannot verify a truncated source tree')
+              def compiled(path):
+                  return (path.startswith(('flutter/lib/', 'flutter/assets/', '.github/dev-signing/'))
+                      or path in ('flutter/pubspec.yaml', 'flutter/pubspec.lock')
+                      or (path.startswith('flutter/startup_android/')
+                          and path != 'flutter/startup_android/smoke_test.py'
+                          and not path.rsplit('/', 1)[-1].startswith('test_')))
+              return {item['path']: item['sha'] for item in tree['tree']
+                      if item['type'] == 'blob' and compiled(item['path'])}
+          selected = os.environ.get('APK_RUN_INPUT', '').strip()
+          if selected:
+              if not re.fullmatch(r'[0-9]+', selected):
+                  raise ValueError('APK run ID must be numeric')
+              runs = [get('actions/runs/' + selected)]
+          else:
+              query = urllib.parse.urlencode({'branch': os.environ['GITHUB_REF_NAME'],
+                  'status': 'success', 'per_page': 20})
+              runs = get('actions/workflows/build-integrated-quill-apk.yml/runs?' + query)['workflow_runs']
+          current = application_sources(os.environ['GITHUB_SHA'])
+          for run in runs:
+              artifacts = get(f"actions/runs/{run['id']}/artifacts")['artifacts']
+              artifact = next((a for a in artifacts if a['name'] == 'gestor-quill-integrado-apk'
+                  and not a['expired']), None)
+              if artifact and application_sources(run['head_sha']) == current:
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+                      output.write(f"ready=true\nrun_id={run['id']}\n")
+                  print(f"Reusing APK from build run {run['id']}; application sources match")
+                  break
+          else:
+              if selected:
+                  raise RuntimeError('Selected APK does not match the current application sources')
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+                  output.write('ready=false\n')
+              print('No matching compiled APK is available; run the APK build workflow first')
+          PY
+      - name: Download the existing APK
+        if: steps.apk.outputs.ready == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: gestor-quill-integrado-apk
+          path: flutter/build/app/outputs/flutter-apk
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.apk.outputs.run_id }}
+      - name: Enable emulator acceleration
+        if: steps.apk.outputs.ready == 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Test the existing APK on Android
+        if: steps.apk.outputs.ready == 'true'
+        timeout-minutes: 8
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          disable-animations: false
+          working-directory: flutter
+          script: python3 startup_android/smoke_test.py
+      - name: Upload Android screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: startup-check
+          path: flutter/startup-check/
+          if-no-files-found: ignore
+          retention-days: 14

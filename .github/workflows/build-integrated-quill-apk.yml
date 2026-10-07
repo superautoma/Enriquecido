@@ -11,10 +11,15 @@ on:
       - "flutter/lib/main_quill_integrated_test.dart"
       - "flutter/pubspec.yaml"
       - "flutter/assets/**"
-      - "flutter/test/**"
-      - "flutter/startup_android/**"
+      - "flutter/startup_android/install_startup.py"
+      - "flutter/startup_android/StartupActivity.java"
+      - "flutter/startup_android/MainActivity.kt"
+      - "flutter/startup_android/res/**"
       - ".github/dev-signing/android-debug.keystore.b64"
-      - ".github/workflows/build-integrated-quill-apk.yml"
+
+concurrency:
+  group: integrated-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -35,6 +40,11 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Reuse Gradle dependencies and build cache
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
+
       - name: Generate Android project
         run: |
           cp pubspec.yaml /tmp/flutter_pubspec.yaml
@@ -48,6 +58,7 @@ jobs:
           rm -f test/widget_test.dart
           sed -i 's/android:label="gestor_herramientas_quill_test"/android:label="Gestor Quill Integrado"/' android/app/src/main/AndroidManifest.xml
           python3 startup_android/install_startup.py
+          printf '\norg.gradle.caching=true\n' >> android/gradle.properties
 
       - name: Install stable development signing key
         run: |
@@ -89,9 +100,11 @@ jobs:
         run: python3 -m unittest discover -s startup_android -p "test_*.py"
 
       - name: Verify layout, startup and voltage persistence
+        timeout-minutes: 6
         run: flutter test
 
       - name: Build optimized APK
+        timeout-minutes: 15
         run: |
           flutter build apk --release --no-tree-shake-icons \
             -t lib/main_quill_integrated_test.dart \
@@ -133,6 +146,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Check Android startup and back navigation
+        timeout-minutes: 8
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
