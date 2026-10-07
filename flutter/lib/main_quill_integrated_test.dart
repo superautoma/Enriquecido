@@ -1107,9 +1107,10 @@ Widget iconBadgeWidget(
   required Color circleColor,
   double size = 48,
 }) {
-  final svg = isEditableSvgIcon(key);
-  final artworkSize = size * (svg ? 0.90
-      : isElectricCollectionKey(key) || isCustomIconKey(key) ? 0.85 : 0.65);
+  // A square of side 0.70 * diameter fits entirely inside a circle.
+  // Reserve this box for the complete image, including its corners.
+  final artworkSize = size * (
+      isElectricCollectionKey(key) || isCustomIconKey(key) ? 0.70 : 0.65);
   final glyph = iconWidgetForKey(
     key, color: color, circleColor: circleColor, size: artworkSize,
   );
@@ -1119,7 +1120,7 @@ Widget iconBadgeWidget(
     decoration: BoxDecoration(color: circleColor, shape: BoxShape.circle),
     child: ClipOval(
       child: Center(
-        child: svg ? Transform.scale(scale: 1.30, child: glyph) : glyph,
+        child: glyph,
       ),
     ),
   );

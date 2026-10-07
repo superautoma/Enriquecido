@@ -9,14 +9,14 @@ void main() {
       (tester) async {
     late Directory directory;
     late File file;
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M10 10L54 54" stroke="black"/></svg>';
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M1 1H63V63H1Z" stroke="black"/></svg>';
     await tester.runAsync(() async {
       directory = await Directory.systemTemp.createTemp('icon_badge_');
       file = File('${directory.path}/test.svg');
       await file.writeAsString(svg);
     });
     for (final field in ['type', 'condition']) {
-      for (final size in [32.0, 48.0]) {
+      for (final size in [22.0, 32.0, 48.0, 80.0, 112.0]) {
         await tester.pumpWidget(MaterialApp(home: Scaffold(body: Center(
           child: SizedBox(width: 280, child: Row(children: [
             fieldOptionIconWidget(FieldOption(fieldKey: field,
@@ -29,7 +29,16 @@ void main() {
         expect(find.byType(CircleAvatar), findsNothing);
         expect(tester.getSize(find.byType(ClipOval)).width, size);
         expect(tester.getSize(find.byType(SvgPicture)).width,
-            closeTo(size * .90, .01));
+            closeTo(size * .70, .01));
+        final pictureRect = tester.getRect(find.byType(SvgPicture));
+        final badgeRect = tester.getRect(find.byType(ClipOval));
+        for (final corner in [pictureRect.topLeft, pictureRect.topRight,
+            pictureRect.bottomLeft, pictureRect.bottomRight]) {
+          expect((corner - badgeRect.center).distance,
+              lessThan(badgeRect.width / 2));
+        }
+        expect(find.descendant(of: find.byType(ClipOval),
+            matching: find.byType(Transform)), findsNothing);
         expect(tester.takeException(), isNull);
       }
     }
