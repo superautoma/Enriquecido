@@ -1,0 +1,172 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import '../lib/main_quill_integrated_test.dart';
+
+ToolItem sample() => ToolItem(id: 101, name: 'Taladro', description: 'Con maletín',
+  descriptionDelta: '', barcode: 'ABC', quantity: 2, unit: 'ud', minimumStock: 1,
+  purchasePrice: 70, condition: 'Revisar', type: 'Herramienta eléctrica', voltage: '24 V');
+LoanDraft draft({String borrower = 'Juan García', DateTime? due}) => LoanDraft(
+  borrower: borrower, startedOn: loanDay(DateTime.now()).subtract(const Duration(days: 3)),
+  dueOn: due, notes: 'Incluye cargador');
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  late Directory directory;
+  setUpAll(() { sqfliteFfiInit(); databaseFactory = databaseFactoryFfi; });
+  setUp(() async {
+    directory = await Directory.systemTemp.createTemp('tool_loans_');
+    await databaseFactory.setDatabasesPath('${directory.path}/database');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(const MethodChannel('plugins.flutter.io/path_provider'),
+        (_) async => directory.path);
+  });
+  tearDown(() async {
+    await ToolsDatabase.instance.closeForBackup();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(const MethodChannel('plugins.flutter.io/path_provider'), null);
+    await directory.delete(recursive: true);
+  });
+
+  test('v7 migrates without losing descriptions, voltage, photos or custom states', () async {
+    final item = sample();
+    item.images = [ToolImage(toolId: item.id, path: '/photo.jpg', isPrimary: true)];
+    await ToolsDatabase.instance.saveTool(item);
+    final db = await ToolsDatabase.instance.database;
+    await db.execute('DROP TABLE tool_loans');
+    await db.setVersion(7);
+    await ToolsDatabase.instance.closeForBackup();
+    final loaded = (await ToolsDatabase.instance.loadTools()).single;
+    expect(loaded.name, item.name);
+    expect(loaded.voltage, '24 V');
+    expect(loaded.description, 'Con maletín');
+    expect(loaded.condition, 'Revisar');
+    expect(loaded.images.single.path, '/photo.jpg');
+    expect(await (await ToolsDatabase.instance.database).getVersion(), 8);
+    expect(await ToolsDatabase.instance.loadLoans(), isEmpty);
+  });
+
+  test('Loan, edits, reopen, return and second loan preserve history and stock', () async {
+    final item = sample()..loanDraft = draft();
+    await ToolsDatabase.instance.saveTool(item);
+    await ToolsDatabase.instance.closeForBackup();
+    final loaded = (await ToolsDatabase.instance.loadTools()).single;
+    expect(loaded.condition, 'Prestado');
+    expect(loaded.activeLoan!.borrower, 'Juan García');
+    expect(loaded.activeLoan!.notes, 'Incluye cargador');
+    expect(loaded.quantity, 2);
+    loaded.name = 'Taladro nuevo nombre';
+    loaded.condition = 'Bueno'; // Cannot bypass a live loan with an old editor.
+    await ToolsDatabase.instance.saveTool(loaded);
+    expect((await ToolsDatabase.instance.loadTools()).single.condition, 'Prestado');
+    final firstLoan = (await ToolsDatabase.instance.loadLoans()).single;
+    expect(firstLoan.toolName, 'Taladro');
+    await ToolsDatabase.instance.returnLoan(firstLoan.id, DateTime.now());
+    await ToolsDatabase.instance.closeForBackup();
+    final returned = (await ToolsDatabase.instance.loadTools()).single;
+    expect(returned.activeLoan, isNull);
+    expect(returned.condition, 'Revisar');
+    expect(returned.quantity, 2);
+    expect((await ToolsDatabase.instance.loadLoans()).single.returnedOn, isNotNull);
+    returned.loanDraft = draft(borrower: 'Ana');
+    await ToolsDatabase.instance.saveTool(returned);
+    final history = await ToolsDatabase.instance.loadLoans(toolId: 101);
+    expect(history, hasLength(2));
+    expect(history.where((l) => l.isActive), hasLength(1));
+    expect(history.first.borrower, 'Ana');
+  });
+
+  test('Duplicate loan and invalid dates roll back the whole tool save', () async {
+    final item = sample()..loanDraft = draft();
+    await ToolsDatabase.instance.saveTool(item);
+    final second = (await ToolsDatabase.instance.loadTools()).single;
+    second.name = 'Must roll back';
+    second.loanDraft = draft(borrower: 'Ana');
+    await expectLater(ToolsDatabase.instance.saveTool(second), throwsStateError);
+    expect((await ToolsDatabase.instance.loadTools()).single.name, 'Taladro');
+    expect(await ToolsDatabase.instance.loadLoans(), hasLength(1));
+    final loan = (await ToolsDatabase.instance.loadLoans()).single;
+    await expectLater(ToolsDatabase.instance.returnLoan(loan.id,
+      loan.startedOn.subtract(const Duration(days: 1))), throwsStateError);
+    await expectLater(ToolsDatabase.instance.returnLoan(loan.id,
+      DateTime.now().add(const Duration(days: 1))), throwsStateError);
+    expect((await ToolsDatabase.instance.loadLoans()).single.isActive, isTrue);
+    await ToolsDatabase.instance.returnLoan(loan.id, DateTime.now());
+    await expectLater(ToolsDatabase.instance.returnLoan(loan.id, DateTime.now()), throwsStateError);
+  });
+
+  test('Cannot create a new loan state without a borrower record', () async {
+    await expectLater(ToolsDatabase.instance.saveTool(sample()..condition = 'Prestado'),
+      throwsStateError);
+    expect(await ToolsDatabase.instance.loadTools(), isEmpty);
+    await expectLater(ToolsDatabase.instance.saveTool(sample()..loanDraft = draft(borrower: '   ')),
+      throwsStateError);
+    expect(await ToolsDatabase.instance.loadTools(), isEmpty);
+    final invalid = sample()..loanDraft = draft(due: DateTime(2000));
+    await expectLater(ToolsDatabase.instance.saveTool(invalid), throwsStateError);
+    expect(await ToolsDatabase.instance.loadLoans(), isEmpty);
+  });
+
+  test('Due today is not late, missing due date is not late, returned loans are not late', () async {
+    final today = loanDay(DateTime.now());
+    await ToolsDatabase.instance.saveTool(sample()..loanDraft = draft(due: today));
+    final loan = (await ToolsDatabase.instance.loadLoans()).single;
+    expect(loan.isOverdueOn(today), isFalse);
+    expect(loan.isOverdueOn(today.add(const Duration(days: 1))), isTrue);
+    await ToolsDatabase.instance.returnLoan(loan.id, today);
+    expect((await ToolsDatabase.instance.loadLoans()).single.isOverdue, isFalse);
+  });
+
+  test('Complete backup and restore keep active loans and returned history', () async {
+    await ToolsDatabase.instance.saveTool(sample()..loanDraft = draft());
+    var first = (await ToolsDatabase.instance.loadLoans()).single;
+    await ToolsDatabase.instance.returnLoan(first.id, DateTime.now());
+    final item = (await ToolsDatabase.instance.loadTools()).single..loanDraft = draft(borrower: 'Ana');
+    await ToolsDatabase.instance.saveTool(item);
+    final backup = await BackupManager.createBackup();
+    // Restore overwrites later changes with the saved state.
+    first = (await ToolsDatabase.instance.loadLoans()).first;
+    await ToolsDatabase.instance.returnLoan(first.id, DateTime.now());
+    await BackupManager.restoreBackup(backup.path);
+    final history = await ToolsDatabase.instance.loadLoans();
+    expect(history, hasLength(2));
+    expect(history.where((l) => l.isActive).single.borrower, 'Ana');
+    expect(history.where((l) => !l.isActive).single.borrower, 'Juan García');
+    expect((await ToolsDatabase.instance.loadTools()).single.activeLoan!.borrower, 'Ana');
+  });
+
+  testWidgets('Loan form validates recipient and returns confirmed optional details', (tester) async {
+    LoanDraft? result;
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
+      body: TextButton(onPressed: () async {
+        result = await Navigator.push<LoanDraft>(context, MaterialPageRoute(builder: (_) =>
+          const LoanFormPage(toolName: 'Taladro', quantity: 1, unit: 'ud')));
+      }, child: const Text('Abrir'))))));
+    await tester.tap(find.text('Abrir')); await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('confirm_loan'))); await tester.pumpAndSettle();
+    expect(find.text('Escribe quién recibe la herramienta'), findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('loan_borrower')), 'Pedro');
+    await tester.enterText(find.byKey(const ValueKey('loan_notes')), 'Con batería');
+    await tester.ensureVisible(find.byKey(const ValueKey('confirm_loan')));
+    await tester.tap(find.byKey(const ValueKey('confirm_loan'))); await tester.pumpAndSettle();
+    expect(result?.borrower, 'Pedro'); expect(result?.notes, 'Con batería');
+    expect(result?.dueOn, isNull); expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Loan status handles long names and large text on narrow mobile', (tester) async {
+    tester.view.physicalSize = const Size(320, 900); tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
+    final loan = ToolLoan(id: 1, toolId: 101, toolName: 'Taladro',
+      borrower: 'Juan García Fernández nombre muy largo', startedOn: DateTime(2026, 1, 1),
+      dueOn: DateTime(2026, 1, 2), notes: 'Con su cargador y su maletín',
+      previousCondition: 'Bueno', quantity: 1, unit: 'ud');
+    await tester.pumpWidget(MaterialApp(home: MediaQuery(
+      data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+      child: Scaffold(body: ListView(children: [LoanStatusCard(loan: loan,
+        onLend: () {}, onReturn: () {}, onHistory: () {})])))));
+    await tester.pumpAndSettle(); expect(tester.takeException(), isNull);
+  });
+}

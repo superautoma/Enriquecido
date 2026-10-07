@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - iconos-electricos-50
+      - prestamos-herramientas
     paths:
       - "flutter/lib/main_quill_integrated_test.dart"
       - "flutter/pubspec.yaml"
