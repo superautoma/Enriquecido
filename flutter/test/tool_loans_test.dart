@@ -218,6 +218,7 @@ void main() {
     await tester.enterText(find.byKey(const ValueKey('loan_borrower')), 'Pedro');
     await tester.enterText(find.byKey(const ValueKey('loan_notes')), 'Con batería');
     await tester.ensureVisible(find.byKey(const ValueKey('confirm_loan')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('confirm_loan'))); await tester.pumpAndSettle();
     expect(result?.borrower, 'Pedro'); expect(result?.notes, 'Con batería');
     expect(result?.dueOn, isNull); expect(tester.takeException(), isNull);

@@ -2198,6 +2198,10 @@ class ToolsDatabase with ToolManagementDatabase {
         throw StateError('La cantidad no puede ser menor que las unidades prestadas');
       }
       final oldItem = await txn.query('tools', where: 'id=?', whereArgs: [item.id]);
+      if (oldItem.isNotEmpty) {
+        item.outOfService = oldItem.single['out_of_service'] == 1;
+        item.serviceNotes = oldItem.single['service_notes'] as String;
+      }
       if (item.parentId != null && (oldItem.isEmpty || oldItem.single['parent_id'] != item.parentId) &&
           await reservedQuantity(txn, item.parentId!) > 0) {
         throw StateError('Devuelve el conjunto antes de modificar su contenido');
@@ -6906,16 +6910,12 @@ class _EditToolPageState extends State<EditToolPage> {
     if (item == null) return;
     await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) =>
       LoansPage(toolId: item.id, toolName: item.name)));
-    final loans = await ToolsDatabase.instance.loadLoans(toolId: item.id);
-    final active = loans.where((loan) => loan.isActive).firstOrNull;
-    if (!mounted) return;
+    final refreshed = await ToolsDatabase.instance.loadTool(item.id);
+    if (!mounted || refreshed == null) return;
     setState(() {
-      item.activeLoan = active;
-      if (active != null) {
-        _condition = 'Prestado';
-      } else if (isLoanCondition(_condition) && loans.isNotEmpty) {
-        _condition = loans.first.previousCondition;
-      }
+      _managedItem = refreshed;
+      _condition = refreshed.activeLoan != null ? 'Prestado' : refreshed.condition;
+      _isSet = refreshed.isSet;
     });
   }
 

@@ -297,8 +297,15 @@ mixin ToolManagementDatabase {
         allReturned = loan.quantity - returned < 0.000001;
       }
       if (count <= 0) throw StateError('Indica al menos una unidad o pieza devuelta');
+      final priorReturns = await txn.query('loan_events', columns: ['performed_on'],
+        where: 'loan_id=? AND kind=?', whereArgs: [loanId, 'Devolución']);
+      var finalDay = day;
+      for (final event in priorReturns) {
+        final value = event['performed_on'] as String?;
+        if (value != null && DateTime.parse(value).isAfter(finalDay)) finalDay = DateTime.parse(value);
+      }
       await txn.update('tool_loans', {'returned_quantity': returned,
-        'returned_on': allReturned ? day.toIso8601String() : null},
+        'returned_on': allReturned ? finalDay.toIso8601String() : null},
         where: 'id=?', whereArgs: [loanId]);
       await addLoanEvent(txn, loanId, 'Devolución', performedOn: day,
         quantity: count, condition: draft.condition, notes: draft.notes,

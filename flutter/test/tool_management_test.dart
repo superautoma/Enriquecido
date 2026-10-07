@@ -110,6 +110,20 @@ void main(){
     await expectLater(db.saveTool((await db.loadTool(1))!..loanDraft=lend()),throwsStateError);
   });
 
+  test('Historical returns keep the final date and stale editors preserve maintenance blocks',()async{
+    final db=ToolsDatabase.instance;
+    await db.saveTool(tool(1,quantity:2)..loanDraft=lend());
+    final loan=(await db.loadLoans()).single;
+    final stale=(await db.loadTool(1))!;
+    final latest=loanDay(DateTime.now());
+    await db.recordReturn(loan.id,LoanReturnDraft(date:latest,quantity:1,needsMaintenance:true));
+    await db.recordReturn(loan.id,LoanReturnDraft(date:latest.subtract(const Duration(days:1)),quantity:1));
+    expect((await db.loadLoans()).single.returnedOn,latest);
+    await db.saveTool(stale);
+    expect((await db.loadTool(1))!.outOfService,true);
+    await expectLater(db.saveTool((await db.loadTool(1))!..loanDraft=lend(quantity:1)),throwsStateError);
+  });
+
   test('Loans and changes retain audit entries and reject dates after partial returns',()async{
     final db=ToolsDatabase.instance;
     await db.saveTool(tool(1,quantity:2)..loanDraft=lend());
