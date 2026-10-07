@@ -20,8 +20,8 @@ def screenshot(name):
     (output / name).write_bytes(adb("exec-out", "screencap", "-p"))
 
 
-def wait_for(label, exclude_class=None):
-    deadline = time.monotonic() + 120
+def wait_for(label, exclude_class=None, timeout=120):
+    deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
             adb("shell", "uiautomator", "dump", "/sdcard/startup-window.xml")
@@ -44,7 +44,7 @@ def tap(label, exclude_class=None):
     tap_node(node)
 
 
-def scroll_tap(label):
+def scroll_find(label):
     for _ in range(6):
         adb('shell', 'uiautomator', 'dump', '/sdcard/startup-window.xml')
         xml = adb('shell', 'cat', '/sdcard/startup-window.xml').decode()
@@ -52,8 +52,7 @@ def scroll_tap(label):
         root = ET.fromstring(xml)
         for node in root.iter('node'):
             if label in node.get('text', '') + node.get('content-desc', ''):
-                tap_node(node)
-                return
+                return node
         screen = next(root.iter('node'))
         left, top, right, bottom = map(int, re.findall(r'\d+', screen.attrib['bounds']))
         x = (left + right) // 2
@@ -62,6 +61,10 @@ def scroll_tap(label):
         adb('shell', 'input', 'swipe', str(x), str(start_y), str(x), str(end_y), '350')
     screenshot('scroll-failed.png')
     raise AssertionError(f'Could not scroll to {label}')
+
+
+def scroll_tap(label):
+    tap_node(scroll_find(label))
 
 
 def tap_node(node):
@@ -335,8 +338,10 @@ print('Android location editing, persistence, import retention and brand/locatio
 # with a QR fixture. The emulator camera cannot verify handheld focus quality.
 tap('Destornillador aislado', exclude_class='android.widget.EditText')
 scroll_tap('Leer código con cámara')
-assert tap_any(['Allow', 'Permitir'], timeout=10), 'Camera permission prompt missing'
-wait_for('Leer código')
+# Android 29 displays the button in capitals; mixed-case "Allow" matches the
+# explanatory, non-clickable sentence instead and leaves the dialog open.
+assert tap_any(['ALLOW', 'PERMITIR'], timeout=10), 'Camera permission prompt missing'
+wait_for('Leer código', timeout=30)
 screenshot('scanner-camera.png')
 tap('Introducir código')
 tap_field(0)
@@ -408,7 +413,7 @@ adb('shell', 'input', 'text', '000NEW-QA')
 tap('Usar código')
 wait_for('Código sin coincidencias')
 tap('Crear herramienta')
-wait_for('000NEW-QA')
+scroll_find('000NEW-QA')
 screenshot('scanner-new-prefill.png')
 adb('shell', 'input', 'keyevent', '4')
 wait_for('Mis herramientas')

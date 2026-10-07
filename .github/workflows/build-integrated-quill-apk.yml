@@ -152,6 +152,7 @@ jobs:
           api-level: 29
           arch: x86_64
           disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back emulated -camera-front emulated
           working-directory: flutter
           script: python3 startup_android/smoke_test.py
 
