@@ -39,9 +39,28 @@ def wait_for(label):
 
 def tap(label):
     node = wait_for(label)
+    tap_node(node)
+
+
+def tap_node(node):
     coords = [int(value) for value in re.findall(r"\d+", node.attrib["bounds"])]
     adb("shell", "input", "tap", str((coords[0] + coords[2]) // 2),
         str((coords[1] + coords[3]) // 2))
+
+
+def tap_field(index):
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        adb('shell', 'uiautomator', 'dump', '/sdcard/startup-window.xml')
+        root = ET.fromstring(adb('shell', 'cat', '/sdcard/startup-window.xml').decode())
+        fields = [node for node in root.iter('node')
+                  if node.get('class') == 'android.widget.EditText'
+                  and node.get('package') == package]
+        if len(fields) > index:
+            tap_node(fields[index])
+            return
+        time.sleep(0.5)
+    raise AssertionError(f'Loan field {index} not found')
 
 
 adb("install", "-r", "build/app/outputs/flutter-apk/app-release.apk")
@@ -54,6 +73,8 @@ coords = [int(value) for value in re.findall(r"\d+", item.attrib["bounds"])]
 adb("shell", "input", "tap", str((coords[0] + coords[2]) // 2),
     str((coords[1] + coords[3]) // 2))
 wait_for("Editar artículo")
+tap('Selecciona el tipo')
+tap('Herramienta manual')
 loan_icon = wait_for("Disponible: prestar herramienta")
 screenshot("editor-loan-icon.png")
 coords = [int(value) for value in re.findall(r"\d+", loan_icon.attrib["bounds"])]
@@ -62,10 +83,11 @@ adb("shell", "input", "tap", str((coords[0] + coords[2]) // 2),
 wait_for("Disponible para préstamo")
 screenshot("loan-options-open.png")
 tap("Prestar")
-tap("Prestado a")
+wait_for('Prestar herramienta')
+tap_field(0)
 adb("shell", "input", "text", "Pedro")
 adb("shell", "input", "keyevent", "4")
-tap("Observaciones")
+tap_field(1)
 adb("shell", "input", "text", "Con%scargador")
 adb("shell", "input", "keyevent", "4")
 tap("Confirmar préstamo")
@@ -74,7 +96,7 @@ tap("Destornillador aislado")
 tap("Prestada: ver préstamo")
 tap("Editar préstamo")
 wait_for("Con cargador")
-tap("Observaciones")
+tap_field(1)
 adb("shell", "input", "keyevent", "KEYCODE_MOVE_END")
 adb("shell", "input", "text", "%sy%sbateria")
 adb("shell", "input", "keyevent", "4")
