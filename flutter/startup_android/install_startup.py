@@ -24,9 +24,15 @@ tree = ET.parse(path)
 manifest = tree.getroot()
 if not any(p.get(attr('name')) == 'android.permission.INTERNET' for p in manifest.findall('uses-permission')):
     ET.SubElement(manifest, 'uses-permission', {attr('name'): 'android.permission.INTERNET'})
-for permission in ['android.permission.POST_NOTIFICATIONS', 'android.permission.RECEIVE_BOOT_COMPLETED']:
+for permission in ['android.permission.POST_NOTIFICATIONS', 'android.permission.RECEIVE_BOOT_COMPLETED',
+                   'android.permission.CAMERA']:
     if not any(p.get(attr('name')) == permission for p in manifest.findall('uses-permission')):
         ET.SubElement(manifest, 'uses-permission', {attr('name'): permission})
+feature = next((f for f in manifest.findall('uses-feature')
+                if f.get(attr('name')) == 'android.hardware.camera'), None)
+if feature is None:
+    feature = ET.SubElement(manifest, 'uses-feature', {attr('name'): 'android.hardware.camera'})
+feature.set(attr('required'), 'false')
 application = manifest.find('application')
 if not any(p.get(attr('name')) == '.ToolDocumentProvider' for p in application.findall('provider')):
     ET.SubElement(application, 'provider', {

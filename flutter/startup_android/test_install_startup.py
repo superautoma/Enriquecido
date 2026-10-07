@@ -82,6 +82,12 @@ class StartupInstallTest(unittest.TestCase):
             self.assertEqual(restored.get('parent'), 'StartupTheme')
             self.assertTrue(any(p.get(ANDROID + 'name') == 'android.permission.INTERNET'
                                 for p in ET.parse(manifest).getroot().findall('uses-permission')))
+            root = ET.parse(manifest).getroot()
+            self.assertEqual(sum(p.get(ANDROID + 'name') == 'android.permission.CAMERA'
+                                 for p in root.findall('uses-permission')), 1)
+            camera = next(f for f in root.findall('uses-feature')
+                          if f.get(ANDROID + 'name') == 'android.hardware.camera')
+            self.assertEqual(camera.get(ANDROID + 'required'), 'false')
 
 
 if __name__ == '__main__':

@@ -2,7 +2,9 @@
 import pathlib
 import re
 import subprocess
+import struct
 import time
+import zlib
 import xml.etree.ElementTree as ET
 
 package = "org.gestorherramientas.gestor_herramientas_quill_test"
@@ -328,3 +330,88 @@ wait_for('1 artículos')
 wait_for('Taller QA')
 screenshot('inventory-location-filter.png')
 print('Android location editing, persistence, import retention and brand/location filters passed.')
+
+# Exercise the production scanner UI, then the actual Android ML Kit decoder
+# with a QR fixture. The emulator camera cannot verify handheld focus quality.
+tap('Destornillador aislado', exclude_class='android.widget.EditText')
+scroll_tap('Leer código con cámara')
+assert tap_any(['Allow', 'Permitir'], timeout=10), 'Camera permission prompt missing'
+wait_for('Leer código')
+screenshot('scanner-camera.png')
+tap('Introducir código')
+tap_field(0)
+adb('shell', 'input', 'text', '0012345678905')
+tap('Usar código')
+wait_for('Sustituir código')
+tap('Sustituir')
+wait_for('0012345678905')
+tap('GUARDAR')
+wait_for('Mis herramientas')
+
+# Search is deliberately set to no matches: scanning must bypass it.
+tap_field(0)
+adb('shell', 'input', 'text', 'SIN-COINCIDENCIAS')
+adb('shell', 'input', 'keyevent', '4')
+wait_for('0 artículos')
+matrix = pathlib.Path('test/fixtures/scanner_qr_matrix.txt').read_text().splitlines()[1:]
+scale, border = 12, 4
+size = (len(matrix) + border * 2) * scale
+rows = []
+for y in range(size):
+    my = y // scale - border
+    row = bytearray([0])
+    for x in range(size):
+        mx = x // scale - border
+        dark = 0 <= my < len(matrix) and 0 <= mx < len(matrix) and matrix[my][mx] == '1'
+        row.append(0 if dark else 255)
+    rows.append(bytes(row))
+def png_chunk(kind, data):
+    return struct.pack('!I', len(data)) + kind + data + struct.pack('!I', zlib.crc32(kind + data) & 0xffffffff)
+fixture = output / 'scanner_qa.png'
+fixture.write_bytes(b'\x89PNG\r\n\x1a\n' + png_chunk(b'IHDR', struct.pack('!2I5B', size, size, 8, 0, 0, 0, 0))
+                   + png_chunk(b'IDAT', zlib.compress(b''.join(rows))) + png_chunk(b'IEND', b''))
+adb('push', str(fixture), '/sdcard/Download/scanner_qa.png')
+adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
+    '-d', 'file:///sdcard/Download/scanner_qa.png')
+tap('Buscar por código')
+tap('Leer imagen')
+if not tap_any(['scanner_qa.png'], timeout=5):
+    assert tap_any(['Show roots', 'Mostrar raíces', 'Mostrar raices']), 'Image picker navigation missing'
+    assert tap_any(['Downloads', 'Descargas']), 'Downloads images missing'
+    tap('scanner_qa.png')
+wait_for('Editar artículo')
+wait_for('Destornillador aislado')
+screenshot('scanner-image-match.png')
+scroll_tap('Etiqueta QR propia')
+label_node = wait_for('GH1:')
+label_text = label_node.get('text', '') + label_node.get('content-desc', '')
+label_code = re.search(r'GH1:[0-9a-f]{32}', label_text).group(0)
+screenshot('tool-own-qr.png')
+adb('shell', 'input', 'keyevent', '4')
+tap('GUARDAR')
+tap('Buscar por código')
+tap('Introducir código')
+tap_field(0)
+adb('shell', 'input', 'text', label_code)
+tap('Usar código')
+wait_for('Editar artículo')
+wait_for('Destornillador aislado')
+scroll_tap('Etiqueta QR propia')
+wait_for(label_code)
+adb('shell', 'input', 'keyevent', '4')
+adb('shell', 'input', 'keyevent', '4')
+wait_for('Mis herramientas')
+tap('Buscar por código')
+tap('Introducir código')
+tap_field(0)
+adb('shell', 'input', 'text', '000NEW-QA')
+tap('Usar código')
+wait_for('Código sin coincidencias')
+tap('Crear herramienta')
+wait_for('000NEW-QA')
+screenshot('scanner-new-prefill.png')
+adb('shell', 'input', 'keyevent', '4')
+wait_for('Mis herramientas')
+tap('Limpiar búsqueda')
+wait_for('1 artículos')
+print('Android camera permission, barcode replacement, native QR image decoding, filtered lookup, stable own QR and unknown-code prefill checks passed.')

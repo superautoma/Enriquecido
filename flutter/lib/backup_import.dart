@@ -2,12 +2,13 @@ part of 'main_quill_integrated_test.dart';
 
 class BackupImportResult {
   const BackupImportResult({this.tools = 0, this.pieces = 0, this.loans = 0,
-    this.documents = 0, this.maintenance = 0, this.alreadyImported = false});
-  final int tools, pieces, loans, documents, maintenance;
+    this.documents = 0, this.maintenance = 0, this.regeneratedLabels = 0, this.alreadyImported = false});
+  final int tools, pieces, loans, documents, maintenance, regeneratedLabels;
   final bool alreadyImported;
   String get summary => alreadyImported ? 'Este archivo ya se había importado. No se ha añadido otra vez.' :
     'Añadidas $tools herramientas y $pieces piezas, $loans préstamos, '
-    '$documents documentos y $maintenance tareas de mantenimiento.';
+    '$documents documentos y $maintenance tareas de mantenimiento.'
+    '${regeneratedLabels == 0 ? '' : ' Se han generado $regeneratedLabels etiquetas QR nuevas para evitar duplicados.'}';
 }
 
 class BackupImportPlan {
@@ -262,8 +263,18 @@ class BackupImportPlan {
         Map<String, Object?> values(String table, Map<String, Object?> row) => Map.of(row)
           ..removeWhere((key, value) => key == 'id' || !columns[table]!.contains(key));
         final toolIds = <int, int>{};
+        final usedLabels = (await txn.query('tools', columns: ['label_code']))
+          .map((row) => row['label_code'] as String).where((code) => code.isNotEmpty).toSet();
+        var regeneratedLabels = 0;
         for (final row in tables['tools']!) {
           final map = values('tools', row)..['parent_id'] = null;
+          var label = map['label_code'] as String? ?? '';
+          if (label.isNotEmpty && usedLabels.contains(label)) {
+            do { label = newOwnToolCode(); } while (usedLabels.contains(label));
+            map['label_code'] = label;
+            regeneratedLabels++;
+          }
+          if (label.isNotEmpty) usedLabels.add(label);
           final photo = row['image_path'] as String;
           map['image_path'] = photo.isEmpty ? '' : await copy(await _imageFile(photo), images);
           toolIds[row['id'] as int] = await txn.insert('tools', map);
@@ -337,7 +348,7 @@ class BackupImportPlan {
         if ((await txn.rawQuery('PRAGMA foreign_key_check')).isNotEmpty) {
           throw const FormatException('No se pudo verificar la relación entre los datos importados.');
         }
-        return BackupImportResult(tools: tools, pieces: pieces, loans: count('tool_loans'),
+        return BackupImportResult(tools: tools, pieces: pieces, loans: count('tool_loans'), regeneratedLabels: regeneratedLabels,
           documents: count('tool_documents'), maintenance: count('maintenance_tasks'));
       });
       committed = true;

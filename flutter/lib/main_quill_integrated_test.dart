@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:barcode_widget/barcode_widget.dart' as bw;
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +14,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mobile_scanner/mobile_scanner.dart' as ms;
+import 'package:pdf/pdf.dart' as pdf;
+import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
@@ -20,6 +26,7 @@ part 'tool_management.dart';
 part 'tool_management_ui.dart';
 part 'tool_inventory.dart';
 part 'tool_details.dart';
+part 'tool_codes.dart';
 part 'tool_inventory_ui.dart';
 part 'backup_import.dart';
 part 'backup_import_ui.dart';
@@ -1663,6 +1670,7 @@ class ToolItem {
     required this.description,
     required this.descriptionDelta,
     required this.barcode,
+    this.labelCode = '',
     required this.quantity,
     required this.unit,
     required this.minimumStock,
@@ -1686,6 +1694,7 @@ class ToolItem {
   String description;
   String descriptionDelta;
   String barcode;
+  String labelCode;
   double quantity;
   String unit;
   double minimumStock;
@@ -1720,6 +1729,7 @@ class ToolItem {
     description: description,
     descriptionDelta: descriptionDelta,
     barcode: barcode,
+    labelCode: labelCode,
     quantity: quantity,
     unit: unit,
     minimumStock: minimumStock,
@@ -1743,6 +1753,7 @@ class ToolItem {
     'description': description,
     'description_delta': descriptionDelta,
     'barcode': barcode,
+    'label_code': labelCode,
     'quantity': quantity,
     'unit': unit,
     'minimum_stock': minimumStock,
@@ -1765,6 +1776,7 @@ class ToolItem {
     description: (map['description'] as String?) ?? '',
     descriptionDelta: (map['description_delta'] as String?) ?? '',
     barcode: (map['barcode'] as String?) ?? '',
+    labelCode: (map['label_code'] as String?) ?? '',
     quantity: (map['quantity'] as num?)?.toDouble() ?? 0,
     unit: (map['unit'] as String?) ?? 'ud',
     minimumStock: (map['minimum_stock'] as num?)?.toDouble() ?? 0,
@@ -1837,6 +1849,7 @@ class ToolsDatabase with ToolManagementDatabase {
         await _createLoansTable(db);
         await createManagementTables(db);
         await ensureToolDetailColumns(db);
+        await ensureToolCodeColumns(db);
         await _createFieldOptionsTable(db);
         await _seedDefaultFieldOptions(db);
       },
@@ -1901,6 +1914,7 @@ class ToolsDatabase with ToolManagementDatabase {
         if (oldVersion < 8) await _createLoansTable(db);
         if (oldVersion < 9) await createManagementTables(db);
         if (oldVersion < 10) await ensureToolDetailColumns(db);
+        if (oldVersion < 11) await ensureToolCodeColumns(db);
 
   }
 
@@ -2239,6 +2253,8 @@ class ToolsDatabase with ToolManagementDatabase {
       if (oldItem.isNotEmpty) {
         item.outOfService = oldItem.single['out_of_service'] == 1;
         item.serviceNotes = oldItem.single['service_notes'] as String;
+        // An editor opened before label creation must not erase or change it.
+        item.labelCode = oldItem.single['label_code'] as String;
       }
       if (item.parentId != null && (oldItem.isEmpty || oldItem.single['parent_id'] != item.parentId) &&
           await reservedQuantity(txn, item.parentId!) > 0) {
@@ -3009,12 +3025,64 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     _setInventoryPreferences(_inventoryPreferences.clearFilters());
   }
 
-  Future<void> _openEditor({ToolItem? item}) async {
+  Future<void> _scanInventory() async {
+    final code = await readToolCode(context);
+    if (!mounted || code == null) return;
+    try {
+      // Reload the full database; search/view filters never hide a scan result.
+      final tools = await ToolsDatabase.instance.loadTools(includeComponents: true);
+      if (!mounted) return;
+      final matches = toolsMatchingCode(tools, code);
+      ToolItem? selected;
+      if (matches.length == 1) {
+        selected = matches.single;
+      } else if (matches.length > 1) {
+        selected = await showModalBottomSheet<ToolItem>(context: context,
+          isScrollControlled: true, useSafeArea: true, builder: (_) => SafeArea(
+            child: SizedBox(height: MediaQuery.sizeOf(context).height * .65,
+              child: Column(children: [
+                Padding(padding: const EdgeInsets.all(16), child: Text(
+                  '${matches.length} coincidencias', style: Theme.of(context).textTheme.titleLarge)),
+                Expanded(child: ListView.builder(itemCount: matches.length, itemBuilder: (context, index) {
+                  final tool = matches[index];
+                  final parent = tools.where((item) => item.id == tool.parentId).firstOrNull;
+                  final details = [tool.brand, tool.model,
+                    if (tool.serialNumber.isNotEmpty) 'Serie: ${tool.serialNumber}',
+                    if (parent != null) 'Pieza de ${parent.name}', tool.location.label,
+                    '#${tool.id}'].where((text) => text.isNotEmpty).join(' · ');
+                  return ListTile(title: Text(tool.name), subtitle: Text(details),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.pop(context, tool));
+                })),
+              ]))));
+      } else {
+        if (isOwnToolCode(code)) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text(
+            'Esta etiqueta no pertenece a una herramienta de este inventario.')));
+          return;
+        }
+        final create = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+          title: const Text('Código sin coincidencias'),
+          content: Text('No hay ninguna herramienta con el código "$code". ¿Quieres crearla?'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Crear herramienta'))]));
+        if (create == true && mounted) await _openEditor(initialBarcode: code);
+        return;
+      }
+      if (selected != null && mounted) await _openEditor(item: selected);
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
+        'No se pudo buscar el código: $error')));
+    }
+  }
+
+  Future<void> _openEditor({ToolItem? item, String initialBarcode = ''}) async {
     final result = await Navigator.of(context).push<ToolItem>(
       MaterialPageRoute(
         builder: (_) => EditToolPage(
           item: item?.copy(),
           nextId: _nextId,
+          initialBarcode: initialBarcode,
         ),
       ),
     );
@@ -3286,9 +3354,8 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                 decoration: InputDecoration(
                   hintText: 'Buscar herramientas',
                   prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _query.isEmpty
-                      ? null
-                      : IconButton(
+                  suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (_query.isNotEmpty) IconButton(
                           tooltip: 'Limpiar búsqueda',
                           onPressed: () {
                             _searchController.clear();
@@ -3296,6 +3363,10 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                           },
                           icon: const Icon(Icons.close),
                         ),
+                    IconButton(tooltip: 'Buscar por código',
+                      onPressed: _loading ? null : _scanInventory,
+                      icon: const Icon(Icons.qr_code_scanner)),
+                  ]),
                 ),
               ),
             ),
@@ -6694,10 +6765,11 @@ class _LoansPageState extends State<LoansPage> {
 }
 
 class EditToolPage extends StatefulWidget {
-  const EditToolPage({super.key, required this.item, required this.nextId});
+  const EditToolPage({super.key, required this.item, required this.nextId, this.initialBarcode = ''});
 
   final ToolItem? item;
   final int nextId;
+  final String initialBarcode;
 
   @override
   State<EditToolPage> createState() => _EditToolPageState();
@@ -6749,7 +6821,7 @@ class _EditToolPageState extends State<EditToolPage> {
     _name = TextEditingController(text: item?.name ?? '');
     _descriptionPlain = item?.description ?? '';
     _descriptionDelta = item?.descriptionDelta ?? '';
-    _barcode = TextEditingController(text: item?.barcode ?? '');
+    _barcode = TextEditingController(text: item?.barcode ?? widget.initialBarcode);
     _brand = TextEditingController(text: item?.brand ?? '');
     _model = TextEditingController(text: item?.model ?? '');
     _serialNumber = TextEditingController(text: item?.serialNumber ?? '');
@@ -6822,6 +6894,7 @@ class _EditToolPageState extends State<EditToolPage> {
       description: _descriptionPlain,
       descriptionDelta: _descriptionDelta,
       barcode: _barcode.text.trim(),
+      labelCode: _currentItem?.labelCode ?? '',
       brand: _brand.text.trim(), model: _model.text.trim(), serialNumber: _serialNumber.text.trim(),
       locationSite: _locationSite.text.trim(), locationRack: _locationRack.text.trim(),
       locationShelf: _locationShelf.text.trim(), locationContainer: _locationContainer.text.trim(),
@@ -6862,6 +6935,46 @@ class _EditToolPageState extends State<EditToolPage> {
       });
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+    } finally {
+      if (mounted) setState(() => _managementBusy = false);
+    }
+  }
+
+  Future<void> _scanBarcode() async {
+    final code = await readToolCode(context);
+    if (!mounted || code == null || code == _barcode.text.trim()) return;
+    if (isOwnToolCode(code)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text(
+        'Para localizar esta etiqueta propia, usa Buscar por código en el listado.')));
+      return;
+    }
+    if (_barcode.text.trim().isNotEmpty) {
+      final replace = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+        title: const Text('Sustituir código'),
+        content: Text('Código actual: ${_barcode.text}\nCódigo leído: $code'),
+        actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sustituir'))]));
+      if (!mounted || replace != true) return;
+    }
+    setState(() => _barcode.text = code);
+  }
+
+  Future<void> _openOwnLabel() async {
+    if (_managementBusy || !(_formKey.currentState?.validate() ?? false)) return;
+    setState(() => _managementBusy = true);
+    try {
+      final item = _buildItem();
+      await ToolsDatabase.instance.saveTool(item);
+      _loanDraft = null; _returnLoanOn = null;
+      await ensureOwnToolLabel(item.id);
+      final saved = await ToolsDatabase.instance.loadTool(item.id);
+      if (!mounted || saved == null) return;
+      setState(() { _managedItem = saved; _condition = saved.condition; });
+      await Navigator.of(context).push<void>(MaterialPageRoute(
+        builder: (_) => ToolLabelPage(tool: saved)));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
+        'No se pudo crear la etiqueta: $error')));
     } finally {
       if (mounted) setState(() => _managementBusy = false);
     }
@@ -7527,13 +7640,19 @@ class _EditToolPageState extends State<EditToolPage> {
               ),
               const SizedBox(height: 12),
               TextFormField(
+                key: const ValueKey('tool_barcode'),
                 controller: _barcode,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
+                keyboardType: TextInputType.text,
+                decoration: InputDecoration(
                   labelText: 'Código de barras',
-                  prefixIcon: Icon(Icons.qr_code_scanner),
+                  prefixIcon: const Icon(Icons.qr_code),
+                  suffixIcon: IconButton(tooltip: 'Leer código con cámara',
+                    onPressed: _scanBarcode, icon: const Icon(Icons.camera_alt_outlined)),
                 ),
               ),
+              Align(alignment: Alignment.centerLeft, child: TextButton.icon(
+                onPressed: _managementBusy ? null : _openOwnLabel,
+                icon: const Icon(Icons.qr_code_2, size: 20), label: const Text('Etiqueta QR propia'))),
               const SizedBox(height: 12),
               ToolDetailsForm(brand: _brand, model: _model, serialNumber: _serialNumber,
                 site: _locationSite, rack: _locationRack, shelf: _locationShelf, container: _locationContainer,

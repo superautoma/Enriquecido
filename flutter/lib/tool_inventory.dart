@@ -146,10 +146,10 @@ List<ToolItem> selectInventoryTools(List<ToolItem> items, InventoryPreferences p
     if (preferences.maintenance == InventoryMaintenance.overdue &&
         !facts.hasRelated(item, facts.overdueMaintenanceTools)) return false;
     if (text.isNotEmpty) {
-      final search = [item.name, item.description, item.barcode, item.type, item.voltage,
+      final search = [item.name, item.description, item.barcode, item.labelCode, item.type, item.voltage,
         item.condition, item.brand, item.model, item.serialNumber, location.label, ...loans.map((loan) => loan.borrower),
         ...facts.children[item.id]?.map((tool) =>
-          [tool.name, tool.brand, tool.model, tool.serialNumber, facts.locationFor(tool).label].join(' ')) ?? <String>[],
+          [tool.name, tool.barcode, tool.labelCode, tool.brand, tool.model, tool.serialNumber, facts.locationFor(tool).label].join(' ')) ?? <String>[],
         if (item.parentId != null) facts.byId[item.parentId]?.name ?? ''].join(' ');
       if (!inventorySearchText(search).contains(text)) return false;
     }

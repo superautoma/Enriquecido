@@ -1,6 +1,6 @@
 part of 'main_quill_integrated_test.dart';
 
-const toolsDatabaseVersion = 10;
+const toolsDatabaseVersion = 11;
 const toolDetailColumns = ['brand', 'model', 'serial_number', 'location_site',
   'location_rack', 'location_shelf', 'location_container'];
 
