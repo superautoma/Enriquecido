@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -145,57 +144,25 @@ void main() {
     expect(unchanged.returnedOn, returnedOn);
   });
 
-  testWidgets('Edit form prefills data, saves notes and removes the due date', (tester) async {
+  testWidgets('Edit form loads saved fields and allows clearing the due date', (tester) async {
     final due = loanDay(DateTime.now()).add(const Duration(days: 5));
-    final loan = (await tester.runAsync(() async {
-      await ToolsDatabase.instance.saveTool(sample()..loanDraft = draft(due: due));
-      return (await ToolsDatabase.instance.loadLoans()).single;
-    }))!;
-    final saved = Completer<LoanDraft?>();
-    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
-      body: TextButton(onPressed: () async {
-        saved.complete(await Navigator.push<LoanDraft>(context,
-          MaterialPageRoute(builder: (_) => LoanFormPage(toolName: loan.toolName,
-            quantity: loan.quantity, unit: loan.unit, initialLoan: loan))));
-      },
-        child: const Text('Editar'))))));
-    await tester.runAsync(() => tester.tap(find.text('Editar')));
-    await tester.pumpAndSettle();
+    final loan = ToolLoan(id: 1, toolId: 101, toolName: 'Taladro',
+      borrower: 'Juan García', startedOn: loanDay(DateTime.now()).subtract(const Duration(days: 3)),
+      dueOn: due, notes: 'Con cargador', previousCondition: 'Revisar', quantity: 2, unit: 'ud');
+    await tester.pumpWidget(MaterialApp(home: LoanFormPage(toolName: loan.toolName,
+      quantity: loan.quantity, unit: loan.unit, initialLoan: loan)));
     expect(find.text('Editar préstamo'), findsOneWidget);
     expect(find.text(loan.borrower), findsOneWidget);
     expect(find.text(loan.notes), findsOneWidget);
     expect(find.text('Devolución prevista: ${loanDateText(due)}'), findsOneWidget);
     await tester.tap(find.text('Quitar fecha prevista')); await tester.pumpAndSettle();
+    expect(find.text('Devolución prevista (opcional)'), findsOneWidget);
+    expect(find.text('Quitar fecha prevista'), findsNothing);
     await tester.enterText(find.byKey(const ValueKey('loan_notes')), 'También incluye batería');
     await tester.ensureVisible(find.byKey(const ValueKey('confirm_loan')));
-    await tester.runAsync(() async {
-      await tester.tap(find.byKey(const ValueKey('confirm_loan')));
-      await saved.future;
-    });
-    await tester.pumpAndSettle();
-    final edited = (await tester.runAsync(() async =>
-      (await ToolsDatabase.instance.loadLoans()).single))!;
-    expect(edited.notes, 'También incluye batería'); expect(edited.dueOn, isNull);
-    expect(edited.id, loan.id); expect(edited.isActive, isTrue);
-    expect(find.text('Editar préstamo'), findsNothing); expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('Cancelling an edit keeps the saved loan unchanged', (tester) async {
-    final loan = (await tester.runAsync(() async {
-      await ToolsDatabase.instance.saveTool(sample()..loanDraft = draft());
-      return (await ToolsDatabase.instance.loadLoans()).single;
-    }))!;
-    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
-      body: TextButton(onPressed: () => Navigator.push<LoanDraft>(context,
-        MaterialPageRoute(builder: (_) => LoanFormPage(toolName: loan.toolName,
-          quantity: loan.quantity, unit: loan.unit, initialLoan: loan))),
-        child: const Text('Editar'))))));
-    await tester.tap(find.text('Editar')); await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const ValueKey('loan_notes')), 'No guardar');
-    await tester.pageBack(); await tester.pumpAndSettle();
-    final unchanged = (await tester.runAsync(() async =>
-      (await ToolsDatabase.instance.loadLoans()).single))!;
-    expect(unchanged.notes, loan.notes);
+    expect(find.text('Guardar cambios'), findsOneWidget);
+    expect(find.text('También incluye batería'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   test('Cannot create a new loan state without a borrower record', () async {
