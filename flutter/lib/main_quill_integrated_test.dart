@@ -5366,12 +5366,6 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
-          LoanStatusButton(
-            loan: widget.item?.activeLoan,
-            legacy: isLoanCondition(_condition) && widget.item?.activeLoan == null,
-            onLend: _prepareLoan, onReturn: _prepareReturn,
-            onHistory: _isEditing ? _openLoanHistory : null,
-          ),
           TextButton(
             onPressed: _save,
             child: const Text(
@@ -7015,6 +7009,12 @@ class _EditToolPageState extends State<EditToolPage> {
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
+          LoanStatusButton(
+            loan: widget.item?.activeLoan,
+            legacy: isLoanCondition(_condition) && widget.item?.activeLoan == null,
+            onLend: _prepareLoan, onReturn: _prepareReturn,
+            onHistory: _isEditing ? _openLoanHistory : null,
+          ),
           TextButton(
             onPressed: _save,
             child: const Text(
