@@ -15,10 +15,11 @@ List<String> detectedToolCodes(Iterable<String?> values) => values
   .toSet().toList();
 
 // Codes are opaque strings: leading zeros and letter case identify the code.
-List<ToolItem> toolsMatchingCode(Iterable<ToolItem> tools, String value) {
+List<ToolItem> toolsMatchingCode(Iterable<ToolItem> tools, String value, {bool includeDeleted = false}) {
   final code = value.trim();
   if (code.isEmpty) return [];
-  return tools.where((tool) => tool.barcode.trim() == code || tool.labelCode == code).toList();
+  return tools.where((tool) => (includeDeleted || !tool.isDeleted) &&
+    (tool.barcode.trim() == code || tool.labelCode == code)).toList();
 }
 
 Future<void> ensureToolCodeColumns(DatabaseExecutor db) async {
@@ -33,6 +34,7 @@ Future<void> ensureToolCodeColumns(DatabaseExecutor db) async {
 Future<String> ensureOwnToolLabel(int toolId) async {
   final db = await ToolsDatabase.instance.database;
   return db.transaction((txn) async {
+    await requireActiveTool(txn, toolId);
     final rows = await txn.query('tools', columns: ['label_code'], where: 'id=?', whereArgs: [toolId]);
     if (rows.isEmpty) throw StateError('Guarda primero la herramienta.');
     final existing = rows.single['label_code'] as String;

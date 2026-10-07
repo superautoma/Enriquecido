@@ -86,8 +86,8 @@ class InventoryPreferences {
 class InventoryFacts {
   InventoryFacts(List<ToolItem> items, {this.documentTools = const {},
     this.pendingMaintenanceTools = const {}, this.overdueMaintenanceTools = const {}})
-    : byId = {for (final item in items) item.id: item} {
-    for (final item in items) {
+    : byId = {for (final item in items.where((tool) => !tool.isDeleted)) item.id: item} {
+    for (final item in items.where((tool) => !tool.isDeleted)) {
       if (item.parentId != null) children.putIfAbsent(item.parentId!, () => []).add(item);
     }
   }
@@ -110,6 +110,7 @@ List<ToolItem> selectInventoryTools(List<ToolItem> items, InventoryPreferences p
   final text = inventorySearchText(query.trim());
   final day = loanDay(today ?? DateTime.now());
   final visible = items.where((item) {
+    if (item.isDeleted) return false;
     if (item.parentId != null && !preferences.includePieces &&
         preferences.content != InventoryContent.pieces) return false;
     if (preferences.content == InventoryContent.sets && !item.isSet) return false;

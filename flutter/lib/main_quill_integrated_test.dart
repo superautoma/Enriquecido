@@ -27,6 +27,7 @@ part 'tool_management_ui.dart';
 part 'tool_inventory.dart';
 part 'tool_details.dart';
 part 'tool_codes.dart';
+part 'tool_trash.dart';
 part 'tool_inventory_ui.dart';
 part 'backup_import.dart';
 part 'backup_import_ui.dart';
@@ -1671,6 +1672,7 @@ class ToolItem {
     required this.descriptionDelta,
     required this.barcode,
     this.labelCode = '',
+    this.deletedAt = '', this.trashGroup = '',
     required this.quantity,
     required this.unit,
     required this.minimumStock,
@@ -1695,6 +1697,8 @@ class ToolItem {
   String descriptionDelta;
   String barcode;
   String labelCode;
+  String deletedAt, trashGroup;
+  bool get isDeleted => deletedAt.isNotEmpty;
   double quantity;
   String unit;
   double minimumStock;
@@ -1730,6 +1734,7 @@ class ToolItem {
     descriptionDelta: descriptionDelta,
     barcode: barcode,
     labelCode: labelCode,
+    deletedAt: deletedAt, trashGroup: trashGroup,
     quantity: quantity,
     unit: unit,
     minimumStock: minimumStock,
@@ -1754,6 +1759,7 @@ class ToolItem {
     'description_delta': descriptionDelta,
     'barcode': barcode,
     'label_code': labelCode,
+    'deleted_at': deletedAt, 'trash_group': trashGroup,
     'quantity': quantity,
     'unit': unit,
     'minimum_stock': minimumStock,
@@ -1777,6 +1783,8 @@ class ToolItem {
     descriptionDelta: (map['description_delta'] as String?) ?? '',
     barcode: (map['barcode'] as String?) ?? '',
     labelCode: (map['label_code'] as String?) ?? '',
+    deletedAt: map['deleted_at'] as String? ?? '',
+    trashGroup: map['trash_group'] as String? ?? '',
     quantity: (map['quantity'] as num?)?.toDouble() ?? 0,
     unit: (map['unit'] as String?) ?? 'ud',
     minimumStock: (map['minimum_stock'] as num?)?.toDouble() ?? 0,
@@ -1808,7 +1816,7 @@ class DatabaseStats {
   final int imagesBytes;
 }
 
-class ToolsDatabase with ToolManagementDatabase {
+class ToolsDatabase with ToolManagementDatabase, ToolTrashDatabase {
   ToolsDatabase._();
 
   static final ToolsDatabase instance = ToolsDatabase._();
@@ -1850,6 +1858,7 @@ class ToolsDatabase with ToolManagementDatabase {
         await createManagementTables(db);
         await ensureToolDetailColumns(db);
         await ensureToolCodeColumns(db);
+        await ensureToolTrashColumns(db);
         await _createFieldOptionsTable(db);
         await _seedDefaultFieldOptions(db);
       },
@@ -1915,6 +1924,7 @@ class ToolsDatabase with ToolManagementDatabase {
         if (oldVersion < 9) await createManagementTables(db);
         if (oldVersion < 10) await ensureToolDetailColumns(db);
         if (oldVersion < 11) await ensureToolCodeColumns(db);
+        if (oldVersion < 12) await ensureToolTrashColumns(db);
 
   }
 
@@ -1951,17 +1961,19 @@ class ToolsDatabase with ToolManagementDatabase {
       LoanDraft draft) async {
     final error = draft.validate();
     if (error != null) throw StateError(error);
+    await requireActiveTool(txn, item.id);
     if (item.outOfService) throw StateError('La herramienta está fuera de servicio');
     if (!item.quantity.isFinite || item.quantity <= 0) {
       throw StateError('No hay existencias para prestar');
     }
     if (item.parentId != null) {
+      await requireActiveTool(txn, item.parentId!);
       final parent = await txn.query('tools', where: 'id=?', whereArgs: [item.parentId]);
       if (parent.isNotEmpty && parent.single['out_of_service'] == 1) {
         throw StateError('El conjunto está fuera de servicio');
       }
     }
-    final children = await txn.query('tools', where: 'parent_id=?', whereArgs: [item.id]);
+    final children = await txn.query('tools', where: "parent_id=? AND deleted_at=''", whereArgs: [item.id]);
     final contents = draft.contents ?? <int, double>{};
     final selected = <int, double>{};
     // Selecting contents lends pieces; leaving contents null lends the complete set.
@@ -2132,9 +2144,10 @@ class ToolsDatabase with ToolManagementDatabase {
     );
   }
 
-  Future<List<ToolItem>> loadTools({bool includeComponents = false}) async {
+  Future<List<ToolItem>> loadTools({bool includeComponents = false, bool includeDeleted = false}) async {
     final db = await database;
-    final allRows = await db.query('tools', orderBy: 'id DESC');
+    final allRows = await db.query('tools',
+      where: includeDeleted ? null : "deleted_at=''", orderBy: 'id DESC');
     final rows = includeComponents ? allRows : allRows.where((row) => row['parent_id'] == null).toList();
     final tools = rows.map(ToolItem.fromMap).toList();
     if (tools.isEmpty) return tools;
@@ -2146,7 +2159,7 @@ class ToolsDatabase with ToolManagementDatabase {
       AND c.quantity>c.returned_quantity""");
     final childrenByParent = <int, List<Map<String, Object?>>>{};
     for (final row in allRows) {
-      if (row['parent_id'] != null) childrenByParent.putIfAbsent(row['parent_id'] as int, () => []).add(row);
+      if (row['deleted_at'] == '' && row['parent_id'] != null) childrenByParent.putIfAbsent(row['parent_id'] as int, () => []).add(row);
     }
     final reservations = <int, double>{};
     for (final loan in activeLoans) {
@@ -2239,7 +2252,7 @@ class ToolsDatabase with ToolManagementDatabase {
       if (!item.quantity.isFinite || item.quantity < 0) throw StateError('Cantidad no válida');
       if (item.parentId != null) {
         final parent = await txn.query('tools', where: 'id=?', whereArgs: [item.parentId]);
-        if (item.parentId == item.id || parent.isEmpty || parent.single['is_set'] != 1 || item.isSet) {
+        if (item.parentId == item.id || parent.isEmpty || parent.single['deleted_at'] != '' || parent.single['is_set'] != 1 || item.isSet) {
           throw StateError('Las piezas deben pertenecer a un conjunto válido');
         }
       }
@@ -2250,6 +2263,10 @@ class ToolsDatabase with ToolManagementDatabase {
         throw StateError('La cantidad no puede ser menor que las unidades prestadas');
       }
       final oldItem = await txn.query('tools', where: 'id=?', whereArgs: [item.id]);
+      if (item.isDeleted || (oldItem.isNotEmpty && oldItem.single['deleted_at'] != '')) {
+        throw StateError('El artículo está en la papelera. Recupéralo antes de editarlo.');
+      }
+      item.deletedAt = ''; item.trashGroup = '';
       if (oldItem.isNotEmpty) {
         item.outOfService = oldItem.single['out_of_service'] == 1;
         item.serviceNotes = oldItem.single['service_notes'] as String;
@@ -2614,7 +2631,7 @@ class BackupManager {
         'created_at': DateTime.now().toIso8601String(),
         'database': 'database/gestor_herramientas.db',
         'images': 'tool_images', 'documents': 'tool_documents',
-        'note': 'Copia completa de herramientas, piezas, préstamos, mantenimiento, imágenes y documentos.',
+        'note': 'Copia completa de herramientas, papelera, piezas, préstamos, mantenimiento, imágenes y documentos.',
       };
       await File(p.join(workDir.path, 'manifest.json')).writeAsString(
         const JsonEncoder.withIndent('  ').convert(manifest),
@@ -3056,6 +3073,18 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                 })),
               ]))));
       } else {
+        final allTools = await ToolsDatabase.instance.loadTools(includeComponents: true, includeDeleted: true);
+        if (!mounted) return;
+        final deletedMatches = toolsMatchingCode(allTools.where((tool) => tool.isDeleted), code, includeDeleted: true);
+        if (deletedMatches.isNotEmpty) {
+          final openTrash = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+            title: const Text('Artículo en la papelera'),
+            content: Text('El código corresponde a ${deletedMatches.map((tool) => tool.name).join(', ')}. Puedes recuperarlo desde la papelera.'),
+            actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cerrar')),
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Abrir papelera'))]));
+          if (openTrash == true && mounted) await _openTrash();
+          return;
+        }
         if (isOwnToolCode(code)) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text(
             'Esta etiqueta no pertenece a una herramienta de este inventario.')));
@@ -3107,6 +3136,11 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       // Keep entered changes available to retry after a failed write.
       await _openEditor(item: result);
     }
+  }
+
+  Future<void> _openTrash() async {
+    await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ToolTrashPage()));
+    if (mounted) await _loadItems();
   }
 
   Future<void> _openLoans() async {
@@ -3262,6 +3296,8 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
             icon: const Icon(Icons.more_vert),
             onSelected: (value) {
               switch (value) {
+                case 'trash':
+                  _openTrash();
                 case 'management':
                   Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ManagementHubPage())).then((_) { if (mounted) _loadItems(); });
                 case 'maintenance':
@@ -3283,6 +3319,8 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
               }
             },
             itemBuilder: (context) => const [
+              PopupMenuItem(value: 'trash', child: ListTile(contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.delete_outline), title: Text('Papelera de artículos'))),
               PopupMenuItem(value: 'management', child: ListTile(contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.dashboard_outlined), title: Text('Gestión de herramientas'))),
               PopupMenuItem(value: 'maintenance', child: ListTile(contentPadding: EdgeInsets.zero,
@@ -6895,6 +6933,7 @@ class _EditToolPageState extends State<EditToolPage> {
       descriptionDelta: _descriptionDelta,
       barcode: _barcode.text.trim(),
       labelCode: _currentItem?.labelCode ?? '',
+      deletedAt: _currentItem?.deletedAt ?? '', trashGroup: _currentItem?.trashGroup ?? '',
       brand: _brand.text.trim(), model: _model.text.trim(), serialNumber: _serialNumber.text.trim(),
       locationSite: _locationSite.text.trim(), locationRack: _locationRack.text.trim(),
       locationShelf: _locationShelf.text.trim(), locationContainer: _locationContainer.text.trim(),
@@ -6913,6 +6952,26 @@ class _EditToolPageState extends State<EditToolPage> {
       serviceNotes: _currentItem?.serviceNotes ?? '',
       images: _images.map((image) => image.copy()).toList(),
     );
+
+  Future<void> _deleteArticle() async {
+    final item = _currentItem;
+    if (item == null || _managementBusy) return;
+    setState(() => _managementBusy = true);
+    try {
+      final candidates = await ToolsDatabase.instance.trashCandidates(item.id);
+      if (!mounted) return;
+      final confirmed = await confirmToolTrash(context, candidates.first, candidates.length - 1);
+      if (confirmed != true || !mounted) return;
+      await ToolsDatabase.instance.trashTool(item.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Artículo enviado a la papelera')));
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(trashErrorMessage(error))));
+    } finally {
+      if (mounted) setState(() => _managementBusy = false);
+    }
+  }
 
   void _save() {
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -7493,6 +7552,12 @@ class _EditToolPageState extends State<EditToolPage> {
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
           ),
+          if (_isEditing) PopupMenuButton<String>(
+            tooltip: 'Opciones del artículo', enabled: !_managementBusy,
+            onSelected: (_) => _deleteArticle(),
+            itemBuilder: (_) => const [PopupMenuItem(value: 'delete',
+              child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.delete_outline),
+                title: Text('Eliminar artículo')))]),
           const SizedBox(width: 6),
         ],
       ),

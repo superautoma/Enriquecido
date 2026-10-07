@@ -2,12 +2,13 @@ part of 'main_quill_integrated_test.dart';
 
 class BackupImportResult {
   const BackupImportResult({this.tools = 0, this.pieces = 0, this.loans = 0,
-    this.documents = 0, this.maintenance = 0, this.regeneratedLabels = 0, this.alreadyImported = false});
-  final int tools, pieces, loans, documents, maintenance, regeneratedLabels;
+    this.documents = 0, this.maintenance = 0, this.regeneratedLabels = 0, this.trashed = 0, this.alreadyImported = false});
+  final int tools, pieces, loans, documents, maintenance, regeneratedLabels, trashed;
   final bool alreadyImported;
   String get summary => alreadyImported ? 'Este archivo ya se había importado. No se ha añadido otra vez.' :
     'Añadidas $tools herramientas y $pieces piezas, $loans préstamos, '
     '$documents documentos y $maintenance tareas de mantenimiento.'
+    '${trashed == 0 ? '' : ' $trashed artículos permanecen en la papelera.'}'
     '${regeneratedLabels == 0 ? '' : ' Se han generado $regeneratedLabels etiquetas QR nuevas para evitar duplicados.'}';
 }
 
@@ -24,6 +25,7 @@ class BackupImportPlan {
   String get marker => 'imported_backup_$fingerprint';
   int get tools => tables['tools']!.where((row) => row['parent_id'] == null).length;
   int get pieces => tables['tools']!.length - tools;
+  int get trashed => tables['tools']!.where((row) => row['deleted_at'] != '').length;
   int count(String table) => tables[table]?.length ?? 0;
   Future<void> dispose() async {
     try { if (await directory.exists()) await directory.delete(recursive: true); } on FileSystemException { /* Temporary cleanup may race with app shutdown. */ }
@@ -81,11 +83,17 @@ class BackupImportPlan {
       await source.close(); source = null;
       final byId = {for (final row in tables['tools']!) row['id']: row};
       for (final row in tables['tools']!) {
+        final deleted = row['deleted_at'] as String;
+        final group = row['trash_group'] as String;
+        if ((deleted.isEmpty != group.isEmpty) ||
+            (deleted.isNotEmpty && DateTime.tryParse(deleted) == null)) {
+          throw const FormatException('La copia contiene una papelera no válida.');
+        }
         final parent = row['parent_id'];
         final owner = byId[parent];
         if (row['name'] is! String || (row['name'] as String).trim().isEmpty ||
             row['quantity'] is! num || !(row['quantity'] as num).isFinite || (row['quantity'] as num) < 0 ||
-            (parent != null && (owner == null || owner['is_set'] != 1 || owner['parent_id'] != null || row['is_set'] == 1 || parent == row['id']))) {
+            (parent != null && (owner == null || owner['is_set'] != 1 || owner['parent_id'] != null || (owner['deleted_at'] != '' && deleted.isEmpty) || row['is_set'] == 1 || parent == row['id']))) {
           throw const FormatException('La copia contiene una herramienta o conjunto no válido.');
         }
       }
@@ -108,6 +116,9 @@ class BackupImportPlan {
           throw const FormatException('La copia contiene fechas de préstamo no válidas.');
         }
         if (row['returned_on'] == null) {
+          if (byId[row['tool_id']]!['deleted_at'] != '') {
+            throw const FormatException('La copia contiene un préstamo activo de un artículo en la papelera.');
+          }
           final id = row['tool_id'] as int;
           reserved[id] = (reserved[id] ?? 0) + (row['quantity'] as num).toDouble() - (row['returned_quantity'] as num).toDouble();
         }
@@ -122,6 +133,9 @@ class BackupImportPlan {
           throw const FormatException('El contenido de un préstamo no es válido.');
         }
         if (loan['returned_on'] == null) {
+          if (component['deleted_at'] != '') {
+            throw const FormatException('La copia contiene piezas prestadas en la papelera.');
+          }
           final id = row['component_id'] as int;
           reserved[id] = (reserved[id] ?? 0) + quantity.toDouble() - returned.toDouble();
         }
@@ -263,11 +277,14 @@ class BackupImportPlan {
         Map<String, Object?> values(String table, Map<String, Object?> row) => Map.of(row)
           ..removeWhere((key, value) => key == 'id' || !columns[table]!.contains(key));
         final toolIds = <int, int>{};
+        final trashGroups = <String, String>{};
         final usedLabels = (await txn.query('tools', columns: ['label_code']))
           .map((row) => row['label_code'] as String).where((code) => code.isNotEmpty).toSet();
         var regeneratedLabels = 0;
         for (final row in tables['tools']!) {
           final map = values('tools', row)..['parent_id'] = null;
+          final group = map['trash_group'] as String? ?? '';
+          if (group.isNotEmpty) map['trash_group'] = trashGroups.putIfAbsent(group, newToolTrashGroup);
           var label = map['label_code'] as String? ?? '';
           if (label.isNotEmpty && usedLabels.contains(label)) {
             do { label = newOwnToolCode(); } while (usedLabels.contains(label));
@@ -348,7 +365,7 @@ class BackupImportPlan {
         if ((await txn.rawQuery('PRAGMA foreign_key_check')).isNotEmpty) {
           throw const FormatException('No se pudo verificar la relación entre los datos importados.');
         }
-        return BackupImportResult(tools: tools, pieces: pieces, loans: count('tool_loans'), regeneratedLabels: regeneratedLabels,
+        return BackupImportResult(tools: tools, pieces: pieces, trashed: trashed, loans: count('tool_loans'), regeneratedLabels: regeneratedLabels,
           documents: count('tool_documents'), maintenance: count('maintenance_tasks'));
       });
       committed = true;

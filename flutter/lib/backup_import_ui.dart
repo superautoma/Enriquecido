@@ -76,6 +76,8 @@ class _ImportBackupPageState extends State<ImportBackupPage> {
               'Para añadir: ${plan.tools} herramientas y ${plan.pieces} piezas.\n'
               '${plan.count('tool_loans')} préstamos · ${plan.count('tool_documents')} documentos\n'
               '${plan.count('maintenance_tasks')} tareas de mantenimiento.'),
+            if (plan.trashed > 0) Padding(padding: const EdgeInsets.only(top: 12),
+              child: Text('${plan.trashed} artículos del ZIP están eliminados y se añadirán a la papelera.')),
             if (plan.matchingReferences > 0) ...[
               const SizedBox(height: 12),
               Text('${plan.matchingReferences} referencias coinciden con las actuales. '

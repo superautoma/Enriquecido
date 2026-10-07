@@ -63,7 +63,7 @@ void main() {
     expect(migrated.brand, 'Bosch'); expect(migrated.locationSite, 'Taller');
     expect(migrated.serialNumber, 'SER-01'); expect(migrated.activeLoan!.borrower, 'Pedro');
     expect((await ToolsDatabase.instance.loadDocuments(1)).single.name, 'Manual');
-    expect(await (await ToolsDatabase.instance.database).getVersion(), 11);
+    expect(await (await ToolsDatabase.instance.database).getVersion(), toolsDatabaseVersion);
   });
 
   test('Own labels are unique, stable, saved once and protected from stale editors', () async {

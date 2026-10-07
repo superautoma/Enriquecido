@@ -232,7 +232,7 @@ mixin ToolManagementDatabase {
     final db = await database;
     await db.transaction((txn) async {
       final rows = await txn.query('tools', where: 'id=?', whereArgs: [id]);
-      if (rows.isEmpty) throw StateError('La pieza ya no existe');
+      await requireActiveTool(txn, id);
       final parent = rows.single['parent_id'];
       if (await reservedQuantity(txn, id) > 0 ||
           (parent != null && await reservedQuantity(txn, parent as int) > 0)) {
@@ -386,7 +386,7 @@ mixin ToolManagementDatabase {
   Future<List<MaintenanceTask>> loadMaintenance({int? toolId}) async {
     final rows = await (await database).rawQuery('''SELECT m.*, t.name AS tool_name
       FROM maintenance_tasks m JOIN tools t ON t.id=m.tool_id
-      ${toolId == null ? '' : 'WHERE m.tool_id=?'} ORDER BY enabled DESC, due_on, m.id''',
+      WHERE t.deleted_at='' ${toolId == null ? '' : 'AND m.tool_id=?'} ORDER BY enabled DESC, due_on, m.id''',
       toolId == null ? [] : [toolId]);
     return rows.map(MaintenanceTask.fromMap).toList();
   }
