@@ -13,3 +13,12 @@ Los préstamos admiten cantidades y selección de piezas, contacto del destinata
 El menú Gestión de herramientas reúne los apartados, los vencimientos y los avisos configurables en el teléfono. La antelación se elige en cada préstamo o mantenimiento. Android entrega los avisos sin requerir que la aplicación esté abierta; su hora puede ajustarse por el sistema.
 
 La base SQLite pasa de versión 8 a 9 mediante una migración que conserva los registros existentes. La copia ZIP incluye base de datos, imágenes y documentos; también acepta las copias anteriores y conserva los préstamos y sus historiales.
+
+
+## Listado, vistas y filtros
+
+En «Mis herramientas», el botón junto a Filtrar permite elegir tarjetas, lista compacta o cuadrícula. «Filtrar» combina disponibilidad, tipos, estados, tensiones, existencias, conjuntos/piezas, documentos, fotos y mantenimiento. Las selecciones múltiples admiten cualquiera de los valores elegidos dentro de un grupo; los grupos se combinan entre sí. Los resultados y el número se actualizan al aplicar.
+
+Puede ordenarse por incorporación, nombre, cantidad o precio. La vista, orden y filtros se guardan en management_settings y viajan con las copias de seguridad. «Limpiar filtros» conserva la vista y orden. «Actualizar herramientas» o deslizar hacia abajo vuelve a leer los datos sin perder la búsqueda.
+
+Los conjuntos reflejan los documentos, mantenimiento y piezas fuera de servicio de su contenido. La búsqueda admite nombres sin tildes, todas las personas con préstamos activos y nombres de piezas. Las fichas de piezas se incluyen cuando se solicita, con el nombre de su conjunto. La consulta de disponibilidad se realiza en bloque para reducir las lecturas repetidas al mostrar inventarios grandes.

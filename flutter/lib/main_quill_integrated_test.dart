@@ -17,6 +17,8 @@ import 'package:share_plus/share_plus.dart';
 
 part 'tool_management.dart';
 part 'tool_management_ui.dart';
+part 'tool_inventory.dart';
+part 'tool_inventory_ui.dart';
 
 void main() {
   runApp(const GestorHerramientasApp());
@@ -2094,28 +2096,40 @@ class ToolsDatabase with ToolManagementDatabase {
 
   Future<List<ToolItem>> loadTools({bool includeComponents = false}) async {
     final db = await database;
-    final rows = await db.query('tools', where: includeComponents ? null : 'parent_id IS NULL', orderBy: 'id DESC');
+    final allRows = await db.query('tools', orderBy: 'id DESC');
+    final rows = includeComponents ? allRows : allRows.where((row) => row['parent_id'] == null).toList();
     final tools = rows.map(ToolItem.fromMap).toList();
-
     if (tools.isEmpty) return tools;
     final activeLoans = (await db.query('tool_loans', where: 'returned_on IS NULL'))
       .map(ToolLoan.fromMap).toList();
+    final contents = await db.rawQuery("""SELECT c.component_id, c.quantity AS content_quantity,
+      c.returned_quantity AS content_returned, l.* FROM loan_contents c
+      JOIN tool_loans l ON l.id=c.loan_id WHERE l.returned_on IS NULL
+      AND c.quantity>c.returned_quantity""");
+    final childrenByParent = <int, List<Map<String, Object?>>>{};
+    for (final row in allRows) {
+      if (row['parent_id'] != null) childrenByParent.putIfAbsent(row['parent_id'] as int, () => []).add(row);
+    }
+    final reservations = <int, double>{};
+    for (final loan in activeLoans) {
+      reservations[loan.toolId] = (reservations[loan.toolId] ?? 0) + loan.pendingQuantity;
+    }
+    final inheritedLoans = <int, List<ToolLoan>>{};
+    for (final content in contents) {
+      final id = content['component_id'] as int;
+      reservations[id] = (reservations[id] ?? 0) +
+        (content['content_quantity'] as num).toDouble() - (content['content_returned'] as num).toDouble();
+      inheritedLoans.putIfAbsent(id, () => []).add(ToolLoan.fromMap(content));
+    }
     for (final tool in tools) {
-      final children = await db.query('tools', where: 'parent_id=?', whereArgs: [tool.id]);
-      final childIds = children.map((c) => c['id']).toSet();
-      tool.activeLoans = activeLoans.where((l) => l.toolId == tool.id || childIds.contains(l.toolId)).toList();
-      final inherited = await db.rawQuery('''SELECT l.* FROM loan_contents c JOIN tool_loans l ON l.id=c.loan_id
-        WHERE c.component_id=? AND l.returned_on IS NULL AND c.quantity>c.returned_quantity''', [tool.id]);
-      tool.activeLoans.addAll(inherited.map(ToolLoan.fromMap));
+      final children = childrenByParent[tool.id] ?? [];
+      final childIds = children.map((child) => child['id']).toSet();
+      tool.activeLoans = activeLoans.where((loan) => loan.toolId == tool.id || childIds.contains(loan.toolId)).toList()
+        ..addAll(inheritedLoans[tool.id] ?? []);
       tool.activeLoan = tool.activeLoans.firstOrNull;
-      tool.availableQuantity = tool.quantity - await reservedQuantity(db, tool.id);
-      if (tool.isSet) {
-        for (final child in children) {
-          if (child['out_of_service'] == 1 || await reservedQuantity(db, child['id'] as int) > 0) {
-            tool.availableQuantity = 0; break;
-          }
-        }
-      }
+      tool.availableQuantity = tool.quantity - (reservations[tool.id] ?? 0);
+      if (tool.isSet && children.any((child) => child['out_of_service'] == 1 ||
+          (reservations[child['id']] ?? 0) > 0)) tool.availableQuantity = 0;
     }
 
     final imageRows = await db.query(
@@ -2877,6 +2891,10 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
   ];
 
   final List<ToolItem> _items = [];
+  InventoryPreferences _inventoryPreferences = const InventoryPreferences();
+  InventoryFacts _inventoryFacts = InventoryFacts([]);
+  Future<void> _preferencesWrite = Future<void>.value();
+  bool _refreshing = false;
   List<FieldOption> _conditionOptions = defaultFieldOptions('condition');
   bool _loading = true;
   bool _loadError = false;
@@ -2890,8 +2908,10 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
 
   int _nextId = 1;
   Future<void> _loadItems() async {
+    if (_refreshing) return;
     setState(() {
-      _loading = true;
+      _refreshing = true;
+      _loading = _items.isEmpty;
       _loadError = false;
       _loadErrorDetails = null;
     });
@@ -2900,7 +2920,10 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       await ToolsDatabase.instance.seedIfEmpty(_defaultItems);
       _nextId = await ToolsDatabase.instance.nextToolId();
       loadStage = 'Leer las herramientas';
-      final items = await ToolsDatabase.instance.loadTools();
+      final items = await ToolsDatabase.instance.loadTools(includeComponents: true);
+      final facts = await loadInventoryFacts(items);
+      await _preferencesWrite;
+      final preferences = await loadInventoryPreferences();
       loadStage = 'Leer los iconos';
       await loadIconNames();
       await loadIconSettings();
@@ -2913,6 +2936,9 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
         _items
           ..clear()
           ..addAll(items);
+        _inventoryFacts = facts;
+        _inventoryPreferences = preferences;
+        _refreshing = false;
         _conditionOptions = conditionOptions.isEmpty
             ? defaultFieldOptions('condition')
             : conditionOptions;
@@ -2923,26 +2949,40 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _loadError = true;
+        _refreshing = false;
+        _loadError = _items.isEmpty;
         _loadErrorDetails = '$loadStage\n$error';
       });
+      if (_items.isNotEmpty) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo actualizar: $error')));
     }
   }
 
   String get _query => _searchController.text.trim().toLowerCase();
 
-  List<ToolItem> get _visibleItems {
-    if (_query.isEmpty) return _items;
-    return _items
-        .where(
-          (item) =>
-              item.name.toLowerCase().contains(_query) ||
-              item.description.toLowerCase().contains(_query) ||
-              item.barcode.toLowerCase().contains(_query) ||
-              item.type.toLowerCase().contains(_query) ||
-              (item.activeLoan?.borrower.toLowerCase().contains(_query) ?? false),
-        )
-        .toList();
+  List<ToolItem> get _visibleItems => selectInventoryTools(
+    _items, _inventoryPreferences, _inventoryFacts, query: _query);
+
+  void _setInventoryPreferences(InventoryPreferences preferences) {
+    setState(() => _inventoryPreferences = preferences);
+    _preferencesWrite = _preferencesWrite.then((_) => saveInventoryPreferences(preferences))
+      .catchError((Object error) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo recordar la vista: $error')));
+      });
+  }
+
+  Future<void> _openInventoryFilters() async {
+    final preferences = await showModalBottomSheet<InventoryPreferences>(
+      context: context, isScrollControlled: true, useSafeArea: true,
+      builder: (_) => InventoryFilterSheet(initial: _inventoryPreferences,
+        items: _items, facts: _inventoryFacts, conditionOptions: _conditionOptions, query: _query));
+    if (preferences != null && mounted) _setInventoryPreferences(preferences);
+  }
+
+  void _clearInventoryFilters() {
+    _searchController.clear();
+    _setInventoryPreferences(_inventoryPreferences.clearFilters());
   }
 
   Future<void> _openEditor({ToolItem? item}) async {
@@ -3105,6 +3145,10 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
+          IconButton(tooltip: 'Actualizar herramientas',
+            onPressed: _refreshing ? null : _loadItems,
+            icon: _refreshing ? const SizedBox(width: 20, height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.refresh)),
           IconButton(
             tooltip: 'Gestor de iconos',
             icon: const Icon(Icons.image_outlined),
@@ -3215,176 +3259,35 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
-              child: Row(
-                children: [
-                  Text(
-                    '${visible.length} artículos',
-                    style: const TextStyle(
-                      color: Color(0xFF72777D),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.tune, size: 20),
-                    label: const Text('Filtrar'),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: visible.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No se encontraron herramientas',
-                        style: TextStyle(color: Color(0xFF7A7F85)),
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 92),
-                      itemCount: visible.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final item = visible[index];
-                        final style = optionForValue(
-                          _conditionOptions,
-                          item.activeLoan != null ? 'Prestado' : item.condition,
-                          fieldKey: 'condition',
-                        );
-
-                        return Material(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(14),
-                            onTap: () => _openEditor(item: item),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 52,
-                                    height: 52,
-                                    clipBehavior: Clip.antiAlias,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFEAF4FE),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child:
-                                        item.imagePath.isNotEmpty &&
-                                            File(item.imagePath).existsSync()
-                                        ? Image.file(
-                                            File(item.imagePath),
-                                            fit: BoxFit.cover,
-                                          )
-                                        : const Icon(
-                                            Icons.handyman_outlined,
-                                            color: Color(0xFF168BD2),
-                                            size: 28,
-                                          ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item.name,
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w800,
-                                            color: Color(0xFF25292D),
-                                          ),
-                                        ),
-                                        if (item.voltage.isNotEmpty) ...[
-                                          const SizedBox(height: 3),
-                                          Text(
-                                            item.voltage,
-                                            style: const TextStyle(
-                                              color: Color(0xFF6F747A),
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ],
-                                        const SizedBox(height: 5),
-                                        Wrap(
-                                          spacing: 10,
-                                          runSpacing: 6,
-                                          crossAxisAlignment: WrapCrossAlignment.center,
-                                          children: [
-                                            if (item.isSet) const Icon(Icons.widgets_outlined, size: 20, color: managementColor),
-                                            if (item.outOfService) const Text('Fuera de servicio', style: TextStyle(color: Colors.red)),
-                                            if (item.activeLoan != null) Text(item.isSet ? 'Contenido prestado' : '${formatNumber(item.availableQuantity ?? 0)} disponibles', style: const TextStyle(fontSize: 12)),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 9,
-                                                    vertical: 4,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: style.color.withValues(
-                                                  alpha: 0.12,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  fieldOptionIconWidget(
-                                                    style,
-                                                    size: 22,
-                                                  ),
-                                                  const SizedBox(width: 4),
-                                                  Text(
-                                                    style.label,
-                                                    style: TextStyle(
-                                                      color: style.color,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      fontSize: 12,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            Text(
-                                              'Cantidad: ${formatNumber(item.quantity)} ${item.unit}',
-                                              style: const TextStyle(
-                                                color: Color(0xFF6F747A),
-                                                fontSize: 13,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        if (item.activeLoan != null) ...[
-                                          const SizedBox(height: 5),
-                                          Text('Prestada a ${item.activeLoan!.borrower}',
-                                            maxLines: 2, overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(color: Color(0xFFB76E00))),
-                                          if (item.activeLoan!.isOverdue)
-                                            const Text('Devolución retrasada',
-                                              style: TextStyle(color: Colors.red)),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.chevron_right,
-                                    color: Color(0xFF9AA0A6),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
+            Padding(padding: const EdgeInsets.fromLTRB(18, 4, 12, 8),
+              child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12, runSpacing: 4, children: [
+                  Text('${visible.length} artículos', style: const TextStyle(
+                    color: Color(0xFF72777D), fontWeight: FontWeight.w600)),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    TextButton.icon(onPressed: _openInventoryFilters,
+                      icon: const Icon(Icons.tune, size: 20),
+                      label: Text(_inventoryPreferences.filterCount == 0 ? 'Filtrar' :
+                        'Filtrar (${_inventoryPreferences.filterCount})')),
+                    PopupMenuButton<InventoryView>(tooltip: 'Cambiar vista',
+                      initialValue: _inventoryPreferences.view,
+                      icon: Icon(inventoryViewIcons[_inventoryPreferences.view]),
+                      onSelected: (view) => _setInventoryPreferences(_inventoryPreferences.copyWith(view: view)),
+                      itemBuilder: (_) => InventoryView.values.map((view) => PopupMenuItem(
+                        value: view, child: Row(children: [Icon(inventoryViewIcons[view]),
+                          const SizedBox(width: 12), Expanded(child: Text(inventoryViewLabels[view]!)),
+                          if (view == _inventoryPreferences.view) const Icon(Icons.check, size: 18)]))).toList()),
+                  ]),
+                ])),
+            if (_inventoryPreferences.filterCount > 0)
+              Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(left: 12),
+                child: TextButton(onPressed: () => _setInventoryPreferences(_inventoryPreferences.clearFilters()),
+                  child: const Text('Limpiar filtros')))),
+            Expanded(child: InventoryResults(items: visible, view: _inventoryPreferences.view,
+              facts: _inventoryFacts, conditionOptions: _conditionOptions,
+              onOpen: (item) => _openEditor(item: item), onRefresh: _loadItems,
+              onClear: _clearInventoryFilters,
+              hasFilters: _inventoryPreferences.filterCount > 0 || _query.isNotEmpty)),
           ],
         ),
       ),
