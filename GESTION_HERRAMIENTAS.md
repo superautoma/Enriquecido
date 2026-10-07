@@ -22,3 +22,14 @@ En «Mis herramientas», el botón junto a Filtrar permite elegir tarjetas, list
 Puede ordenarse por incorporación, nombre, cantidad o precio. La vista, orden y filtros se guardan en management_settings y viajan con las copias de seguridad. «Limpiar filtros» conserva la vista y orden. «Actualizar herramientas» o deslizar hacia abajo vuelve a leer los datos sin perder la búsqueda.
 
 Los conjuntos reflejan los documentos, mantenimiento y piezas fuera de servicio de su contenido. La búsqueda admite nombres sin tildes, todas las personas con préstamos activos y nombres de piezas. Las fichas de piezas se incluyen cuando se solicita, con el nombre de su conjunto. La consulta de disponibilidad se realiza en bloque para reducir las lecturas repetidas al mostrar inventarios grandes.
+
+
+## Importar sin sustituir
+
+«Importar y añadir», en el menú principal y en Gestión de base de datos, admite los ZIP de copia existentes (formatos 1 y 2). Primero muestra cuántas herramientas, piezas, documentos, préstamos y mantenimientos va a añadir. Los datos se incorporan como fichas nuevas. Si un nombre o referencia coincide, se conservan ambas fichas.
+
+La importación reasigna los identificadores y todos sus enlaces dentro de una transacción. Copia imágenes, documentos e iconos a nombres nuevos; conserva las devoluciones parciales, los eventos de préstamo y las intervenciones. Las opciones de Tipo y Estado nuevas se añaden; las existentes, contactos guardados y ajustes actuales se mantienen. No sustituye los archivos de nombres ni ajustes de iconos.
+
+El mismo ZIP, identificado por SHA-256 de sus bytes, se importa una sola vez, aunque se cambie su nombre. Ese historial se guarda en management_settings y viaja con las copias completas. Una copia distinta se considera una nueva importación. Ante una copia incompleta o una operación fallida, no se conservan inserciones parciales y se retiran los archivos nuevos de ese intento. Las copias antiguas se actualizan solamente en el directorio temporal.
+
+«Restaurar y sustituir» conserva su función de recuperación completa y explica que sustituye el inventario. Para unir bases se utiliza «Importar y añadir».

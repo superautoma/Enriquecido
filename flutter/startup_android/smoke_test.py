@@ -192,4 +192,64 @@ tap('Limpiar filtros')
 wait_for('3 artículos')
 tap('Actualizar herramientas')
 wait_for('Destornillador aislado')
-print('Android startup, loans, documents, maintenance, inventory views, filters and persistence passed.')
+def tap_any(labels, timeout=20):
+    deadline=time.monotonic()+timeout
+    while time.monotonic()<deadline:
+        adb('shell','uiautomator','dump','/sdcard/startup-window.xml')
+        root=ET.fromstring(adb('shell','cat','/sdcard/startup-window.xml').decode())
+        for node in root.iter('node'):
+            text=node.get('text','')+node.get('content-desc','')
+            if any(label in text for label in labels):
+                tap_node(node)
+                return True
+        time.sleep(.5)
+    return False
+
+
+def select_import_zip():
+    tap('Seleccionar archivo ZIP')
+    if tap_any(['demo_100_v9.zip'], timeout=5):
+        return
+    assert tap_any(['Show roots','Mostrar raíces','Mostrar raices']), 'Document picker navigation missing'
+    assert tap_any(['Downloads','Descargas']), 'Downloads folder missing'
+    tap('demo_100_v9.zip')
+
+
+adb('shell','mkdir','-p','/sdcard/Download')
+adb('push','test/fixtures/demo_100_v9.zip','/sdcard/Download/demo_100_v9.zip')
+adb('shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE',
+    '-d','file:///sdcard/Download/demo_100_v9.zip')
+tap('Opciones')
+tap('Importar y añadir')
+select_import_zip()
+wait_for('Para añadir: 100 herramientas y 40 piezas')
+screenshot('import-preview.png')
+scroll_tap('Añadir a mi inventario')
+wait_for('Añadidas 100 herramientas y 40 piezas')
+screenshot('import-result.png')
+tap('Volver al listado')
+wait_for('103 artículos')
+tap_field(0)
+adb('shell','input','text','Destornillador%saislado')
+adb('shell','input','keyevent','4')
+tap('Destornillador aislado')
+tap('Prestada: ver préstamo')
+wait_for('Con cargador y bateria')
+adb('shell','input','keyevent','4')
+wait_for('Editar artículo')
+tap('Documentos')
+wait_for('Manual')
+screenshot('import-preserved-document.png')
+adb('shell','input','keyevent','4')
+adb('shell','input','keyevent','4')
+wait_for('Mis herramientas')
+tap('Limpiar búsqueda')
+wait_for('103 artículos')
+tap('Opciones')
+tap('Importar y añadir')
+select_import_zip()
+wait_for('Este ZIP ya se ha importado')
+screenshot('import-duplicate.png')
+adb('shell','input','keyevent','4')
+wait_for('103 artículos')
+print('Android views, filters, additive import, original loans/documents and repeated import checks passed.')

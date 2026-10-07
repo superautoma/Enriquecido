@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +20,8 @@ part 'tool_management.dart';
 part 'tool_management_ui.dart';
 part 'tool_inventory.dart';
 part 'tool_inventory_ui.dart';
+part 'backup_import.dart';
+part 'backup_import_ui.dart';
 
 void main() {
   runApp(const GestorHerramientasApp());
@@ -1820,7 +1823,13 @@ class ToolsDatabase with ToolManagementDatabase {
         await _createFieldOptionsTable(db);
         await _seedDefaultFieldOptions(db);
       },
-      onUpgrade: (db, oldVersion, newVersion) async {
+      onUpgrade: _upgradeSchema,
+    );
+
+    return _database!;
+  }
+
+  static Future<void> _upgradeSchema(Database db, int oldVersion, int newVersion) async {
         if (oldVersion < 2) {
           await db.execute(
             "ALTER TABLE tools ADD COLUMN image_path TEXT NOT NULL DEFAULT ''",
@@ -1874,10 +1883,7 @@ class ToolsDatabase with ToolManagementDatabase {
         }
         if (oldVersion < 8) await _createLoansTable(db);
         if (oldVersion < 9) await createManagementTables(db);
-      },
-    );
 
-    return _database!;
   }
 
   static Future<void> _createLoansTable(DatabaseExecutor db) async {
@@ -3055,6 +3061,15 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     }
   }
 
+  Future<bool> _importBackup() async {
+    await _preferencesWrite;
+    if (!mounted) return false;
+    final imported = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const ImportBackupPage()));
+    if (imported == true && mounted) await _loadItems();
+    return imported == true;
+  }
+
   Future<bool> _restoreBackup() async {
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -3069,10 +3084,11 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         icon: const Icon(Icons.restore),
-        title: const Text('Restaurar copia'),
+        title: const Text('Restaurar y sustituir'),
         content: const Text(
-          'Se sustituirán la base de datos y las imágenes actuales por las '
-          'contenidas en la copia. Esta operación no se puede deshacer.',
+          'Esta opción sustituye tu inventario completo por el de la copia. '
+          'Para conservarlo y añadir datos, utiliza Importar y añadir. '
+          'Guarda una copia de tus datos actuales antes de sustituirlos.',
         ),
         actions: [
           TextButton(
@@ -3112,6 +3128,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
         builder: (_) => DatabaseManagementPage(
           onCreateBackup: _createBackup,
           onRestoreBackup: _restoreBackup,
+          onImportBackup: _importBackup,
         ),
       ),
     );
@@ -3173,6 +3190,8 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                   _openFieldOptionsManager();
                 case 'backup':
                   _createBackup();
+                case 'import':
+                  _importBackup();
                 case 'restore':
                   _restoreBackup();
               }
@@ -3218,12 +3237,14 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                   title: Text('Crear copia de seguridad'),
                 ),
               ),
+              PopupMenuItem(value: 'import', child: ListTile(contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.playlist_add), title: Text('Importar y añadir'))),
               PopupMenuItem(
                 value: 'restore',
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.restore),
-                  title: Text('Restaurar copia'),
+                  title: Text('Restaurar y sustituir'),
                 ),
               ),
             ],
@@ -3250,6 +3271,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                   suffixIcon: _query.isEmpty
                       ? null
                       : IconButton(
+                          tooltip: 'Limpiar búsqueda',
                           onPressed: () {
                             _searchController.clear();
                             setState(() {});
@@ -5825,8 +5847,10 @@ class DatabaseManagementPage extends StatefulWidget {
     super.key,
     required this.onCreateBackup,
     required this.onRestoreBackup,
+    required this.onImportBackup,
   });
 
+  final Future<bool> Function() onImportBackup;
   final Future<void> Function() onCreateBackup;
   final Future<bool> Function() onRestoreBackup;
 
@@ -5898,6 +5922,11 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
         ),
       );
     }
+  }
+
+  Future<void> _import() async {
+    final imported = await widget.onImportBackup();
+    if (mounted && imported) _refreshUi();
   }
 
   Future<void> _restore() async {
@@ -5988,17 +6017,22 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
                       leading: const Icon(Icons.backup_outlined),
                       title: const Text('Crear copia de seguridad'),
                       subtitle: const Text(
-                        'Guarda SQLite y todas las imágenes en un ZIP.',
+                        'Guarda tus herramientas, fotos, documentos e historial en un ZIP.',
                       ),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: widget.onCreateBackup,
                     ),
                     const Divider(height: 1),
+                    ListTile(leading: const Icon(Icons.playlist_add),
+                      title: const Text('Importar y añadir'),
+                      subtitle: const Text('Añade una base sin sustituir tus datos actuales.'),
+                      trailing: const Icon(Icons.chevron_right), onTap: _import),
+                    const Divider(height: 1),
                     ListTile(
                       leading: const Icon(Icons.restore),
-                      title: const Text('Restaurar copia'),
+                      title: const Text('Restaurar y sustituir'),
                       subtitle: const Text(
-                        'Recupera herramientas, campos e imágenes.',
+                        'Sustituye todo el inventario por el de una copia.',
                       ),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: _restore,
