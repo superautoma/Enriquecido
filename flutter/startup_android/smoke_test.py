@@ -83,6 +83,34 @@ def tap_field(index):
     raise AssertionError(f'Loan field {index} not found')
 
 
+
+def tap_first_empty_field():
+    # Flutter's empty input labels are not exposed by Android 29's XML dump.
+    # In this seeded editor all base fields already have values; the expanded
+    # optional section is therefore the only source of empty editable fields.
+    for _ in range(8):
+        adb('shell', 'uiautomator', 'dump', '/sdcard/startup-window.xml')
+        xml = adb('shell', 'cat', '/sdcard/startup-window.xml').decode()
+        (output / 'window.xml').write_text(xml)
+        root = ET.fromstring(xml)
+        screen = next(root.iter('node'))
+        left, top, right, bottom = map(int, re.findall(r'\d+', screen.attrib['bounds']))
+        fields = []
+        for node in root.iter('node'):
+            if node.get('class') != 'android.widget.EditText' or node.get('text', ''):
+                continue
+            bounds = list(map(int, re.findall(r'\d+', node.attrib['bounds'])))
+            if bounds[1] >= 80 and bounds[3] - bounds[1] >= 40 and bounds[3] <= bottom - 24:
+                fields.append((bounds[1], node))
+        if fields:
+            tap_node(min(fields, key=lambda pair: pair[0])[1])
+            return
+        x = (left + right) // 2
+        adb('shell', 'input', 'swipe', str(x), str(int(bottom * .8)),
+            str(x), str(int(bottom * .55)), '350')
+    screenshot('empty-field-failed.png')
+    raise AssertionError('The expanded section did not expose an empty editable field')
+
 adb("install", "-r", "build/app/outputs/flutter-apk/app-release.apk")
 adb("shell", "am", "force-stop", package)
 adb("shell", "am", "start", "-n", f"{package}/.StartupActivity")
@@ -96,14 +124,16 @@ wait_for("Editar artículo")
 tap('Selecciona el tipo')
 tap('Herramienta manual')
 scroll_tap('Identificación')
+screenshot('identification-open.png')
 for label, value in [('Marca', 'Bosch%sQA'), ('Modelo', 'GSB%s18V'), ('Número de serie', 'SER-QA-001')]:
-    scroll_tap(label)
+    tap_first_empty_field()
     adb('shell', 'input', 'text', value)
     adb('shell', 'input', 'keyevent', '4')
 scroll_tap('Ubicación')
+screenshot('location-open.png')
 for label, value in [('Lugar / taller', 'Taller%sQA'), ('Estantería', 'Estante%s2'),
                      ('Balda', 'Balda%s3'), ('Caja / maletín', 'Caja%sazul')]:
-    scroll_tap(label)
+    tap_first_empty_field()
     adb('shell', 'input', 'text', value)
     adb('shell', 'input', 'keyevent', '4')
 screenshot('tool-location-editor.png')
