@@ -152,6 +152,19 @@ adb("shell", "am", "force-stop", package)
 adb("shell", "am", "start", "-n", f"{package}/.StartupActivity")
 screenshot("startup-first-frame.png")
 if '--feedback-only' in sys.argv:
+    # Both Android workflows pin API 29. Query its first IVibratorService
+    # transaction (hasVibrator) independently from the app under test.
+    assert adb('shell', 'getprop', 'ro.build.version.sdk').decode().strip() == '29'
+    capability = adb('shell', 'service', 'call', 'vibrator', '1').decode()
+    (output / 'feedback-vibrator-hardware.txt').write_text(capability)
+    reply = re.search(r'Parcel\(\s*00000000\s+(0000000[01])\b', capability)
+    assert reply, f'Could not query vibrator hardware: {capability}'
+    has_vibrator = reply[1] == '00000001'
+    permissions = adb('shell', 'dumpsys', 'package', package).decode()
+    (output / 'feedback-permissions.txt').write_text(permissions)
+    assert re.search(r'android\.permission\.VIBRATE:\s*granted=true', permissions), \
+        'The installed APK must have the normal VIBRATE permission'
+
     def direct_vibrations(name):
         dump = adb('shell', 'dumpsys', 'vibrator').decode()
         (output / name).write_text(dump)
@@ -160,6 +173,10 @@ if '--feedback-only' in sys.argv:
                 and re.search(r'(?:mAmplitude|amplitude)\s*[=:]\s*255\b', row)]
 
     def expect_preview_vibration(before, name):
+        if not has_vibrator:
+            assert direct_vibrations(name) == before
+            print('Emulator has no vibrator hardware; physical pulse delivery needs a phone.')
+            return
         for _ in range(10):
             after = direct_vibrations(name)
             if len(after) == len(before) + 1:
@@ -218,8 +235,8 @@ if '--feedback-only' in sys.argv:
     wait_for('3 artículos')
     errors = adb('logcat', '-d', '-s', 'AndroidRuntime:E').decode()
     assert 'FATAL EXCEPTION' not in errors, errors
-    print('Android feedback settings: explicit 70 ms vibration at amplitude 255, independent toggles, preview, restart persistence, '
-          'inventory navigation and absence of native crashes verified.')
+    print('Android feedback settings: VIBRATE permission, independent toggles, preview, restart persistence, '
+          f'inventory navigation and absence of native crashes verified; vibrator hardware={has_vibrator}.')
     sys.exit(0)
 
 if '--trash-only' in sys.argv:
