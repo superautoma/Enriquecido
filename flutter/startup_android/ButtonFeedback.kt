@@ -1,18 +1,24 @@
 package org.gestorherramientas.gestor_herramientas_quill_test
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.SoundPool
 import android.os.Build
+import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.provider.Settings
+import android.util.Log
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-/** Preloaded click and an explicit, short pulse controlled by the app's switch. */
+/** Device-aware vibration with a legacy fallback and an independent hardware test. */
 class ButtonFeedback(private val activity: Activity, engine: FlutterEngine) {
     private val channel = MethodChannel(engine.dartExecutor.binaryMessenger,
         "org.gestorherramientas/button_feedback")
@@ -35,34 +41,111 @@ class ButtonFeedback(private val activity: Activity, engine: FlutterEngine) {
             pool = null
         }
         channel.setMethodCallHandler { call, result ->
-            if (call.method != "tap") {
-                result.notImplemented()
-            } else {
-                if (call.argument<Boolean>("sound") == true) playClick()
-                if (call.argument<Boolean>("vibration") == true) vibrateTap()
-                result.success(null)
+            when (call.method) {
+                "tap" -> {
+                    if (call.argument<Boolean>("sound") == true) playClick()
+                    if (call.argument<Boolean>("vibration") == true) vibrate(120L)
+                    result.success(null)
+                }
+                "vibrationStatus" -> result.success(vibrationStatus())
+                "testVibration" -> {
+                    val status = vibrate(1000L)
+                    Log.i("ButtonFeedback", "Manual vibration test: ${status["status"]}")
+                    result.success(status)
+                }
+                "openVibrationSettings" -> result.success(openSettings())
+                else -> result.notImplemented()
             }
         }
     }
 
     @Suppress("DEPRECATION")
-    private fun vibrateTap() {
-        try {
-            val vibrator = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                (activity.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)
-                    ?.defaultVibrator
-            } else {
-                activity.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-            }) ?: return
-            if (!vibrator.hasVibrator()) return
-            // KEYBOARD_TAP can be imperceptible or disabled by keyboard/touch
-            // settings. An explicit 70 ms pulse gives this app its own response.
+    private fun deviceVibrator(): Vibrator? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                val manager = activity.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                if (manager != null) {
+                    val defaultVibrator = manager.defaultVibrator
+                    if (defaultVibrator.hasVibrator()) return defaultVibrator
+                    for (id in manager.vibratorIds) {
+                        val vibrator = manager.getVibrator(id)
+                        if (vibrator.hasVibrator()) return vibrator
+                    }
+                }
+            } catch (_: Exception) { /* Try the service available on older devices. */ }
+        }
+        return activity.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+    }
+
+    @Suppress("DEPRECATION")
+    private fun vibrationStatus(): Map<String, Any?> {
+        return try {
+            val vibrator = deviceVibrator()
+            val enabled = Settings.System.getInt(activity.contentResolver,
+                Settings.System.HAPTIC_FEEDBACK_ENABLED, 1) != 0
+            val intensity = Settings.System.getInt(activity.contentResolver,
+                "haptic_feedback_intensity", -1)
+            val info = activity.packageManager.getPackageInfo(activity.packageName, 0)
+            val version = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode
+                else info.versionCode.toLong()
+            mapOf("hasVibrator" to (vibrator?.hasVibrator() == true),
+                "permissionGranted" to (activity.checkSelfPermission(Manifest.permission.VIBRATE)
+                    == PackageManager.PERMISSION_GRANTED),
+                "touchFeedbackEnabled" to (enabled && intensity != 0),
+                "appVersion" to version)
+        } catch (_: Exception) {
+            mapOf("status" to "unavailable")
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun vibrate(duration: Long): Map<String, Any?> {
+        val status = vibrationStatus()
+        if (status["hasVibrator"] != true) {
+            return status + ("status" to if (status["hasVibrator"] == false) "no_motor" else "unavailable")
+        }
+        if (status["permissionGranted"] != true) return status + ("status" to "permission_denied")
+        if (status["touchFeedbackEnabled"] == false) return status + ("status" to "system_disabled")
+        return try {
+            val vibrator = deviceVibrator() ?: return status + ("status" to "unavailable")
+            val timings = longArrayOf(0L, duration)
+            var route = "legacy"
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(70L, 255))
+                try {
+                    // Timings-only effects also work on motors without amplitude control.
+                    val effect = VibrationEffect.createWaveform(timings, -1)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        vibrator.vibrate(effect, VibrationAttributes.Builder()
+                            .setUsage(VibrationAttributes.USAGE_TOUCH).build())
+                    } else {
+                        vibrator.vibrate(effect, AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION).build())
+                    }
+                    route = "waveform"
+                } catch (error: SecurityException) {
+                    throw error
+                } catch (_: Exception) {
+                    vibrator.vibrate(timings, -1)
+                }
             } else {
-                vibrator.vibrate(70L)
+                vibrator.vibrate(timings, -1)
             }
-        } catch (_: Exception) { /* Hardware feedback must not block an action. */ }
+            status + mapOf("status" to "requested", "durationMs" to duration, "route" to route)
+        } catch (_: SecurityException) {
+            status + ("status" to "permission_denied")
+        } catch (_: Exception) {
+            status + ("status" to "unavailable")
+        }
+    }
+
+    private fun openSettings(): Boolean {
+        for (action in listOf(Settings.ACTION_SOUND_SETTINGS, Settings.ACTION_SETTINGS)) {
+            try {
+                activity.startActivity(Intent(action))
+                return true
+            } catch (_: Exception) { /* Some manufacturers have a different settings activity. */ }
+        }
+        return false
     }
 
     private fun playClick() {

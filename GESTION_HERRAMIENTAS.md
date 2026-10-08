@@ -4,8 +4,15 @@
 la respuesta háptica al pulsar botones, elegir opciones o abrir una ficha.
 «Probar botón» reproduce los efectos seleccionados. Las preferencias se guardan
 en SQLite y viajan con la copia completa. El sonido respeta el modo silencio;
-la vibración utiliza un pulso directo de 70 ms a intensidad máxima, con
-compatibilidad para Android anteriores y comprobación del motor disponible.
+la vibración utiliza un pulso de 120 ms sin exigir control de amplitud, con
+compatibilidad para Android antiguos, Android modernos y varios motores.
+Si una API falla, se intenta el patrón clásico. Se respetan los ajustes táctiles
+de Android. La pantalla detecta motor, permiso y respuesta táctil, muestra la
+versión instalada y explica los bloqueos en vez de ocultarlos.
+«Probar vibración (1 segundo)» prueba el motor aunque el efecto de los botones
+esté apagado, sin añadir un clic ni otro pulso. «Ajustes del móvil» abre los
+ajustes de sonido con alternativa a los ajustes generales; al volver se actualiza
+el estado. Una orden enviada no se presenta como una vibración físicamente confirmada.
 El instalador declara el permiso normal VIBRATE, sin petición interactiva.
 Los campos de texto,
 desplazamientos y pulsaciones canceladas no generan efectos. La respuesta no

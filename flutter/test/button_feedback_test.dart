@@ -12,6 +12,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final controller = ButtonFeedbackController.instance;
   final calls = <Map<Object?, Object?>>[];
+  final diagnosticCalls = <String>[];
+  Map<Object?, Object?> deviceStatus = {};
   late Directory directory;
 
   setUpAll(() {
@@ -22,12 +24,21 @@ void main() {
     directory = await Directory.systemTemp.createTemp('button_feedback_');
     await databaseFactory.setDatabasesPath(directory.path);
     calls.clear();
+    diagnosticCalls.clear();
+    deviceStatus = {'hasVibrator': true, 'permissionGranted': true,
+      'touchFeedbackEnabled': true, 'appVersion': 95};
     controller.value = const ButtonFeedbackPreferences();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(buttonFeedbackChannel, (call) async {
-        expect(call.method, 'tap');
-        calls.add(Map<Object?, Object?>.from(call.arguments as Map));
-        return null;
+        if (call.method == 'tap') {
+          calls.add(Map<Object?, Object?>.from(call.arguments as Map));
+          return null;
+        }
+        diagnosticCalls.add(call.method);
+        if (call.method == 'vibrationStatus') return deviceStatus;
+        if (call.method == 'testVibration') return {...deviceStatus, 'status': 'requested', 'durationMs': 1000};
+        if (call.method == 'openVibrationSettings') return true;
+        fail('Unexpected channel method: ${call.method}');
       });
   });
   tearDown(() async {
@@ -89,6 +100,23 @@ void main() {
     expect(controller.value.vibration, isTrue);
   });
 
+  test('Diagnostics explain missing motors, system blocking and service failures', () async {
+    for (final scenario in [
+      ({'hasVibrator': false}, 'no tiene motor'),
+      ({'hasVibrator': true, 'permissionGranted': false}, 'no permite vibrar'),
+      ({'hasVibrator': true, 'permissionGranted': true, 'touchFeedbackEnabled': false}, 'desactivada'),
+      ({'hasVibrator': true, 'permissionGranted': true, 'status': 'unavailable'}, 'No se pudo acceder'),
+    ]) {
+      deviceStatus = scenario.$1;
+      final status = await controller.checkVibration();
+      expect(status.message, contains(scenario.$2));
+    }
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(buttonFeedbackChannel, (_) async => throw PlatformException(code: 'unavailable'));
+    expect((await controller.testVibration()).result, 'unavailable');
+    expect(await controller.openVibrationSettings(), isFalse);
+  });
+
   testWidgets('A cancelled button press produces no action or effect', (tester) async {
     var actions = 0;
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: Center(child:
@@ -126,6 +154,40 @@ void main() {
     await tester.tap(testButton);
     await tester.pumpAndSettle();
     expect(calls.single, {'sound': false, 'vibration': true});
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('The one-second test is independent from button feedback preferences', (tester) async {
+    controller.value = const ButtonFeedbackPreferences(sound: false, vibration: false);
+    await tester.pumpWidget(const MaterialApp(home: ButtonFeedbackPage()));
+    await tester.pumpAndSettle();
+    final testButton = find.byKey(const ValueKey('test_vibration'));
+    await tester.scrollUntilVisible(testButton, 150);
+    await tester.pumpAndSettle();
+    await tester.tap(testButton);
+    await tester.pumpAndSettle();
+    expect(diagnosticCalls.where((method) => method == 'testVibration'), hasLength(1));
+    expect(calls, isEmpty, reason: 'The long test must not also trigger a short pulse or a click');
+    expect(find.textContaining('Prueba de un segundo enviada'), findsOneWidget);
+    expect(controller.value.vibration, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('System-blocked vibration exposes settings and refresh without claiming success', (tester) async {
+    deviceStatus = {'hasVibrator': true, 'permissionGranted': true, 'touchFeedbackEnabled': false};
+    await tester.pumpWidget(const MaterialApp(home: ButtonFeedbackPage()));
+    await tester.pumpAndSettle();
+    final settings = find.byKey(const ValueKey('vibration_system_settings'));
+    await tester.scrollUntilVisible(settings, 150);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('desactivada la respuesta táctil'), findsOneWidget);
+    await tester.tap(settings);
+    await tester.pumpAndSettle();
+    expect(diagnosticCalls, contains('openVibrationSettings'));
+    deviceStatus = {'hasVibrator': true, 'permissionGranted': true, 'touchFeedbackEnabled': true};
+    await tester.tap(find.byKey(const ValueKey('refresh_vibration_status')));
+    await tester.pumpAndSettle();
+    expect(find.text('Motor de vibración detectado.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

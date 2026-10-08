@@ -152,25 +152,26 @@ adb("shell", "am", "force-stop", package)
 adb("shell", "am", "start", "-n", f"{package}/.StartupActivity")
 screenshot("startup-first-frame.png")
 if '--feedback-only' in sys.argv:
-    # Both Android workflows pin API 29. Query its first IVibratorService
-    # transaction (hasVibrator) independently from the app under test.
-    assert adb('shell', 'getprop', 'ro.build.version.sdk').decode().strip() == '29'
-    capability = adb('shell', 'service', 'call', 'vibrator', '1').decode()
+    # Check the system service independently of the app's method channel.
+    sdk = int(adb('shell', 'getprop', 'ro.build.version.sdk').decode().strip())
+    service = 'vibrator_manager' if sdk >= 31 else 'vibrator'
+    capability = adb('shell', 'service', 'call', service, '1').decode()
     (output / 'feedback-vibrator-hardware.txt').write_text(capability)
-    reply = re.search(r'Parcel\(\s*00000000\s+(0000000[01])\b', capability)
+    reply = re.search(r'Parcel\(\s*(?:0x00000000:\s*)?00000000\s+([0-9a-fA-F]{8})\b', capability)
     assert reply, f'Could not query vibrator hardware: {capability}'
-    has_vibrator = reply[1] == '00000001'
+    available = int(reply[1], 16)
+    assert 0 <= available < 100, f'Unexpected vibrator capability: {capability}'
+    has_vibrator = available > 0
     permissions = adb('shell', 'dumpsys', 'package', package).decode()
     (output / 'feedback-permissions.txt').write_text(permissions)
     assert re.search(r'android\.permission\.VIBRATE:\s*granted=true', permissions), \
         'The installed APK must have the normal VIBRATE permission'
 
     def direct_vibrations(name):
-        dump = adb('shell', 'dumpsys', 'vibrator').decode()
+        dump = adb('shell', 'dumpsys', service).decode()
         (output / name).write_text(dump)
         return [row for row in dump.splitlines() if package in row
-                and re.search(r'(?:mDuration|duration)\s*[=:]\s*70\b', row)
-                and re.search(r'(?:mAmplitude|amplitude)\s*[=:]\s*255\b', row)]
+                and ('120' in row or '1000' in row)]
 
     def expect_preview_vibration(before, name):
         if not has_vibrator:
@@ -182,7 +183,7 @@ if '--feedback-only' in sys.argv:
             if len(after) == len(before) + 1:
                 return
             time.sleep(.1)
-        raise AssertionError('Preview must request one explicit 70 ms vibration')
+        raise AssertionError('Preview must request one compatible vibration')
 
     def switch_state(label):
         wait_for(label)
@@ -193,11 +194,38 @@ if '--feedback-only' in sys.argv:
         assert len(switches) == 1, f'Expected one accessible switch for {label}'
         return switches[0].get('checked') == 'true'
 
+    def scroll_to_top():
+        adb('shell', 'uiautomator', 'dump', '/sdcard/startup-window.xml')
+        screen = next(ET.fromstring(adb('shell', 'cat', '/sdcard/startup-window.xml').decode()).iter('node'))
+        left, top, right, bottom = map(int, re.findall(r'\d+', screen.attrib['bounds']))
+        x = (left + right) // 2
+        for _ in range(4):
+            adb('shell', 'input', 'swipe', str(x), str(top + int((bottom - top) * .35)),
+                str(x), str(top + int((bottom - top) * .8)), '250')
+
     wait_for('3 artículos')
     tap('Opciones')
     tap('Sonido y vibración')
     assert switch_state('Sonido al pulsar')
     assert switch_state('Vibración al pulsar')
+    scroll_tap('Comprobar de nuevo')
+    wait_for('Motor de vibración detectado.' if has_vibrator
+             else 'Este dispositivo no tiene motor de vibración disponible.')
+    screenshot('feedback-hardware-status.png')
+    adb('logcat', '-c')
+    scroll_tap('Probar vibración (1 segundo)')
+    wait_for('Prueba de un segundo enviada' if has_vibrator
+             else 'Este dispositivo no tiene motor de vibración disponible.')
+    native = adb('logcat', '-d', '-s', 'ButtonFeedback:I').decode()
+    assert f'Manual vibration test: {"requested" if has_vibrator else "no_motor"}' in native, \
+        'The independent test must reach the installed native vibration handler'
+    (output / 'feedback-native-test.txt').write_text(native)
+    screenshot('feedback-independent-test.png')
+    scroll_tap('Ajustes del móvil')
+    time.sleep(1)
+    adb('shell', 'input', 'keyevent', '4')
+    wait_for('Sonido y vibración')
+    scroll_to_top()
     before_preview = direct_vibrations('feedback-vibrator-before.txt')
     tap('Probar botón')
     expect_preview_vibration(before_preview, 'feedback-vibrator-on.txt')
@@ -227,6 +255,14 @@ if '--feedback-only' in sys.argv:
     screenshot('feedback-vibration-only.png')
     tap('Sonido al pulsar')
     assert switch_state('Sonido al pulsar')
+    # A changed system setting is refreshed explicitly without pretending that
+    # the device can vibrate when the OS has disabled tactile feedback.
+    adb('shell', 'settings', 'put', 'system', 'haptic_feedback_enabled', '0')
+    scroll_tap('Comprobar de nuevo')
+    wait_for('desactivada la respuesta táctil' if has_vibrator
+             else 'Este dispositivo no tiene motor de vibración disponible.')
+    screenshot('feedback-system-setting.png')
+    adb('shell', 'settings', 'put', 'system', 'haptic_feedback_enabled', '1')
     adb('shell', 'input', 'keyevent', '4')
     wait_for('3 artículos')
     tap('Destornillador aislado', exclude_class='android.widget.EditText')

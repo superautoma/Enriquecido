@@ -3,6 +3,44 @@ part of 'main_quill_integrated_test.dart';
 const buttonFeedbackSettingsKey = 'button_feedback';
 const buttonFeedbackChannel = MethodChannel('org.gestorherramientas/button_feedback');
 
+class ButtonVibrationStatus {
+  const ButtonVibrationStatus({this.hasMotor, this.permissionGranted,
+    this.touchEnabled, this.version, this.result});
+
+  final bool? hasMotor;
+  final bool? permissionGranted;
+  final bool? touchEnabled;
+  final int? version;
+  final String? result;
+
+  factory ButtonVibrationStatus.fromMap(Map<Object?, Object?> map) => ButtonVibrationStatus(
+    hasMotor: map['hasVibrator'] is bool ? map['hasVibrator'] as bool : null,
+    permissionGranted: map['permissionGranted'] is bool ? map['permissionGranted'] as bool : null,
+    touchEnabled: map['touchFeedbackEnabled'] is bool ? map['touchFeedbackEnabled'] as bool : null,
+    version: map['appVersion'] is int ? map['appVersion'] as int : null,
+    result: map['status'] is String ? map['status'] as String : null);
+
+  String get message {
+    if (hasMotor == false || result == 'no_motor') {
+      return 'Este dispositivo no tiene motor de vibración disponible.';
+    }
+    if (permissionGranted == false || result == 'permission_denied') {
+      return 'Android no permite vibrar a esta instalación. Revisa los ajustes del móvil.';
+    }
+    if (touchEnabled == false || result == 'system_disabled') {
+      return 'Android tiene desactivada la respuesta táctil. Actívala en los ajustes del móvil.';
+    }
+    if (result == 'requested') {
+      return 'Prueba de un segundo enviada. Si no la notas, revisa la intensidad de vibración en los ajustes del móvil.';
+    }
+    if (result == 'unavailable') {
+      return 'No se pudo acceder a la vibración. Pulsa «Comprobar de nuevo» o actualiza la aplicación.';
+    }
+    if (hasMotor == true && permissionGranted == true) return 'Motor de vibración detectado.';
+    return 'No se pudo comprobar la vibración. Pulsa «Comprobar de nuevo» o actualiza la aplicación.';
+  }
+}
+
 class ButtonFeedbackPreferences {
   const ButtonFeedbackPreferences({this.sound = true, this.vibration = true});
 
@@ -90,6 +128,29 @@ class ButtonFeedbackController extends ValueNotifier<ButtonFeedbackPreferences> 
       // Audio/haptics can be unavailable without affecting the action.
     }
   }
+
+  Future<ButtonVibrationStatus> checkVibration() => _vibrationRequest('vibrationStatus');
+
+  Future<ButtonVibrationStatus> testVibration() => _vibrationRequest('testVibration');
+
+  Future<ButtonVibrationStatus> _vibrationRequest(String method) async {
+    try {
+      final status = await buttonFeedbackChannel.invokeMapMethod<Object?, Object?>(method)
+        .timeout(const Duration(seconds: 4));
+      return status == null ? const ButtonVibrationStatus(result: 'unavailable')
+        : ButtonVibrationStatus.fromMap(status);
+    } on Exception {
+      return const ButtonVibrationStatus(result: 'unavailable');
+    }
+  }
+
+  Future<bool> openVibrationSettings() async {
+    try {
+      return await buttonFeedbackChannel.invokeMethod<bool>('openVibrationSettings') ?? false;
+    } on Exception {
+      return false;
+    }
+  }
 }
 
 VoidCallback? withButtonFeedback(VoidCallback? callback) => callback == null ? null : () {
@@ -109,8 +170,45 @@ class ButtonFeedbackPage extends StatefulWidget {
   State<ButtonFeedbackPage> createState() => _ButtonFeedbackPageState();
 }
 
-class _ButtonFeedbackPageState extends State<ButtonFeedbackPage> {
+class _ButtonFeedbackPageState extends State<ButtonFeedbackPage> with WidgetsBindingObserver {
   bool _saving = false;
+  bool _testing = false;
+  ButtonVibrationStatus? _status;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_refreshStatus());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_refreshStatus());
+  }
+
+  Future<void> _refreshStatus() async {
+    final status = await ButtonFeedbackController.instance.checkVibration();
+    if (mounted) setState(() => _status = status);
+  }
+
+  Future<void> _testVibration() async {
+    setState(() => _testing = true);
+    final status = await ButtonFeedbackController.instance.testVibration();
+    if (mounted) setState(() { _status = status; _testing = false; });
+  }
+
+  Future<void> _openSettings() async {
+    final opened = await ButtonFeedbackController.instance.openVibrationSettings();
+    if (!opened && mounted) ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Abre los ajustes del móvil y busca «Vibración» o «Respuesta táctil».')));
+  }
 
   Future<void> _update(ButtonFeedbackPreferences preferences) async {
     setState(() => _saving = true);
@@ -141,7 +239,7 @@ class _ButtonFeedbackPageState extends State<ButtonFeedbackPage> {
           const Divider(height: 1),
           SwitchListTile(key: const ValueKey('button_vibration'),
             secondary: const Icon(Icons.vibration_outlined),
-            title: const Text('Vibración al pulsar'), subtitle: const Text('Un pulso corto y más marcado'),
+            title: const Text('Vibración al pulsar'), subtitle: const Text('Un pulso compatible con el motor del móvil'),
             value: preferences.vibration,
             onChanged: _saving ? null : withControlFeedback<bool>((value) =>
               _update(preferences.copyWith(vibration: value)))),
@@ -151,6 +249,26 @@ class _ButtonFeedbackPageState extends State<ButtonFeedbackPage> {
           style: const ButtonStyle(enableFeedback: false),
           onPressed: withButtonFeedback(() {}), icon: const Icon(Icons.touch_app_outlined),
           label: const Text('Probar botón')),
+        const SizedBox(height: 16),
+        Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const Text('Comprobar vibración', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(_status?.message ?? 'Comprobando el motor de vibración…',
+              key: const ValueKey('vibration_status')),
+            if (_status?.version != null) Padding(padding: const EdgeInsets.only(top: 8),
+              child: Text('Versión instalada: ${_status!.version}', style: const TextStyle(fontSize: 12))),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(key: const ValueKey('test_vibration'),
+              style: const ButtonStyle(enableFeedback: false),
+              onPressed: _testing ? null : _testVibration,
+              icon: const Icon(Icons.vibration_outlined), label: Text(_testing ? 'Probando…' : 'Probar vibración (1 segundo)')),
+            TextButton.icon(key: const ValueKey('vibration_system_settings'),
+              onPressed: _openSettings, icon: const Icon(Icons.settings_outlined),
+              label: const Text('Ajustes del móvil')),
+            TextButton(key: const ValueKey('refresh_vibration_status'),
+              onPressed: _refreshStatus, child: const Text('Comprobar de nuevo')),
+          ]))),
         const SizedBox(height: 16),
         const Text('El sonido respeta el modo silencio y el volumen del teléfono. '
           'La vibración depende de los ajustes y del motor de vibración del dispositivo.',
