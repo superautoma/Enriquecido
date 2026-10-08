@@ -29,6 +29,8 @@ class ModelsHttp extends AiHttp {
       {'slug': 'hidden', 'display_name': 'Oculto', 'visibility': 'hidden'}]};
 }
 
+class NetworkHttpOverrides extends HttpOverrides {}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory directory;
@@ -39,7 +41,7 @@ void main() {
     directory = await Directory.systemTemp.createTemp('tool_ai_');
     await databaseFactory.setDatabasesPath('${directory.path}/db');
     photo = File('${directory.path}/photo.png');
-    await photo.writeAsBytes(base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg=='));
+    await photo.writeAsBytes(base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8//8/AwMDEwMDAwMDAwAkBgMB/DXemwAAAABJRU5ErkJggg=='));
     savedCredentials = jsonEncode({'version': 1, 'host_id': 'urn:uuid:00000000-0000-4000-8000-000000000001',
       'active': 'oaiapp_local_test', 'profiles': [{'client_id': 'oaiapp_local_test', 'subject': 'local-subject',
         'email': 'cuenta@example.com', 'access_token': 'local-test-token',
@@ -52,6 +54,7 @@ void main() {
       if (call.method == 'write') savedCredentials = (call.arguments as Map)['value'] as String;
       return null;
     });
+    await ToolsDatabase.instance.database;
   });
   tearDown(() async {
     await ToolsDatabase.instance.closeForBackup();
@@ -108,7 +111,8 @@ void main() {
       if (request.uri.path == '/limit') request.response.write('data: ${jsonEncode({'type': 'response.failed', 'response': {'error': {'code': 'subscription_sharing_usage_limit_exceeded'}}})}\n\n');
       await request.response.close();
     });
-    final http = AiHttp();
+    final http = AiHttp(clientFactory: () => HttpOverrides.runWithHttpOverrides(
+      HttpClient.new, NetworkHttpOverrides()));
     try {
       final root = 'http://127.0.0.1:${server.port}';
       final result = await http.response(Uri.parse('$root/completed'), 'local-test-token', {'stream': true, 'store': false});
@@ -151,24 +155,32 @@ void main() {
     AiToolDraft? selected;
     await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(body: TextButton(
       onPressed: () async { selected = await Navigator.push<AiToolDraft>(context, MaterialPageRoute(builder: (_) => AiPhotoPage(
-        connection: connection, picker: (_) async => XFile(photo.path), analyzer: (_, types, _) async {
+        connection: connection, typeOptions: defaultFieldOptions('type'),
+        picker: (_) async => XFile(photo.path), analyzer: (_, types, _) async {
           analyses++; return AiToolDraft.fromMap(draftData(), types);
         }))); }, child: const Text('Abrir'))))));
     await tester.tap(find.text('Abrir')); await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('ai_gallery'))); await tester.pumpAndSettle();
-    expect(analyses, 0); expect(await ToolsDatabase.instance.loadTools(), isEmpty);
+    expect(analyses, 0); expect(await tester.runAsync(() => ToolsDatabase.instance.loadTools()), isEmpty);
     await tester.ensureVisible(find.byKey(const ValueKey('ai_analyze')));
     await tester.tap(find.byKey(const ValueKey('ai_analyze'))); await tester.pumpAndSettle();
-    expect(analyses, 1); expect(await ToolsDatabase.instance.loadTools(), isEmpty);
+    expect(analyses, 1); expect(await tester.runAsync(() => ToolsDatabase.instance.loadTools()), isEmpty);
     await tester.scrollUntilVisible(find.byKey(const ValueKey('ai_review')), 250);
-    await tester.tap(find.byKey(const ValueKey('ai_review'))); await tester.pumpAndSettle();
-    expect(selected!.name, 'Taladro'); expect(await File(selected!.photoPath!).exists(), true);
-    expect(await ToolsDatabase.instance.loadTools(), isEmpty); expect(tester.takeException(), isNull);
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const ValueKey('ai_review')));
+      for (var i = 0; i < 50 && selected == null; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+    });
+    await tester.pumpAndSettle();
+    expect(selected!.name, 'Taladro');
+    expect(await tester.runAsync(() => File(selected!.photoPath!).exists()), true);
+    expect(await tester.runAsync(() => ToolsDatabase.instance.loadTools()), isEmpty); expect(tester.takeException(), isNull);
   });
 
   testWidgets('Cancellation ignores a late completed response and retains the photo', (tester) async {
     final result = Completer<AiToolDraft>();
-    await tester.pumpWidget(MaterialApp(home: AiPhotoPage(connection: ChatGptConnection(http: ModelsHttp()),
+    await tester.pumpWidget(MaterialApp(home: AiPhotoPage(connection: ChatGptConnection(http: ModelsHttp()), typeOptions: defaultFieldOptions('type'),
       picker: (_) async => XFile(photo.path), analyzer: (_, _, _) => result.future)));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('ai_gallery'))); await tester.pumpAndSettle();
@@ -179,7 +191,7 @@ void main() {
     result.complete(AiToolDraft.fromMap(draftData(), ['Herramienta eléctrica'])); await tester.pumpAndSettle();
     expect(find.text('Propuesta de ficha'), findsNothing);
     expect(find.text('Análisis cancelado. Puedes volver a intentarlo.'), findsOneWidget);
-    expect(await ToolsDatabase.instance.loadTools(), isEmpty);
+    expect(await tester.runAsync(() => ToolsDatabase.instance.loadTools()), isEmpty);
   });
 
   testWidgets('ChatGPT settings fit narrow screens and large text without exposing credentials', (tester) async {

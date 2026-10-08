@@ -139,10 +139,11 @@ class _ChatGptSettingsPageState extends State<ChatGptSettingsPage> {
 }
 
 class AiPhotoPage extends StatefulWidget {
-  const AiPhotoPage({super.key, this.connection, this.picker, this.analyzer});
+  const AiPhotoPage({super.key, this.connection, this.picker, this.analyzer, this.typeOptions});
   final ChatGptConnection? connection;
   final Future<XFile?> Function(ImageSource)? picker;
   final Future<AiToolDraft> Function(File, List<String>, AiHttp)? analyzer;
+  final List<FieldOption>? typeOptions;
   @override
   State<AiPhotoPage> createState() => _AiPhotoPageState();
 }
@@ -163,7 +164,7 @@ class _AiPhotoPageState extends State<AiPhotoPage> {
   Future<void> _load() async {
     try {
       await connection.initialize();
-      final options = await ToolsDatabase.instance.loadFieldOptions('type');
+      final options = widget.typeOptions ?? await ToolsDatabase.instance.loadFieldOptions('type');
       if (mounted) setState(() {
         _types = (options.isEmpty ? defaultFieldOptions('type') : options).map((o) => o.label).toSet().toList();
         _error = null;

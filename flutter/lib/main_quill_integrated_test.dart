@@ -6914,7 +6914,7 @@ class _EditToolPageState extends State<EditToolPage> {
     _purchasePrice = TextEditingController(
       text: item == null ? '' : item.purchasePrice.toStringAsFixed(2),
     );
-    _condition = item?.activeLoan != null ? 'Prestado' : item?.condition ?? 'Bueno';
+    _condition = item?.activeLoan != null ? 'Prestado' : item?.condition ?? (draft == null ? 'Bueno' : 'Revisar');
     _type = item?.type ?? draft?.type ?? '';
     _voltage = item?.voltage ?? draft?.voltage ?? '';
     _loanDraft = item?.loanDraft;
@@ -7573,7 +7573,7 @@ class _EditToolPageState extends State<EditToolPage> {
         title: Text(
           _isEditing
               ? 'Editar artículo'
-              : 'Nuevo artículo',
+              : widget.aiDraft == null ? 'Nuevo artículo' : 'Revisar ficha de IA',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w800),

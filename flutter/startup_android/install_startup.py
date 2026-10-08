@@ -50,6 +50,12 @@ if not any(r.get(attr('name')) == '.ReminderReceiver' for r in application.finda
                    'android.intent.action.TIME_SET', 'android.intent.action.TIMEZONE_CHANGED']:
         ET.SubElement(intent, 'action', {attr('name'): action})
 main = next(a for a in application.findall('activity') if a.get(attr('name')) == '.MainActivity')
+deeplinking = next((m for m in main.findall('meta-data')
+                    if m.get(attr('name')) == 'flutter_deeplinking_enabled'), None)
+if deeplinking is None:
+    deeplinking = ET.SubElement(main, 'meta-data', {attr('name'): 'flutter_deeplinking_enabled'})
+# The browser link only brings back the existing draft, never opens a Flutter route.
+deeplinking.set(attr('value'), 'false')
 if not any(d.get(attr('scheme')) == 'gestorherramientas' for i in main.findall('intent-filter') for d in i.findall('data')):
     intent = ET.SubElement(main, 'intent-filter')
     ET.SubElement(intent, 'action', {attr('name'): 'android.intent.action.VIEW'})
