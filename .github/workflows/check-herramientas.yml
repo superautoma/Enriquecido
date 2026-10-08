@@ -40,7 +40,7 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter analyze --no-fatal-infos lib/main_quill_integrated_test.dart
+      - run: flutter analyze --no-fatal-infos lib/main_quill_integrated_test.dart lib/button_feedback.dart lib/tool_management.dart lib/tool_management_ui.dart lib/tool_inventory.dart lib/tool_inventory_ui.dart lib/tool_details.dart lib/tool_codes.dart lib/tool_trash.dart lib/backup_import.dart lib/backup_import_ui.dart
       - run: python3 -m unittest discover -s startup_android -p 'test_*.py'
       - run: flutter test
         timeout-minutes: 6

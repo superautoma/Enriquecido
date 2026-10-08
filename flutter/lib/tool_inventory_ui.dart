@@ -213,7 +213,7 @@ class InventoryResults extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget tile(int index) => InventoryToolTile(item: items[index], facts: facts, view: view,
-      conditionOptions: conditionOptions, onTap: withButtonFeedback(() => onOpen(items[index])));
+      conditionOptions: conditionOptions, onTap: () => onOpen(items[index]));
     Widget results;
     if (items.isEmpty) {
       results = ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(24),
