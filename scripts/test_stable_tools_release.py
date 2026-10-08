@@ -167,6 +167,14 @@ class StableReleaseTests(unittest.TestCase):
         output = f'Signer #1 certificate SHA-256 digest: {digest}\n'
         self.assertEqual(release.signer_digest(output), digest)
 
+    def test_reads_exact_v101_runner_output(self):
+        digest = 'b8a1e06c9d9f7e5ea828a47d2d220b024e7fad3d057d167f29e4a18c69070aae'
+        output = (
+            'V2 Signer: certificate DN: CN=Android Debug, O=Memento Development, C=ES\n'
+            f'V2 Signer: certificate SHA-256 digest: {digest}\n'
+            'V2 Signer: certificate SHA-1 digest: 12039bb4eb30f75313f6460a8510906b05721b39\n')
+        self.assertEqual(release.signer_digest(output), digest)
+
     def test_reads_signer_certificates_for_sdk_ranges_and_dev_releases(self):
         digest = 'ab' * 32
         output = (

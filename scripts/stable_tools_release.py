@@ -117,7 +117,8 @@ def signer_digest(certificate_output):
     # apksigner may list the same certificate for several Android SDK ranges.
     # Source Stamp certificates are not APK signing certificates.
     digests = re.findall(
-        r'^Signer (?:#[1-9][0-9]*|\(minSdkVersion=[^\r\n]+\))'
+        r'^(?:V[1-4](?:\.[0-9]+)? Signer:|'
+        r'Signer (?:#[1-9][0-9]*|\(minSdkVersion=[^\r\n]+\)))'
         r' certificate SHA-256 digest:[ \t]*([0-9a-fA-F]{64})[ \t]*$',
         certificate_output, flags=re.MULTILINE)
     unique = {digest.lower() for digest in digests}
