@@ -18,6 +18,8 @@ import android.widget.TextView;
 /** Draws the loader before creating any Flutter engine or loading Dart. */
 public final class StartupActivity extends Activity {
     private boolean launched;
+    private boolean frameScheduled;
+    private final Runnable launchFallback = this::launchMainActivity;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,23 +52,43 @@ public final class StartupActivity extends Activity {
         decor.getViewTreeObserver().addOnDrawListener(new ViewTreeObserver.OnDrawListener() {
             @Override
             public void onDraw() {
-                if (launched) return;
-                launched = true;
+                if (launched || frameScheduled) return;
+                frameScheduled = true;
                 final ViewTreeObserver.OnDrawListener listener = this;
                 decor.post(() -> {
                     if (decor.getViewTreeObserver().isAlive()) {
                         decor.getViewTreeObserver().removeOnDrawListener(listener);
                     }
-                    if (isFinishing() || isDestroyed()) return;
-                    Intent intent = new Intent(StartupActivity.this, MainActivity.class);
-                    if (getIntent().getExtras() != null) intent.putExtras(getIntent().getExtras());
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-                    startActivity(intent);
-                    finish();
-                    overridePendingTransition(0, 0);
+                    launchMainActivity();
                 });
             }
         });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Some older decor views do not dispatch this draw listener. Allow the
+        // loader to render, then hand off without depending on that callback.
+        getWindow().getDecorView().postDelayed(launchFallback, 600);
+    }
+
+    @Override
+    protected void onPause() {
+        getWindow().getDecorView().removeCallbacks(launchFallback);
+        super.onPause();
+    }
+
+    private void launchMainActivity() {
+        if (launched || isFinishing() || isDestroyed()) return;
+        launched = true;
+        getWindow().getDecorView().removeCallbacks(launchFallback);
+        Intent intent = new Intent(this, MainActivity.class);
+        if (getIntent().getExtras() != null) intent.putExtras(getIntent().getExtras());
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        startActivity(intent);
+        finish();
+        overridePendingTransition(0, 0);
     }
 
     private void addLabel(LinearLayout content, String text, int size, int color, int margin, boolean bold) {
