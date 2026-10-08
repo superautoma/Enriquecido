@@ -4187,7 +4187,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
             ],
           ),
           _IconOrderMenu(order: _order,
-            onSelected: withControlFeedback((value) => setState(() => _order = value))),
+            onSelected: (value) => setState(() => _order = value)),
         ],
       ),
       body: SafeArea(
@@ -5128,7 +5128,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
           ),
 
           _IconOrderMenu(order: _order,
-            onSelected: withControlFeedback((value) => setState(() => _order = value))),
+            onSelected: (value) => setState(() => _order = value)),
           IconButton(
             icon: const Icon(Icons.folder_outlined),
             tooltip: 'Grupos',
@@ -7492,10 +7492,10 @@ class _EditToolPageState extends State<EditToolPage> {
                     return _ToolImageThumbnail(
                       image: image,
                       size: double.infinity,
-                      onTap: withButtonFeedback(() {
+                      onTap: () {
                         Navigator.pop(sheetContext);
                         _openImage(image);
-                      }),
+                      },
                     );
                   },
                 ),
@@ -7715,7 +7715,7 @@ class _EditToolPageState extends State<EditToolPage> {
               DescriptionQuillCard(
                 text: _descriptionPlain,
                 deltaJson: _descriptionDelta,
-                onTap: withButtonFeedback(_openQuillDescription),
+                onTap: _openQuillDescription,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -7907,7 +7907,7 @@ class _EditToolPageState extends State<EditToolPage> {
                             return _ToolImageThumbnail(
                               image: image,
                               size: 88,
-                              onTap: withButtonFeedback(() => _openImage(image)),
+                              onTap: () => _openImage(image),
                             );
                           },
                         ),
@@ -7965,18 +7965,18 @@ class _CompactImageToolbar extends StatelessWidget {
           _CompactImageAction(
             icon: Icons.photo_camera,
             tooltip: 'Cámara',
-            onTap: withButtonFeedback(onCamera),
+            onTap: onCamera,
           ),
-          _CompactImageAction(icon: Icons.link, tooltip: 'URL', onTap: withButtonFeedback(onUrl)),
+          _CompactImageAction(icon: Icons.link, tooltip: 'URL', onTap: onUrl),
           _CompactImageAction(
             icon: Icons.auto_awesome,
             tooltip: 'IA',
-            onTap: withButtonFeedback(onAi),
+            onTap: onAi,
           ),
           _CompactImageAction(
             icon: Icons.photo_library_outlined,
             tooltip: 'Galería',
-            onTap: withButtonFeedback(onGallery),
+            onTap: onGallery,
           ),
           const Spacer(),
           const Padding(
