@@ -97,8 +97,8 @@ Future<bool?> confirmToolTrash(BuildContext context, ToolItem item, int pieces) 
     content: Text('«${item.name}» pasará a la papelera${pieces == 0 ? '.' : ' junto con $pieces piezas.'}'
       '\n\nPodrás recuperarlo con sus fotos, documentos, historial y etiquetas QR.'
       '\nLos cambios de esta ficha que no hayas guardado se descartarán.'),
-    actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-      FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Enviar a la papelera'))]));
+    actions: [TextButton(onPressed: withButtonFeedback(() => Navigator.pop(context, false)), child: const Text('Cancelar')),
+      FilledButton(onPressed: withButtonFeedback(() => Navigator.pop(context, true)), child: const Text('Enviar a la papelera'))]));
 
 class ToolTrashPage extends StatefulWidget {
   const ToolTrashPage({super.key});
@@ -148,7 +148,7 @@ class _ToolTrashPageState extends State<ToolTrashPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Papelera de artículos')),
+    appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title: const Text('Papelera de artículos')),
     body: SafeArea(child: _loading ? const Center(child: CircularProgressIndicator()) :
       _error != null ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!))) :
       _batches.isEmpty ? const Center(child: Text('La papelera está vacía')) :
@@ -162,6 +162,6 @@ class _ToolTrashPageState extends State<ToolTrashPage> {
             'Eliminado: ${DateTime.tryParse(batch.first.deletedAt)?.toLocal().toString().substring(0, 16) ?? batch.first.deletedAt}']
             .join('\n'), maxLines: 4, overflow: TextOverflow.ellipsis),
           trailing: IconButton(tooltip: 'Recuperar artículo', icon: const Icon(Icons.restore),
-            onPressed: _busy ? null : () => _restore(batch.first)))),
+            onPressed: withButtonFeedback(_busy ? null : () => _restore(batch.first))))),
       ])));
 }

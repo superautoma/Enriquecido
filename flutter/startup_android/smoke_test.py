@@ -151,6 +151,55 @@ adb("install", "-r", "build/app/outputs/flutter-apk/app-release.apk")
 adb("shell", "am", "force-stop", package)
 adb("shell", "am", "start", "-n", f"{package}/.StartupActivity")
 screenshot("startup-first-frame.png")
+if '--feedback-only' in sys.argv:
+    def switch_state(label):
+        wait_for(label)
+        adb('shell', 'uiautomator', 'dump', '/sdcard/startup-window.xml')
+        root = ET.fromstring(adb('shell', 'cat', '/sdcard/startup-window.xml').decode())
+        switches = [node for node in root.iter('node') if node.get('checkable') == 'true'
+                    and label in node.get('text', '') + node.get('content-desc', '')]
+        assert len(switches) == 1, f'Expected one accessible switch for {label}'
+        return switches[0].get('checked') == 'true'
+
+    wait_for('3 artículos')
+    tap('Opciones')
+    tap('Sonido y vibración')
+    assert switch_state('Sonido al pulsar')
+    assert switch_state('Vibración al pulsar')
+    tap('Probar botón')
+    screenshot('feedback-settings-on.png')
+    tap('Sonido al pulsar')
+    assert not switch_state('Sonido al pulsar')
+    tap('Vibración al pulsar')
+    assert not switch_state('Vibración al pulsar')
+    tap('Probar botón')
+    adb('shell', 'am', 'force-stop', package)
+    adb('shell', 'am', 'start', '-n', f'{package}/.StartupActivity')
+    wait_for('3 artículos')
+    tap('Opciones')
+    tap('Sonido y vibración')
+    assert not switch_state('Sonido al pulsar')
+    assert not switch_state('Vibración al pulsar')
+    screenshot('feedback-settings-persisted.png')
+    tap('Vibración al pulsar')
+    assert not switch_state('Sonido al pulsar')
+    assert switch_state('Vibración al pulsar')
+    tap('Probar botón')
+    screenshot('feedback-vibration-only.png')
+    tap('Sonido al pulsar')
+    assert switch_state('Sonido al pulsar')
+    adb('shell', 'input', 'keyevent', '4')
+    wait_for('3 artículos')
+    tap('Destornillador aislado', exclude_class='android.widget.EditText')
+    wait_for('Editar artículo')
+    adb('shell', 'input', 'keyevent', '4')
+    wait_for('3 artículos')
+    errors = adb('logcat', '-d', '-s', 'AndroidRuntime:E').decode()
+    assert 'FATAL EXCEPTION' not in errors, errors
+    print('Android feedback settings: independent toggles, preview, restart persistence, '
+          'inventory navigation and absence of native crashes verified.')
+    sys.exit(0)
+
 if '--trash-only' in sys.argv:
     wait_for('Destornillador aislado')
     wait_for('3 artículos')

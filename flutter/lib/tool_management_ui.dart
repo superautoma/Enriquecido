@@ -19,9 +19,9 @@ class ManagementShortcuts extends StatelessWidget {
   Widget build(BuildContext context) => Wrap(spacing: 4, runSpacing: 4,
     alignment: WrapAlignment.spaceAround, children: [
       for (final section in managementSections) Tooltip(message: section.$2,
-        child: InkWell(key: ValueKey('management_${section.$1}'),
+        child: InkWell(enableFeedback: false, key: ValueKey('management_${section.$1}'),
           borderRadius: BorderRadius.circular(10),
-          onTap: onOpen == null ? null : () => onOpen!(section.$1),
+          onTap: withButtonFeedback(onOpen == null ? null : () => onOpen!(section.$1)),
           child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Icon(section.$3, size: 26, color: managementColor),
@@ -66,8 +66,8 @@ class _ToolChooserState extends State<_ToolChooser> {
           itemCount: tools.length, itemBuilder: (_, i) => ListTile(
             leading: Icon(tools[i].isSet ? Icons.widgets_outlined : Icons.handyman_outlined),
             title: Text(tools[i].name), subtitle: Text(tools[i].parentId == null ? tools[i].type : 'Pieza de un conjunto'),
-            onTap: () => Navigator.pop(context, tools[i])))),
-      ])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar'))]);
+            onTap: withButtonFeedback(() => Navigator.pop(context, tools[i]))))),
+      ])), actions: [TextButton(onPressed: withButtonFeedback(() => Navigator.pop(context)), child: const Text('Cancelar'))]);
   }
 }
 
@@ -132,29 +132,29 @@ class _ManagementHubPageState extends State<ManagementHubPage> {
       'maintenance':'${dueTasks.length} tareas pendientes o próximas',
       'loans':'${pendingLoans.length} activos · ${pendingLoans.where((l)=>l.isOverdue).length} atrasados',
     };
-    return Scaffold(appBar: AppBar(title: const Text('Gestión de herramientas')),
+    return Scaffold(appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title: const Text('Gestión de herramientas')),
       body: _loading ? const Center(child: CircularProgressIndicator()) : _error!=null ?
-        Center(child: TextButton(onPressed:_load, child: const Text('Reintentar carga'))) :
+        Center(child: TextButton(onPressed:withButtonFeedback(_load), child: const Text('Reintentar carga'))) :
       RefreshIndicator(onRefresh:_load, child: ListView(padding: const EdgeInsets.all(16), children: [
         for(final section in managementSections) Card(child: ListTile(
           leading: Icon(section.$3, color: managementColor, size:30), title: Text(section.$2),
           subtitle: Text(labels[section.$1]!), trailing: const Icon(Icons.chevron_right),
-          onTap:()=>_open(section.$1))),
+          onTap:withButtonFeedback(()=>_open(section.$1)))),
         const SizedBox(height:12),
         SwitchListTile.adaptive(title: const Text('Avisos en el teléfono'),
           secondary: const Icon(Icons.notifications_none_outlined),
           subtitle: const Text('Préstamos y mantenimientos. La antelación se configura en cada registro.'),
-          value:_notifications, onChanged:_toggleNotifications),
+          value:_notifications, onChanged:withControlFeedback(_toggleNotifications)),
         if (pendingLoans.any((l)=>l.isOverdue) || dueTasks.isNotEmpty) ...[
           const SizedBox(height:16), const SectionTitle('Pendiente'),
           for(final loan in pendingLoans.where((l)=>l.isOverdue)) ListTile(
             leading: const Icon(Icons.handshake_outlined, color:Colors.deepOrange),
             title:Text(loan.toolName), subtitle:Text('Devolución: ${loan.borrower} · ${loanDateText(loan.dueOn!)}'),
-            onTap:() async { await Navigator.push<void>(context,MaterialPageRoute(builder:(_)=>LoanDetailsPage(loan:loan))); await _load(); }),
+            onTap:withButtonFeedback(() async { await Navigator.push<void>(context,MaterialPageRoute(builder:(_)=>LoanDetailsPage(loan:loan))); await _load(); })),
           for(final task in dueTasks) ListTile(
             leading:Icon(Icons.build_outlined, color:task.isOverdue?Colors.deepOrange:managementColor),
             title:Text('${task.toolName} · ${task.title}'), subtitle:Text(loanDateText(task.dueOn)),
-            onTap:() async { await Navigator.push<void>(context,MaterialPageRoute(builder:(_)=>MaintenanceDetailsPage(task:task))); await _load(); }),
+            onTap:withButtonFeedback(() async { await Navigator.push<void>(context,MaterialPageRoute(builder:(_)=>MaintenanceDetailsPage(task:task))); await _load(); })),
         ],
       ])));
   }
@@ -216,37 +216,37 @@ class _ComponentsPageState extends State<ComponentsPage> {
   Future<void> _detach(ToolItem tool) async {
     final confirm=await showDialog<bool>(context:context,builder:(_)=>AlertDialog(
       title:const Text('Desvincular pieza'),content:Text('${tool.name} pasará a ser una herramienta independiente y conservará su historial.'),
-      actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('Cancelar')),
-        FilledButton(onPressed:()=>Navigator.pop(context,true),child:const Text('Desvincular'))]));
+      actions:[TextButton(onPressed:withButtonFeedback(()=>Navigator.pop(context,false)),child:const Text('Cancelar')),
+        FilledButton(onPressed:withButtonFeedback(()=>Navigator.pop(context,true)),child:const Text('Desvincular'))]));
     if(confirm!=true || !mounted)return;
     try{ await ToolsDatabase.instance.detachComponent(tool.id); await _load(); }
     catch(error){ if(mounted)managementError(context,error); }
   }
   @override
   Widget build(BuildContext context)=>Scaffold(
-    appBar:AppBar(title:Text('Contenido · ${_tool.name}')),
-    floatingActionButton:_tool.isSet?FloatingActionButton(tooltip:'Añadir pieza',onPressed:_busy?null:()=>_edit(),child:const Icon(Icons.add)):null,
+    appBar:AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title:Text('Contenido · ${_tool.name}')),
+    floatingActionButton:_tool.isSet?FloatingActionButton(tooltip:'Añadir pieza',onPressed:withButtonFeedback(_busy?null:()=>_edit()),child:const Icon(Icons.add)):null,
     body:_loading?const Center(child:CircularProgressIndicator()):ListView(
       padding:const EdgeInsets.fromLTRB(16,16,16,100),children:[
       if(!_tool.isSet) ...[
         const Text('Activa la opción de conjunto para vincular sus piezas.'),
-        const SizedBox(height:16),FilledButton.icon(onPressed:_enable,
+        const SizedBox(height:16),FilledButton.icon(onPressed:withButtonFeedback(_enable),
           icon:const Icon(Icons.widgets_outlined),label:const Text('Es un conjunto')),
       ] else ...[
         Text('${_components.length} fichas · ${formatNumber(_components.fold<double>(0,(n,t)=>n+t.quantity))} piezas',
           style:const TextStyle(fontWeight:FontWeight.w700)),
         const SizedBox(height:8),
         const Text('Las piezas pertenecen a este conjunto y se consultan desde aquí.'),
-        const SizedBox(height:8),OutlinedButton.icon(onPressed:_link,
+        const SizedBox(height:8),OutlinedButton.icon(onPressed:withButtonFeedback(_link),
           icon:const Icon(Icons.link_outlined),label:const Text('Vincular herramienta existente')),
         if(_components.isEmpty) const Padding(padding:EdgeInsets.all(20),child:Text('Añade la primera pieza con +.')),
         for(final tool in _components) Card(child:ListTile(
           leading:const Icon(Icons.extension_outlined,color:managementColor),title:Text(tool.name),
           subtitle:Text('${formatNumber(tool.quantity)} ${tool.unit} · '
             '${tool.outOfService ? 'Fuera de servicio' : '${formatNumber(tool.availableQuantity??tool.quantity)} disponibles'}'),
-          onTap:()=>_edit(tool),trailing:PopupMenuButton<String>(onSelected:(v){
+          onTap:withButtonFeedback(()=>_edit(tool)),trailing:PopupMenuButton<String>(onOpened: () => ButtonFeedbackController.instance.tap(), onSelected:withControlFeedback((v){
             if(v=='detach')_detach(tool); else openToolManagement(context,tool,v).then((_){if(mounted)_load();});
-          },itemBuilder:(_)=>const[
+          }),itemBuilder:(_)=>const[
             PopupMenuItem(value:'documents',child:Text('Documentos')),
             PopupMenuItem(value:'maintenance',child:Text('Mantenimiento')),
             PopupMenuItem(value:'loans',child:Text('Préstamos')),
@@ -291,7 +291,7 @@ class _DocumentsPageState extends State<DocumentsPage>{
       if(const ['.jpg','.jpeg','.png','.webp','.gif'].contains(p.extension(path).toLowerCase())){
         if(!mounted)return;
         await Navigator.push<void>(context,MaterialPageRoute(builder:(_)=>Scaffold(
-          appBar:AppBar(title:Text(doc.name)),body:Center(child:InteractiveViewer(child:Image.file(File(path)))))));
+          appBar:AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title:Text(doc.name)),body:Center(child:InteractiveViewer(child:Image.file(File(path)))))));
       }else{await managementChannel.invokeMethod<void>('openFile',{'path':path});}
     }catch(error){if(mounted)managementError(context,error);}
   }
@@ -306,22 +306,22 @@ class _DocumentsPageState extends State<DocumentsPage>{
       }
       final confirm=await showDialog<bool>(context:context,builder:(_)=>AlertDialog(
         title:const Text('Eliminar documento'),content:Text('¿Eliminar ${doc.name}?'),
-        actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('Cancelar')),
-          FilledButton(onPressed:()=>Navigator.pop(context,true),child:const Text('Eliminar'))]));
+        actions:[TextButton(onPressed:withButtonFeedback(()=>Navigator.pop(context,false)),child:const Text('Cancelar')),
+          FilledButton(onPressed:withButtonFeedback(()=>Navigator.pop(context,true)),child:const Text('Eliminar'))]));
       if(confirm!=true)return;
       await ToolsDatabase.instance.deleteDocument(doc);await _load();
     }catch(error){if(mounted)managementError(context,error);}
   }
   @override
-  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:Text('Documentos · ${widget.toolName}')),
-    floatingActionButton:FloatingActionButton(tooltip:'Añadir documento',onPressed:()=>_edit(),child:const Icon(Icons.note_add_outlined)),
+  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title:Text('Documentos · ${widget.toolName}')),
+    floatingActionButton:FloatingActionButton(tooltip:'Añadir documento',onPressed:withButtonFeedback(()=>_edit()),child:const Icon(Icons.note_add_outlined)),
     body:_loading?const Center(child:CircularProgressIndicator()):_error!=null?
-      Center(child:TextButton(onPressed:_load,child:const Text('Reintentar carga'))):_documents.isEmpty?
+      Center(child:TextButton(onPressed:withButtonFeedback(_load),child:const Text('Reintentar carga'))):_documents.isEmpty?
       const Center(child:Padding(padding:EdgeInsets.all(24),child:Text('Añade manuales, fotografías, documentos o enlaces con +.'))):
       ListView(padding:const EdgeInsets.fromLTRB(12,12,12,100),children:[for(final doc in _documents)
         Card(child:ListTile(leading:Icon(doc.isLink?Icons.link_outlined:Icons.description_outlined,color:managementColor),
-          title:Text(doc.name),subtitle:Text(doc.kind),onTap:()=>_open(doc),
-          trailing:PopupMenuButton<String>(onSelected:(v)=>_action(doc,v),itemBuilder:(_)=>const[
+          title:Text(doc.name),subtitle:Text(doc.kind),onTap:withButtonFeedback(()=>_open(doc)),
+          trailing:PopupMenuButton<String>(onOpened: () => ButtonFeedbackController.instance.tap(), onSelected:withControlFeedback((v)=>_action(doc,v)),itemBuilder:(_)=>const[
             PopupMenuItem(value:'edit',child:Text('Editar / sustituir')),
             PopupMenuItem(value:'share',child:Text('Compartir')),
             PopupMenuItem(value:'delete',child:Text('Eliminar')),
@@ -377,27 +377,27 @@ class _DocumentEditorPageState extends State<DocumentEditorPage>{
     }catch(error){if(mounted){managementError(context,error);setState(()=>_busy=false);}}
   }
   @override
-  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:Text(widget.initial==null?'Añadir documento':'Editar documento')),
+  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title:Text(widget.initial==null?'Añadir documento':'Editar documento')),
     body:Form(key:_form,child:ListView(padding:const EdgeInsets.all(16),children:[
       TextFormField(key:const ValueKey('document_name'),controller:_name,decoration:const InputDecoration(labelText:'Nombre*',prefixIcon:Icon(Icons.description_outlined)),
         validator:(v)=>v==null||v.trim().isEmpty?'Pon un nombre':null),
-      const SizedBox(height:12),DropdownButtonFormField<String>(initialValue:_kind,isExpanded:true,
+      const SizedBox(height:12),DropdownButtonFormField<String>(onTap: () => ButtonFeedbackController.instance.tap(), enableFeedback: false, initialValue:_kind,isExpanded:true,
         decoration:const InputDecoration(labelText:'Tipo de documento'),items:[for(final k in const[
           'Manual','Instrucciones','Despiece','Garantía','Factura','Entrega','Devolución','Mantenimiento','Otro'])
-          DropdownMenuItem(value:k,child:Text(k))],onChanged:(v){if(v!=null)setState(()=>_kind=v);}),
+          DropdownMenuItem(value:k,child:Text(k))],onChanged:withControlFeedback((v){if(v!=null)setState(()=>_kind=v);})),
       SwitchListTile.adaptive(contentPadding:EdgeInsets.zero,title:const Text('Guardar un enlace'),
-        secondary:const Icon(Icons.link_outlined),value:_link,onChanged:(v)=>setState(()=>_link=v)),
+        secondary:const Icon(Icons.link_outlined),value:_link,onChanged:withControlFeedback((v)=>setState(()=>_link=v))),
       if(_link)TextFormField(key:const ValueKey('document_url'),controller:_url,keyboardType:TextInputType.url,
         decoration:const InputDecoration(labelText:'Enlace https://…'),validator:(v){
           final uri=Uri.tryParse(v?.trim()??'');return uri!=null&&['http','https'].contains(uri.scheme)&&uri.host.isNotEmpty?null:'Escribe un enlace completo';})
       else ...[
         Text(_fileName.isEmpty?'Sin archivo adjunto':_fileName.split('_').skip(1).join('_')),
-        const SizedBox(height:8),OutlinedButton.icon(onPressed:_pick,icon:const Icon(Icons.attach_file),label:const Text('Elegir / sustituir archivo')),
-        Wrap(spacing:8,children:[TextButton.icon(onPressed:()=>_photo(ImageSource.camera),icon:const Icon(Icons.camera_alt_outlined),label:const Text('Cámara')),
-          TextButton.icon(onPressed:()=>_photo(ImageSource.gallery),icon:const Icon(Icons.photo_outlined),label:const Text('Fotografía'))]),
+        const SizedBox(height:8),OutlinedButton.icon(onPressed:withButtonFeedback(_pick),icon:const Icon(Icons.attach_file),label:const Text('Elegir / sustituir archivo')),
+        Wrap(spacing:8,children:[TextButton.icon(onPressed:withButtonFeedback(()=>_photo(ImageSource.camera)),icon:const Icon(Icons.camera_alt_outlined),label:const Text('Cámara')),
+          TextButton.icon(onPressed:withButtonFeedback(()=>_photo(ImageSource.gallery)),icon:const Icon(Icons.photo_outlined),label:const Text('Fotografía'))]),
         const Text('El archivo se conservará en la aplicación y en sus copias de seguridad.'),
       ],
-      const SizedBox(height:24),FilledButton.icon(onPressed:_busy?null:_save,
+      const SizedBox(height:24),FilledButton.icon(onPressed:withButtonFeedback(_busy?null:_save),
         icon:const Icon(Icons.check),label:Text(_busy?'Guardando…':'Guardar documento')),
     ])));
 }
@@ -406,11 +406,11 @@ class ReminderSelector extends StatelessWidget{
   const ReminderSelector({super.key,required this.value,required this.onChanged});
   final int value;final void Function(int) onChanged;
   @override
-  Widget build(BuildContext context)=>DropdownButtonFormField<int>(initialValue:value,
+  Widget build(BuildContext context)=>DropdownButtonFormField<int>(onTap: () => ButtonFeedbackController.instance.tap(), enableFeedback: false, initialValue:value,
     isExpanded:true,decoration:const InputDecoration(labelText:'Aviso',prefixIcon:Icon(Icons.notifications_none_outlined)),
     items:[for(final days in [-1,0,1,3,7,if(![-1,0,1,3,7].contains(value))value])
       DropdownMenuItem(value:days,child:Text(days<0?'Sin aviso':days==0?'El mismo día':days==1?'Un día antes':'$days días antes'))],
-    onChanged:(v){if(v!=null)onChanged(v);});
+    onChanged:withControlFeedback((v){if(v!=null)onChanged(v);}));
 }
 
 class MaintenancePage extends StatefulWidget{
@@ -446,18 +446,18 @@ class _MaintenancePageState extends State<MaintenancePage>{
   @override
   Widget build(BuildContext context){
     final visible=_tasks.where((t)=>_view==2||(_view==1?t.isOverdue:t.enabled)).toList();
-    return Scaffold(appBar:AppBar(title:Text(widget.toolName==null?'Mantenimientos':'Mantenimiento · ${widget.toolName}')),
-      floatingActionButton:FloatingActionButton(tooltip:'Añadir mantenimiento',onPressed:_add,child:const Icon(Icons.add)),
+    return Scaffold(appBar:AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title:Text(widget.toolName==null?'Mantenimientos':'Mantenimiento · ${widget.toolName}')),
+      floatingActionButton:FloatingActionButton(tooltip:'Añadir mantenimiento',onPressed:withButtonFeedback(_add),child:const Icon(Icons.add)),
       body:_loading?const Center(child:CircularProgressIndicator()):_error!=null?
-        Center(child:TextButton(onPressed:_load,child:const Text('Reintentar carga'))):ListView(
+        Center(child:TextButton(onPressed:withButtonFeedback(_load),child:const Text('Reintentar carga'))):ListView(
         padding:const EdgeInsets.fromLTRB(16,16,16,100),children:[
         if(_tool!=null)SwitchListTile.adaptive(contentPadding:EdgeInsets.zero,
           secondary:Icon(Icons.build_outlined,color:_tool!.outOfService?Colors.red:managementColor),
           title:const Text('Fuera de servicio'),subtitle:Text(_tool!.outOfService?
             (_tool!.serviceNotes.isEmpty?'No se permiten nuevos préstamos':_tool!.serviceNotes):'Disponible para usar o prestar'),
-          value:_tool!.outOfService,onChanged:_service),
+          value:_tool!.outOfService,onChanged:withControlFeedback(_service)),
         Wrap(spacing:8,runSpacing:4,children:[for(var i=0;i<3;i++)ChoiceChip(
-          label:Text(const['Pendientes','Vencidos','Todos'][i]),selected:_view==i,onSelected:(_)=>setState(()=>_view=i))]),
+          label:Text(const['Pendientes','Vencidos','Todos'][i]),selected:_view==i,onSelected:withControlFeedback((_)=>setState(()=>_view=i)))]),
         const SizedBox(height:12),
         if(visible.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Text('No hay tareas en esta vista. Añade una con +.')),
         for(final task in visible)Card(child:ListTile(
@@ -465,9 +465,9 @@ class _MaintenancePageState extends State<MaintenancePage>{
           title:Text(task.title),subtitle:Text('${widget.toolId==null?'${task.toolName} · ':''}'
             '${task.enabled?loanDateText(task.dueOn):'Realizada / pausada'}'
             '${task.interval==0?'':' · cada ${task.interval} ${task.intervalUnit}'}'),
-          trailing:const Icon(Icons.chevron_right),onTap:()async{
+          trailing:const Icon(Icons.chevron_right),onTap:withButtonFeedback(()async{
             await Navigator.push<void>(context,MaterialPageRoute(builder:(_)=>MaintenanceDetailsPage(task:task)));
-            if(mounted)await _load();})),
+            if(mounted)await _load();}))),
       ]));
   }
 }
@@ -476,8 +476,8 @@ Future<String?> askManagementText(BuildContext context,String title,{String init
   final controller=TextEditingController(text:initial);
   final result=await showDialog<String>(context:context,builder:(_)=>AlertDialog(title:Text(title),
     content:TextField(controller:controller,minLines:2,maxLines:6),actions:[
-      TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancelar')),
-      FilledButton(onPressed:()=>Navigator.pop(context,controller.text.trim()),child:const Text('Guardar'))]));
+      TextButton(onPressed:withButtonFeedback(()=>Navigator.pop(context)),child:const Text('Cancelar')),
+      FilledButton(onPressed:withButtonFeedback(()=>Navigator.pop(context,controller.text.trim())),child:const Text('Guardar'))]));
   // The dialog's reverse transition finishes before disposing its controller.
   Future<void>.delayed(const Duration(milliseconds:300),controller.dispose);
   return result;
@@ -510,24 +510,24 @@ class _MaintenanceEditorPageState extends State<MaintenanceEditorPage>{
     }catch(error){if(mounted){managementError(context,error);setState(()=>_saving=false);}}
   }
   @override
-  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:Text(widget.initial==null?'Nuevo mantenimiento':'Editar mantenimiento')),
+  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title:Text(widget.initial==null?'Nuevo mantenimiento':'Editar mantenimiento')),
     body:Form(key:_form,child:ListView(padding:const EdgeInsets.all(16),children:[
       Text(widget.tool.name,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w700)),const SizedBox(height:16),
       TextFormField(key:const ValueKey('maintenance_title'),controller:_title,
         decoration:const InputDecoration(labelText:'Tarea*',prefixIcon:Icon(Icons.build_outlined)),
         validator:(v)=>v==null||v.trim().isEmpty?'Escribe la tarea':null),const SizedBox(height:12),
-      OutlinedButton.icon(onPressed:_datePicker,icon:const Icon(Icons.event_outlined),label:Text('Fecha prevista: ${loanDateText(_date)}')),
+      OutlinedButton.icon(onPressed:withButtonFeedback(_datePicker),icon:const Icon(Icons.event_outlined),label:Text('Fecha prevista: ${loanDateText(_date)}')),
       const SizedBox(height:12),TextFormField(controller:_interval,keyboardType:TextInputType.number,
         decoration:const InputDecoration(labelText:'Repetir cada',helperText:'0 = intervención puntual'),
         validator:(v){final n=int.tryParse(v??'');return n==null||n<0||n>10000?'Indica un número entre 0 y 10000':null;}),
-      const SizedBox(height:12),DropdownButtonFormField<String>(initialValue:_unit,
+      const SizedBox(height:12),DropdownButtonFormField<String>(onTap: () => ButtonFeedbackController.instance.tap(), enableFeedback: false, initialValue:_unit,
         decoration:const InputDecoration(labelText:'Periodicidad'),items:const[
           DropdownMenuItem(value:'meses',child:Text('Meses')),DropdownMenuItem(value:'días',child:Text('Días'))],
-        onChanged:(v){if(v!=null)setState(()=>_unit=v);}),const SizedBox(height:12),
+        onChanged:withControlFeedback((v){if(v!=null)setState(()=>_unit=v);})),const SizedBox(height:12),
       ReminderSelector(value:_reminder,onChanged:(v)=>_reminder=v),const SizedBox(height:12),
       TextFormField(controller:_notes,minLines:2,maxLines:6,decoration:const InputDecoration(labelText:'Observaciones / instrucciones')),
-      SwitchListTile.adaptive(contentPadding:EdgeInsets.zero,title:const Text('Tarea activa'),value:_enabled,onChanged:(v)=>setState(()=>_enabled=v)),
-      const SizedBox(height:12),FilledButton.icon(onPressed:_saving?null:_save,icon:const Icon(Icons.check),label:const Text('Guardar mantenimiento')),
+      SwitchListTile.adaptive(contentPadding:EdgeInsets.zero,title:const Text('Tarea activa'),value:_enabled,onChanged:withControlFeedback((v)=>setState(()=>_enabled=v))),
+      const SizedBox(height:12),FilledButton.icon(onPressed:withButtonFeedback(_saving?null:_save),icon:const Icon(Icons.check),label:const Text('Guardar mantenimiento')),
     ])));
 }
 
@@ -556,23 +556,23 @@ class _MaintenanceDetailsPageState extends State<MaintenanceDetailsPage>{
     if(mounted)await _load();
   }
   @override
-  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:Text(_task.title),actions:[
-    IconButton(tooltip:'Editar tarea',onPressed:_edit,icon:const Icon(Icons.edit_outlined))]),
+  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title:Text(_task.title),actions:[
+    IconButton(tooltip:'Editar tarea',onPressed:withButtonFeedback(_edit),icon:const Icon(Icons.edit_outlined))]),
     body:_loading?const Center(child:CircularProgressIndicator()):ListView(padding:const EdgeInsets.all(16),children:[
       Text(_task.toolName,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w700)),
       Text(_task.enabled?'Próxima: ${loanDateText(_task.dueOn)}':'Tarea realizada / pausada'),
       if(_task.interval>0)Text('Cada ${_task.interval} ${_task.intervalUnit}'),
       if(_task.notes.isNotEmpty)Padding(padding:const EdgeInsets.symmetric(vertical:12),child:Text(_task.notes)),
-      const SizedBox(height:12),FilledButton.icon(onPressed:()=>_record(),icon:const Icon(Icons.task_alt),label:const Text('Registrar intervención')),
-      OutlinedButton.icon(onPressed:()=>Navigator.push<void>(context,MaterialPageRoute(builder:(_)=>DocumentsPage(
-        toolId:_task.toolId,toolName:_task.title,taskId:_task.id,defaultKind:'Mantenimiento'))),
+      const SizedBox(height:12),FilledButton.icon(onPressed:withButtonFeedback(()=>_record()),icon:const Icon(Icons.task_alt),label:const Text('Registrar intervención')),
+      OutlinedButton.icon(onPressed:withButtonFeedback(()=>Navigator.push<void>(context,MaterialPageRoute(builder:(_)=>DocumentsPage(
+        toolId:_task.toolId,toolName:_task.title,taskId:_task.id,defaultKind:'Mantenimiento')))),
         icon:const Icon(Icons.attach_file),label:const Text('Documentos / fotografías')),
       const SizedBox(height:20),const SectionTitle('Historial de mantenimiento'),
       if(_records.isEmpty)const Padding(padding:EdgeInsets.only(top:12),child:Text('Sin intervenciones registradas')),
       for(final record in _records)Card(child:ListTile(leading:const Icon(Icons.history),
         title:Text(loanDateText(record.date)),subtitle:Text([record.notes,record.parts,
           if(record.cost>0)'${record.cost.toStringAsFixed(2)} €'].where((s)=>s.isNotEmpty).join('\n')),
-        trailing:const Icon(Icons.edit_outlined),onTap:()=>_record(record))),
+        trailing:const Icon(Icons.edit_outlined),onTap:withButtonFeedback(()=>_record(record)))),
     ]));
 }
 
@@ -601,16 +601,16 @@ class _MaintenanceRecordPageState extends State<MaintenanceRecordPage>{
     }catch(error){if(mounted){managementError(context,error);setState(()=>_saving=false);}}
   }
   @override
-  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:Text(widget.initial==null?'Registrar intervención':'Editar intervención')),
+  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title:Text(widget.initial==null?'Registrar intervención':'Editar intervención')),
     body:Form(key:_form,child:ListView(padding:const EdgeInsets.all(16),children:[
       Text(widget.task.title,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w700)),
-      const SizedBox(height:12),OutlinedButton.icon(onPressed:_pickDate,icon:const Icon(Icons.today_outlined),label:Text(loanDateText(_date))),
+      const SizedBox(height:12),OutlinedButton.icon(onPressed:withButtonFeedback(_pickDate),icon:const Icon(Icons.today_outlined),label:Text(loanDateText(_date))),
       const SizedBox(height:12),TextFormField(controller:_notes,minLines:2,maxLines:6,decoration:const InputDecoration(labelText:'Trabajo realizado / observaciones')),
       const SizedBox(height:12),TextFormField(controller:_parts,decoration:const InputDecoration(labelText:'Piezas sustituidas')),
       const SizedBox(height:12),TextFormField(controller:_cost,keyboardType:const TextInputType.numberWithOptions(decimal:true),
         decoration:const InputDecoration(labelText:'Coste (€), opcional'),validator:(v){if(v==null||v.isEmpty)return null;
           final n=double.tryParse(v.replaceAll(',','.'));return n==null||!n.isFinite||n<0?'Coste no válido':null;}),
-      const SizedBox(height:24),FilledButton.icon(onPressed:_saving?null:_save,icon:const Icon(Icons.check),label:const Text('Guardar intervención')),
+      const SizedBox(height:24),FilledButton.icon(onPressed:withButtonFeedback(_saving?null:_save),icon:const Icon(Icons.check),label:const Text('Guardar intervención')),
     ])));
 }
 
@@ -651,10 +651,10 @@ class _LoanDetailsPageState extends State<LoanDetailsPage>{
       toolName:_loan.toolName,loanId:_loan.id,defaultKind:kind)));
   }
   @override
-  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Detalle del préstamo'),actions:[
-    IconButton(tooltip:'Editar préstamo',onPressed:_edit,icon:const Icon(Icons.edit_outlined))]),
+  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title:const Text('Detalle del préstamo'),actions:[
+    IconButton(tooltip:'Editar préstamo',onPressed:withButtonFeedback(_edit),icon:const Icon(Icons.edit_outlined))]),
     body:_loading?const Center(child:CircularProgressIndicator()):_error!=null?
-      Center(child:TextButton(onPressed:_load,child:const Text('Reintentar carga'))):ListView(padding:const EdgeInsets.all(16),children:[
+      Center(child:TextButton(onPressed:withButtonFeedback(_load),child:const Text('Reintentar carga'))):ListView(padding:const EdgeInsets.all(16),children:[
       Text(_loan.toolName,style:const TextStyle(fontSize:20,fontWeight:FontWeight.w800)),
       ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.person_outline),title:Text(_loan.borrower),
         subtitle:_loan.contact.isEmpty?null:Text(_loan.contact)),
@@ -672,10 +672,10 @@ class _LoanDetailsPageState extends State<LoanDetailsPage>{
           leading:Icon(c.pending<=0?Icons.check_circle_outline:Icons.extension_outlined,color:c.pending<=0?Colors.green:managementColor),
           title:Text(c.name),subtitle:Text('${formatNumber(c.quantity)} entregadas · ${formatNumber(c.pending)} pendientes')),
       ],
-      if(_loan.isActive)FilledButton.icon(key:const ValueKey('record_partial_return'),onPressed:_return,
+      if(_loan.isActive)FilledButton.icon(key:const ValueKey('record_partial_return'),onPressed:withButtonFeedback(_return),
         icon:const Icon(Icons.assignment_turned_in_outlined),label:const Text('Registrar devolución')),
-      OutlinedButton.icon(onPressed:_edit,icon:const Icon(Icons.edit_outlined),label:const Text('Editar préstamo')),
-      OutlinedButton.icon(onPressed:()=>_docs(_loan.isActive?'Entrega':'Devolución'),
+      OutlinedButton.icon(onPressed:withButtonFeedback(_edit),icon:const Icon(Icons.edit_outlined),label:const Text('Editar préstamo')),
+      OutlinedButton.icon(onPressed:withButtonFeedback(()=>_docs(_loan.isActive?'Entrega':'Devolución')),
         icon:const Icon(Icons.attach_file),label:const Text('Documentos / fotos de entrega y devolución')),
       const SizedBox(height:20),const SectionTitle('Historial de cambios y devoluciones'),
       if(_events.isEmpty)const Padding(padding:EdgeInsets.only(top:12),child:Text('Sin cambios registrados')),
@@ -683,7 +683,7 @@ class _LoanDetailsPageState extends State<LoanDetailsPage>{
         leading:Icon(event['kind']=='Devolución'?Icons.assignment_turned_in_outlined:event['kind']=='Entrega'?Icons.handshake_outlined:Icons.history),
         title:Text('${event['kind']} · ${loanDateText(DateTime.parse(event['performed_on'] as String? ?? event['created_at'] as String))}'),
         subtitle:Text([event['details'] as String,event['condition'] as String,event['notes'] as String].where((s)=>s.isNotEmpty).join('\n')),
-        trailing:const Icon(Icons.edit_outlined),onTap:()=>_event(event))),
+        trailing:const Icon(Icons.edit_outlined),onTap:withButtonFeedback(()=>_event(event)))),
     ]));
 }
 
@@ -720,10 +720,10 @@ class _ManagedReturnPageState extends State<ManagedReturnPage>{
     }catch(error){if(mounted){managementError(context,error);setState(()=>_saving=false);}}
   }
   @override
-  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Registrar devolución')),
+  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title:const Text('Registrar devolución')),
     body:Form(key:_form,child:ListView(padding:const EdgeInsets.all(16),children:[
       Text('${widget.loan.toolName} · ${widget.loan.borrower}',style:const TextStyle(fontWeight:FontWeight.w700,fontSize:18)),
-      const SizedBox(height:12),OutlinedButton.icon(onPressed:_pickDate,icon:const Icon(Icons.event_available_outlined),label:Text(loanDateText(_date))),
+      const SizedBox(height:12),OutlinedButton.icon(onPressed:withButtonFeedback(_pickDate),icon:const Icon(Icons.event_available_outlined),label:Text(loanDateText(_date))),
       const SizedBox(height:12),
       if(widget.contents.isEmpty)TextFormField(key:const ValueKey('return_quantity'),controller:_quantity,
         keyboardType:const TextInputType.numberWithOptions(decimal:true),
@@ -739,9 +739,9 @@ class _ManagedReturnPageState extends State<ManagedReturnPage>{
       const SizedBox(height:12),TextFormField(controller:_notes,minLines:2,maxLines:6,decoration:const InputDecoration(labelText:'Observaciones de devolución')),
       SwitchListTile.adaptive(contentPadding:EdgeInsets.zero,secondary:const Icon(Icons.build_outlined),
         title:const Text('Necesita mantenimiento'),subtitle:const Text('La herramienta o las piezas devueltas quedarán fuera de servicio'),
-        value:_maintenance,onChanged:(v)=>setState(()=>_maintenance=v)),
+        value:_maintenance,onChanged:withControlFeedback((v)=>setState(()=>_maintenance=v))),
       const SizedBox(height:16),const Text('El préstamo seguirá abierto mientras quede algo por devolver.'),
-      const SizedBox(height:16),FilledButton.icon(key:const ValueKey('confirm_partial_return'),onPressed:_saving?null:_save,
+      const SizedBox(height:16),FilledButton.icon(key:const ValueKey('confirm_partial_return'),onPressed:withButtonFeedback(_saving?null:_save),
         icon:const Icon(Icons.check),label:const Text('Guardar devolución')),
     ])));
 }

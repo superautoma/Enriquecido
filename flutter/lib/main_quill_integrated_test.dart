@@ -31,6 +31,7 @@ part 'tool_trash.dart';
 part 'tool_inventory_ui.dart';
 part 'backup_import.dart';
 part 'backup_import_ui.dart';
+part 'button_feedback.dart';
 
 void main() {
   runApp(const GestorHerramientasApp());
@@ -46,6 +47,14 @@ class GestorHerramientasApp extends StatelessWidget {
       title: 'Gestor Quill Integrado',
       theme: ThemeData(
         useMaterial3: true,
+        elevatedButtonTheme: const ElevatedButtonThemeData(style: ButtonStyle(enableFeedback: false)),
+        filledButtonTheme: const FilledButtonThemeData(style: ButtonStyle(enableFeedback: false)),
+        outlinedButtonTheme: const OutlinedButtonThemeData(style: ButtonStyle(enableFeedback: false)),
+        textButtonTheme: const TextButtonThemeData(style: ButtonStyle(enableFeedback: false)),
+        iconButtonTheme: const IconButtonThemeData(style: ButtonStyle(enableFeedback: false)),
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(enableFeedback: false),
+        listTileTheme: const ListTileThemeData(enableFeedback: false),
+        popupMenuTheme: const PopupMenuThemeData(enableFeedback: false),
         scaffoldBackgroundColor: const Color(0xFFF7F9FB),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF168BD2),
@@ -2874,18 +2883,18 @@ class StartupStatusPage extends StatelessWidget {
                 if (hasError) ...[
                   const SizedBox(height: 16),
                   FilledButton(
-                    onPressed: onRetry,
+                    onPressed: withButtonFeedback(onRetry),
                     child: const Text('Reintentar'),
                   ),
                   if (errorDetails != null)
                     TextButton(
-                      onPressed: () async {
+                      onPressed: withButtonFeedback(() async {
                         await Clipboard.setData(ClipboardData(text: errorDetails!));
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Error copiado')),
                         );
-                      },
+                      }),
                       child: const Text('Copiar error'),
                     ),
                 ],
@@ -2981,6 +2990,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       final facts = await loadInventoryFacts(items);
       await _preferencesWrite;
       final preferences = await loadInventoryPreferences();
+      await ButtonFeedbackController.instance.load();
       loadStage = 'Leer los iconos';
       await loadIconNames();
       await loadIconSettings();
@@ -3069,7 +3079,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                     '#${tool.id}'].where((text) => text.isNotEmpty).join(' · ');
                   return ListTile(title: Text(tool.name), subtitle: Text(details),
                     trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.pop(context, tool));
+                    onTap: withButtonFeedback(() => Navigator.pop(context, tool)));
                 })),
               ]))));
       } else {
@@ -3080,8 +3090,8 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
           final openTrash = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
             title: const Text('Artículo en la papelera'),
             content: Text('El código corresponde a ${deletedMatches.map((tool) => tool.name).join(', ')}. Puedes recuperarlo desde la papelera.'),
-            actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cerrar')),
-              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Abrir papelera'))]));
+            actions: [TextButton(onPressed: withButtonFeedback(() => Navigator.pop(context, false)), child: const Text('Cerrar')),
+              FilledButton(onPressed: withButtonFeedback(() => Navigator.pop(context, true)), child: const Text('Abrir papelera'))]));
           if (openTrash == true && mounted) await _openTrash();
           return;
         }
@@ -3093,8 +3103,8 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
         final create = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
           title: const Text('Código sin coincidencias'),
           content: Text('No hay ninguna herramienta con el código "$code". ¿Quieres crearla?'),
-          actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Crear herramienta'))]));
+          actions: [TextButton(onPressed: withButtonFeedback(() => Navigator.pop(context, false)), child: const Text('Cancelar')),
+            FilledButton(onPressed: withButtonFeedback(() => Navigator.pop(context, true)), child: const Text('Crear herramienta'))]));
         if (create == true && mounted) await _openEditor(initialBarcode: code);
         return;
       }
@@ -3212,11 +3222,11 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: withButtonFeedback(() => Navigator.pop(dialogContext, false)),
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: withButtonFeedback(() => Navigator.pop(dialogContext, true)),
             child: const Text('Restaurar'),
           ),
         ],
@@ -3276,26 +3286,28 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     final visible = _visibleItems;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null,
         title: const Text(
           'Mis herramientas',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
           IconButton(tooltip: 'Actualizar herramientas',
-            onPressed: _refreshing ? null : _loadItems,
+            onPressed: withButtonFeedback(_refreshing ? null : _loadItems),
             icon: _refreshing ? const SizedBox(width: 20, height: 20,
               child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.refresh)),
           IconButton(
             tooltip: 'Gestor de iconos',
             icon: const Icon(Icons.image_outlined),
-            onPressed: _openIconManager,
+            onPressed: withButtonFeedback(_openIconManager),
           ),
-          PopupMenuButton<String>(
+          PopupMenuButton<String>(onOpened: () => ButtonFeedbackController.instance.tap(),
             tooltip: 'Opciones',
             icon: const Icon(Icons.more_vert),
-            onSelected: (value) {
+            onSelected: withControlFeedback((value) {
               switch (value) {
+                case 'button_feedback':
+                  Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ButtonFeedbackPage()));
                 case 'trash':
                   _openTrash();
                 case 'management':
@@ -3317,8 +3329,10 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                 case 'restore':
                   _restoreBackup();
               }
-            },
+            }),
             itemBuilder: (context) => const [
+              PopupMenuItem(value: 'button_feedback', child: ListTile(contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.touch_app_outlined), title: Text('Sonido y vibración'))),
               PopupMenuItem(value: 'trash', child: ListTile(contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.delete_outline), title: Text('Papelera de artículos'))),
               PopupMenuItem(value: 'management', child: ListTile(contentPadding: EdgeInsets.zero,
@@ -3376,7 +3390,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _openEditor(),
+        onPressed: withButtonFeedback(() => _openEditor()),
         backgroundColor: const Color(0xFF168BD2),
         foregroundColor: Colors.white,
         child: const Icon(Icons.add, size: 30),
@@ -3395,14 +3409,14 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                   suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
                     if (_query.isNotEmpty) IconButton(
                           tooltip: 'Limpiar búsqueda',
-                          onPressed: () {
+                          onPressed: withButtonFeedback(() {
                             _searchController.clear();
                             setState(() {});
-                          },
+                          }),
                           icon: const Icon(Icons.close),
                         ),
                     IconButton(tooltip: 'Buscar por código',
-                      onPressed: _loading ? null : _scanInventory,
+                      onPressed: withButtonFeedback(_loading ? null : _scanInventory),
                       icon: const Icon(Icons.qr_code_scanner)),
                   ]),
                 ),
@@ -3414,14 +3428,14 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                   Text('${visible.length} artículos', style: const TextStyle(
                     color: Color(0xFF72777D), fontWeight: FontWeight.w600)),
                   Row(mainAxisSize: MainAxisSize.min, children: [
-                    TextButton.icon(onPressed: _openInventoryFilters,
+                    TextButton.icon(onPressed: withButtonFeedback(_openInventoryFilters),
                       icon: const Icon(Icons.tune, size: 20),
                       label: Text(_inventoryPreferences.filterCount == 0 ? 'Filtrar' :
                         'Filtrar (${_inventoryPreferences.filterCount})')),
-                    PopupMenuButton<InventoryView>(tooltip: 'Cambiar vista',
+                    PopupMenuButton<InventoryView>(onOpened: () => ButtonFeedbackController.instance.tap(), tooltip: 'Cambiar vista',
                       initialValue: _inventoryPreferences.view,
                       icon: Icon(inventoryViewIcons[_inventoryPreferences.view]),
-                      onSelected: (view) => _setInventoryPreferences(_inventoryPreferences.copyWith(view: view)),
+                      onSelected: withControlFeedback((view) => _setInventoryPreferences(_inventoryPreferences.copyWith(view: view))),
                       itemBuilder: (_) => InventoryView.values.map((view) => PopupMenuItem(
                         value: view, child: Row(children: [Icon(inventoryViewIcons[view]),
                           const SizedBox(width: 12), Expanded(child: Text(inventoryViewLabels[view]!)),
@@ -3430,7 +3444,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                 ])),
             if (_inventoryPreferences.filterCount > 0)
               Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(left: 12),
-                child: TextButton(onPressed: () => _setInventoryPreferences(_inventoryPreferences.clearFilters()),
+                child: TextButton(onPressed: withButtonFeedback(() => _setInventoryPreferences(_inventoryPreferences.clearFilters())),
                   child: const Text('Limpiar filtros')))),
             Expanded(child: InventoryResults(items: visible, view: _inventoryPreferences.view,
               facts: _inventoryFacts, conditionOptions: _conditionOptions,
@@ -3643,10 +3657,10 @@ class _IconDetailCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       children: [
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          IconButton(tooltip: 'Icono anterior', onPressed: onPrevious,
+          IconButton(tooltip: 'Icono anterior', onPressed: withButtonFeedback(onPrevious),
             icon: const Icon(Icons.chevron_left)),
           Flexible(child: Text('${position + 1} de $total', textAlign: TextAlign.center)),
-          IconButton(tooltip: 'Icono siguiente', onPressed: onNext,
+          IconButton(tooltip: 'Icono siguiente', onPressed: withButtonFeedback(onNext),
             icon: const Icon(Icons.chevron_right)),
         ]),
         Card(child: Padding(padding: const EdgeInsets.all(16),
@@ -3668,18 +3682,18 @@ class _IconDetailCard extends StatelessWidget {
             const SizedBox(height: 12),
             Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
               if (onColors != null) OutlinedButton.icon(
-                onPressed: onColors, icon: const Icon(Icons.palette_outlined),
+                onPressed: withButtonFeedback(onColors), icon: const Icon(Icons.palette_outlined),
                 label: const Text('Cambiar colores')),
               if (onFavorite != null) OutlinedButton.icon(
-                onPressed: onFavorite, icon: Icon(isIconFavorite(iconKey) ? Icons.star : Icons.star_border),
+                onPressed: withButtonFeedback(onFavorite), icon: Icon(isIconFavorite(iconKey) ? Icons.star : Icons.star_border),
                 label: Text(isIconFavorite(iconKey) ? 'Quitar de favoritos' : 'Añadir a favoritos')),
               if (onManage != null) OutlinedButton.icon(
-                onPressed: onManage, icon: const Icon(Icons.edit_outlined),
+                onPressed: withButtonFeedback(onManage), icon: const Icon(Icons.edit_outlined),
                 label: const Text('Más opciones')),
               if (onRestore != null) FilledButton(
-                onPressed: onRestore, child: const Text('Restaurar')),
+                onPressed: withButtonFeedback(onRestore), child: const Text('Restaurar')),
               if (onSelect != null) FilledButton(
-                onPressed: onSelect, child: const Text('Elegir este icono')),
+                onPressed: withButtonFeedback(onSelect), child: const Text('Elegir este icono')),
             ]),
           ]),
         )),
@@ -4144,17 +4158,17 @@ class _IconPickerPageState extends State<IconPickerPage> {
     final visibleKeys = orderedIconKeys(filteredKeys, _order, _customGroups);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null,
         title: const Text(
           'Seleccionar icono',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
-          PopupMenuButton<String>(
+          PopupMenuButton<String>(onOpened: () => ButtonFeedbackController.instance.tap(),
             key: const ValueKey('icon_picker_view'),
             tooltip: 'Vista',
             icon: const Icon(Icons.view_module_outlined),
-            onSelected: (value) => setState(() => _view = value),
+            onSelected: withControlFeedback((value) => setState(() => _view = value)),
             itemBuilder: (_) => [
               CheckedPopupMenuItem(value: 'grid', checked: _view == 'grid',
                 child: const Text('Cuadrícula')),
@@ -4173,7 +4187,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
             ],
           ),
           _IconOrderMenu(order: _order,
-            onSelected: (value) => setState(() => _order = value)),
+            onSelected: withControlFeedback((value) => setState(() => _order = value))),
         ],
       ),
       body: SafeArea(
@@ -4201,7 +4215,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                   return ChoiceChip(
                     label: Text(item),
                     selected: _category == item,
-                    onSelected: (_) => setState(() => _category = item),
+                    onSelected: withControlFeedback((_) => setState(() => _category = item)),
                   );
                 },
               ),
@@ -4209,7 +4223,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
             if (canEditIconColors(widget.currentKey))
               TextButton.icon(
                 key: const ValueKey('picker_edit_current_colors'),
-                onPressed: () => _editColors(widget.currentKey),
+                onPressed: withButtonFeedback(() => _editColors(widget.currentKey)),
                 icon: const Icon(Icons.palette_outlined),
                 label: const Text('Colores del icono actual'),
               ),
@@ -4286,9 +4300,9 @@ class _IconPickerPageState extends State<IconPickerPage> {
                             selectedTileColor: iconAppearance(key).line.withValues(alpha: 0.12),
                             trailing: key == widget.currentKey
                                 ? const Icon(Icons.check) : null,
-                            onTap: () => _select(key),
-                            onLongPress: canEditIconColors(key)
-                                ? () => _editColors(key) : null,
+                            onTap: withButtonFeedback(() => _select(key)),
+                            onLongPress: withButtonFeedback(canEditIconColors(key)
+                                ? () => _editColors(key) : null),
                           ),
                         );
                       },
@@ -4309,12 +4323,12 @@ class _IconPickerPageState extends State<IconPickerPage> {
                             ? color.withValues(alpha: 0.12)
                             : Colors.white,
                         borderRadius: BorderRadius.circular(12),
-                        child: InkWell(
+                        child: InkWell(enableFeedback: false,
                           borderRadius: BorderRadius.circular(12),
-                          onTap: () => _select(key),
-                          onLongPress: canEditIconColors(key)
+                          onTap: withButtonFeedback(() => _select(key)),
+                          onLongPress: withButtonFeedback(canEditIconColors(key)
                               ? () => _editColors(key)
-                              : null,
+                              : null),
                           child: Padding(
                             padding: const EdgeInsets.all(8),
                             child: Column(
@@ -4413,16 +4427,16 @@ class _IconColorsDialogState extends State<IconColorsDialog> {
     spacing: 8, runSpacing: 8,
     children: [
       for (final value in optionColorPalette)
-        InkWell(
+        InkWell(enableFeedback: false,
           key: ValueKey('icon_${background ? "circle" : "line"}_$value'),
           borderRadius: BorderRadius.circular(22),
-          onTap: () => setState(() {
+          onTap: withButtonFeedback(() => setState(() {
             if (background) {
               _circle = Color(value).withValues(alpha: 0.16);
             } else {
               _lines = Color(value);
             }
-          }),
+          })),
           child: Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
@@ -4463,11 +4477,11 @@ class _IconColorsDialogState extends State<IconColorsDialog> {
       ),
     ),
     actions: [
-      TextButton(onPressed: () => Navigator.pop(context),
+      TextButton(onPressed: withButtonFeedback(() => Navigator.pop(context)),
           child: const Text('Cancelar')),
       FilledButton(
-        onPressed: () => Navigator.pop(context,
-            IconAppearance(_lines.toARGB32(), _circle.toARGB32())),
+        onPressed: withButtonFeedback(() => Navigator.pop(context,
+            IconAppearance(_lines.toARGB32(), _circle.toARGB32()))),
         child: const Text('Guardar'),
       ),
     ],
@@ -4679,10 +4693,10 @@ class _IconOrderMenu extends StatelessWidget {
   final String order;
   final ValueChanged<String> onSelected;
   @override
-  Widget build(BuildContext context) => PopupMenuButton<String>(
+  Widget build(BuildContext context) => PopupMenuButton<String>(onOpened: () => ButtonFeedbackController.instance.tap(),
     tooltip: 'Ordenar',
     icon: const Icon(Icons.sort),
-    onSelected: onSelected,
+    onSelected: withControlFeedback(onSelected),
     itemBuilder: (_) => [
       for (final entry in (const {
         'original': 'Orden original',
@@ -4748,7 +4762,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
             children: [
               for (final group in iconGroups)
                 SimpleDialogOption(
-                  onPressed: () => Navigator.pop(context, group),
+                  onPressed: withButtonFeedback(() => Navigator.pop(context, group)),
                   child: Text(group),
                 ),
             ],
@@ -4766,11 +4780,11 @@ class _IconManagementPageState extends State<IconManagementPage> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: withButtonFeedback(() => Navigator.pop(context, false)),
                 child: const Text('Cancelar'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: withButtonFeedback(() => Navigator.pop(context, true)),
                 child: const Text('Eliminar'),
               ),
             ],
@@ -4809,9 +4823,9 @@ class _IconManagementPageState extends State<IconManagementPage> {
               'incluidos los que no aparecen por los filtros. No podrás restaurarlos desde el gestor. '
               'Los iconos asignados a tipos o estados se conservarán para que las herramientas sigan mostrándolos.'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false),
+            TextButton(onPressed: withButtonFeedback(() => Navigator.pop(context, false)),
               child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(context, true),
+            FilledButton(onPressed: withButtonFeedback(() => Navigator.pop(context, true)),
               child: const Text('Vaciar papelera')),
           ],
         ),
@@ -4881,10 +4895,10 @@ class _IconManagementPageState extends State<IconManagementPage> {
                               overflow: TextOverflow.ellipsis,
                             ),
                             subtitle: Text(iconCategoryForKey(key, _groups)),
-                            onTap: () =>
-                                _change(key, _trash ? 'restore' : 'rename'),
-                            onLongPress: canEditIconColors(key) && !_trash
-                                ? () => _change(key, 'colors') : null,
+                            onTap: withButtonFeedback(() =>
+                                _change(key, _trash ? 'restore' : 'rename')),
+                            onLongPress: withButtonFeedback(canEditIconColors(key) && !_trash
+                                ? () => _change(key, 'colors') : null),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -4901,11 +4915,11 @@ class _IconManagementPageState extends State<IconManagementPage> {
                                           ? Colors.amber.shade800
                                           : null,
                                     ),
-                                    onPressed: () => _change(key, 'favorite'),
+                                    onPressed: withButtonFeedback(() => _change(key, 'favorite')),
                                   ),
-                                PopupMenuButton<String>(
+                                PopupMenuButton<String>(onOpened: () => ButtonFeedbackController.instance.tap(),
                                   tooltip: 'Opciones del icono',
-                                  onSelected: (action) => _change(key, action),
+                                  onSelected: withControlFeedback((action) => _change(key, action)),
                                   itemBuilder: (_) => _trash
                                       ? const [
                                           PopupMenuItem(
@@ -4963,7 +4977,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
               child: Text(appIconLabel(key), style: Theme.of(context).textTheme.titleMedium)),
             for (final entry in _actions(key).entries)
               ListTile(title: Text(entry.value),
-                onTap: () => Navigator.pop(context, entry.key)),
+                onTap: withButtonFeedback(() => Navigator.pop(context, entry.key))),
           ],
         )),
       ),
@@ -4980,11 +4994,11 @@ class _IconManagementPageState extends State<IconManagementPage> {
       child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        child: InkWell(
+        child: InkWell(enableFeedback: false,
           borderRadius: BorderRadius.circular(12),
-          onTap: () => _showActions(key),
-          onLongPress: canEditIconColors(key) && !_trash
-              ? () => _change(key, 'colors') : () => _showActions(key),
+          onTap: withButtonFeedback(() => _showActions(key)),
+          onLongPress: withButtonFeedback(canEditIconColors(key) && !_trash
+              ? () => _change(key, 'colors') : () => _showActions(key)),
           child: Padding(
             padding: const EdgeInsets.all(8),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -5098,14 +5112,14 @@ class _IconManagementPageState extends State<IconManagementPage> {
         .toList();
     final visible = orderedIconKeys(filtered, _order, _groups);
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null,
         title: const Text('Gestor de iconos'),
         actions: [
-          PopupMenuButton<String>(
+          PopupMenuButton<String>(onOpened: () => ButtonFeedbackController.instance.tap(),
             key: const ValueKey('icon_manager_view'),
             tooltip: 'Vista',
             icon: const Icon(Icons.view_module_outlined),
-            onSelected: (value) => setState(() => _view = value),
+            onSelected: withControlFeedback((value) => setState(() => _view = value)),
             itemBuilder: (_) => [
               for (final entry in (const {'grid': 'Cuadrícula', 'compact': 'Conjunto compacto', 'list': 'Lista', 'groups': 'Por grupos', 'gallery': 'Galería ampliada', 'colors': 'Por colores', 'detail': 'Detalle', 'quick': 'Favoritos y recientes'}).entries)
                 CheckedPopupMenuItem(value: entry.key, checked: _view == entry.key,
@@ -5114,25 +5128,25 @@ class _IconManagementPageState extends State<IconManagementPage> {
           ),
 
           _IconOrderMenu(order: _order,
-            onSelected: (value) => setState(() => _order = value)),
+            onSelected: withControlFeedback((value) => setState(() => _order = value))),
           IconButton(
             icon: const Icon(Icons.folder_outlined),
             tooltip: 'Grupos',
-            onPressed: () async {
+            onPressed: withButtonFeedback(() async {
               await Navigator.of(context).push<void>(
                 MaterialPageRoute(builder: (_) => const IconGroupsPage()),
               );
               if (!mounted) return;
               if (!iconFilters.contains(_group)) _group = 'Todos';
               await _load();
-            },
+            }),
           ),
         ],
       ),
       floatingActionButton: _trash
           ? null
           : FloatingActionButton.extended(
-              onPressed: _saving ? null : _import,
+              onPressed: withButtonFeedback(_saving ? null : _import),
               icon: const Icon(Icons.add_photo_alternate_outlined),
               label: const Text('Importar'),
             ),
@@ -5151,7 +5165,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: DropdownButtonFormField<String>(
+              child: DropdownButtonFormField<String>(onTap: () => ButtonFeedbackController.instance.tap(), enableFeedback: false,
                 key: ValueKey(_group),
                 initialValue: _group,
                 isExpanded: true,
@@ -5159,9 +5173,9 @@ class _IconManagementPageState extends State<IconManagementPage> {
                 items: iconFilters
                     .map((g) => DropdownMenuItem(value: g, child: Text(g)))
                     .toList(),
-                onChanged: (value) {
+                onChanged: withControlFeedback((value) {
                   if (value != null) setState(() => _group = value);
-                },
+                }),
               ),
             ),
             Padding(
@@ -5172,12 +5186,12 @@ class _IconManagementPageState extends State<IconManagementPage> {
                   ChoiceChip(
                     label: const Text('Iconos activos'),
                     selected: !_trash,
-                    onSelected: (_) => setState(() => _trash = false),
+                    onSelected: withControlFeedback((_) => setState(() => _trash = false)),
                   ),
                   ChoiceChip(
                     label: const Text('Papelera'),
                     selected: _trash,
-                    onSelected: (_) => setState(() => _trash = true),
+                    onSelected: withControlFeedback((_) => setState(() => _trash = true)),
                   ),
                 ],
               ),
@@ -5186,17 +5200,17 @@ class _IconManagementPageState extends State<IconManagementPage> {
               TextButton.icon(
                 icon: const Icon(Icons.find_in_page_outlined),
                 label: const Text('Buscar duplicados'),
-                onPressed: _saving ? null : () async {
+                onPressed: withButtonFeedback(_saving ? null : () async {
                   await Navigator.of(context).push<void>(MaterialPageRoute(
                     builder: (_) => const IconDuplicatesPage()));
                   if (mounted) await _load();
-                },
+                }),
               ),
             if (_trash)
               TextButton.icon(
                 key: const ValueKey('empty_icon_trash'),
-                onPressed: _saving || _loading || !_keys.any((key) => isIconHidden(key) && !isIconRemoved(key))
-                    ? null : _emptyTrash,
+                onPressed: withButtonFeedback(_saving || _loading || !_keys.any((key) => isIconHidden(key) && !isIconRemoved(key))
+                    ? null : _emptyTrash),
                 icon: const Icon(Icons.delete_forever_outlined),
                 label: const Text('Vaciar papelera'),
               ),
@@ -5254,8 +5268,8 @@ class _IconDuplicatesPageState extends State<IconDuplicatesPage> {
         content: Text('¿Mover «${appIconLabel(key)}» a la papelera? '
             'Las herramientas que lo usan conservarán su icono. Podrás restaurarlo.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Mover a la papelera')),
+          TextButton(onPressed: withButtonFeedback(() => Navigator.pop(context, false)), child: const Text('Cancelar')),
+          FilledButton(onPressed: withButtonFeedback(() => Navigator.pop(context, true)), child: const Text('Mover a la papelera')),
         ],
       ));
       if (confirm != true) return;
@@ -5268,9 +5282,9 @@ class _IconDuplicatesPageState extends State<IconDuplicatesPage> {
   }
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Iconos duplicados')),
+    appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title: const Text('Iconos duplicados')),
     body: _loading ? const Center(child: CircularProgressIndicator())
-      : _error != null ? Center(child: TextButton(onPressed: _load, child: Text('$_error Reintentar')))
+      : _error != null ? Center(child: TextButton(onPressed: withButtonFeedback(_load), child: Text('$_error Reintentar')))
       : _groups.isEmpty ? const Center(child: Text('No hay archivos de iconos duplicados.'))
       : ListView(padding: const EdgeInsets.all(12), children: [
           const Padding(padding: EdgeInsets.all(8), child: Text(
@@ -5288,7 +5302,7 @@ class _IconDuplicatesPageState extends State<IconDuplicatesPage> {
                     title: Text(appIconLabel(key)),
                     subtitle: Text(p.basename(customIconPathFromKey(key))),
                     trailing: IconButton(tooltip: 'Mover copia a la papelera',
-                      icon: const Icon(Icons.delete_outline), onPressed: () => _hide(key)),
+                      icon: const Icon(Icons.delete_outline), onPressed: withButtonFeedback(() => _hide(key))),
                   ),
               ],
             )),
@@ -5339,11 +5353,11 @@ class _IconGroupsPageState extends State<IconGroupsPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: withButtonFeedback(() => Navigator.pop(context, false)),
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: withButtonFeedback(() => Navigator.pop(context, true)),
             child: const Text('Eliminar grupo'),
           ),
         ],
@@ -5354,9 +5368,9 @@ class _IconGroupsPageState extends State<IconGroupsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Grupos de iconos')),
+    appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title: const Text('Grupos de iconos')),
     floatingActionButton: FloatingActionButton.extended(
-      onPressed: _busy ? null : () => _edit(),
+      onPressed: withButtonFeedback(_busy ? null : () => _edit()),
       icon: const Icon(Icons.create_new_folder_outlined),
       label: const Text('Crear grupo'),
     ),
@@ -5381,11 +5395,11 @@ class _IconGroupsPageState extends State<IconGroupsPage> {
                       : 'Grupo de la aplicación',
                 ),
                 trailing: _customIconCategories.contains(group)
-                    ? PopupMenuButton<String>(
+                    ? PopupMenuButton<String>(onOpened: () => ButtonFeedbackController.instance.tap(),
                         enabled: !_busy,
                         tooltip: 'Opciones del grupo',
-                        onSelected: (action) =>
-                            action == 'rename' ? _edit(group) : _delete(group),
+                        onSelected: withControlFeedback((action) =>
+                            action == 'rename' ? _edit(group) : _delete(group)),
                         itemBuilder: (_) => const [
                           PopupMenuItem(
                             value: 'rename',
@@ -5452,10 +5466,10 @@ class _IconGroupDialogState extends State<_IconGroupDialog> {
     ),
     actions: [
       TextButton(
-        onPressed: () => Navigator.pop(context),
+        onPressed: withButtonFeedback(() => Navigator.pop(context)),
         child: const Text('Cancelar'),
       ),
-      FilledButton(onPressed: _submit, child: const Text('Guardar')),
+      FilledButton(onPressed: withButtonFeedback(_submit), child: const Text('Guardar')),
     ],
   );
 }
@@ -5505,14 +5519,14 @@ class _IconRenameDialogState extends State<_IconRenameDialog> {
     ),
     actions: [
       TextButton(
-        onPressed: () => Navigator.pop(context, ''),
+        onPressed: withButtonFeedback(() => Navigator.pop(context, '')),
         child: const Text('Nombre original'),
       ),
       TextButton(
-        onPressed: () => Navigator.pop(context),
+        onPressed: withButtonFeedback(() => Navigator.pop(context)),
         child: const Text('Cancelar'),
       ),
-      FilledButton(onPressed: _save, child: const Text('Guardar')),
+      FilledButton(onPressed: withButtonFeedback(_save), child: const Text('Guardar')),
     ],
   );
 }
@@ -5606,7 +5620,7 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null,
         title: Text(
           widget.existing == null
               ? 'Nueva opción de $_title'
@@ -5615,7 +5629,7 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
         ),
         actions: [
           TextButton(
-            onPressed: _save,
+            onPressed: withButtonFeedback(_save),
             child: const Text(
               'GUARDAR',
               style: TextStyle(fontWeight: FontWeight.w800),
@@ -5635,7 +5649,7 @@ class _FieldOptionEditPageState extends State<FieldOptionEditPage> {
             ),
             const SizedBox(height: 16),
             OutlinedButton(
-              onPressed: _chooseIcon,
+              onPressed: withButtonFeedback(_chooseIcon),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(58),
               ),
@@ -5774,7 +5788,7 @@ class _FieldOptionsManagementPageState
                     'Selecciona a qué opción deben pasar.',
                   ),
                   const SizedBox(height: 14),
-                  DropdownButtonFormField<String>(
+                  DropdownButtonFormField<String>(onTap: () => ButtonFeedbackController.instance.tap(), enableFeedback: false,
                     initialValue: value,
                     decoration: const InputDecoration(
                       labelText: 'Reemplazar por',
@@ -5793,20 +5807,20 @@ class _FieldOptionsManagementPageState
                           ),
                         )
                         .toList(),
-                    onChanged: (newValue) {
+                    onChanged: withControlFeedback((newValue) {
                       if (newValue == null) return;
                       setDialogState(() => value = newValue);
-                    },
+                    }),
                   ),
                 ],
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
+                  onPressed: withButtonFeedback(() => Navigator.pop(dialogContext)),
                   child: const Text('Cancelar'),
                 ),
                 FilledButton(
-                  onPressed: () => Navigator.pop(dialogContext, value),
+                  onPressed: withButtonFeedback(() => Navigator.pop(dialogContext, value)),
                   child: const Text('Reemplazar y eliminar'),
                 ),
               ],
@@ -5824,11 +5838,11 @@ class _FieldOptionsManagementPageState
           content: Text('¿Eliminar “${option.label}”?'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
+              onPressed: withButtonFeedback(() => Navigator.pop(dialogContext, false)),
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
+              onPressed: withButtonFeedback(() => Navigator.pop(dialogContext, true)),
               child: const Text('Eliminar'),
             ),
           ],
@@ -5847,14 +5861,14 @@ class _FieldOptionsManagementPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null,
         title: const Text(
           'Configurar Tipo y Estado',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _editOption(),
+        onPressed: withButtonFeedback(() => _editOption()),
         child: const Icon(Icons.add),
       ),
       body: SafeArea(
@@ -5871,13 +5885,13 @@ class _FieldOptionsManagementPageState
                         child: Text('Tipo', textAlign: TextAlign.center),
                       ),
                       selected: _fieldKey == 'type',
-                      onSelected: (_) {
+                      onSelected: withControlFeedback((_) {
                         setState(() {
                           _fieldKey = 'type';
                           _loading = true;
                         });
                         _load();
-                      },
+                      }),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -5888,13 +5902,13 @@ class _FieldOptionsManagementPageState
                         child: Text('Estado', textAlign: TextAlign.center),
                       ),
                       selected: _fieldKey == 'condition',
-                      onSelected: (_) {
+                      onSelected: withControlFeedback((_) {
                         setState(() {
                           _fieldKey = 'condition';
                           _loading = true;
                         });
                         _load();
-                      },
+                      }),
                     ),
                   ),
                 ],
@@ -5937,15 +5951,15 @@ class _FieldOptionsManagementPageState
                             subtitle: Text(
                               'Icono: ${appIconLabel(option.iconKey)}',
                             ),
-                            onTap: () => _editOption(option),
-                            trailing: PopupMenuButton<String>(
-                              onSelected: (value) {
+                            onTap: withButtonFeedback(() => _editOption(option)),
+                            trailing: PopupMenuButton<String>(onOpened: () => ButtonFeedbackController.instance.tap(),
+                              onSelected: withControlFeedback((value) {
                                 if (value == 'edit') {
                                   _editOption(option);
                                 } else if (value == 'delete') {
                                   _deleteOption(option);
                                 }
-                              },
+                              }),
                               itemBuilder: (_) => const [
                                 PopupMenuItem(
                                   value: 'edit',
@@ -6035,7 +6049,7 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
           ),
           actions: [
             FilledButton(
-              onPressed: () => Navigator.pop(dialogContext),
+              onPressed: withButtonFeedback(() => Navigator.pop(dialogContext)),
               child: const Text('Aceptar'),
             ),
           ],
@@ -6066,7 +6080,7 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null,
         title: const Text(
           'Gestión de base de datos',
           style: TextStyle(fontWeight: FontWeight.w800),
@@ -6147,13 +6161,13 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
                         'Guarda tus herramientas, fotos, documentos e historial en un ZIP.',
                       ),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: widget.onCreateBackup,
+                      onTap: withButtonFeedback(widget.onCreateBackup),
                     ),
                     const Divider(height: 1),
                     ListTile(leading: const Icon(Icons.playlist_add),
                       title: const Text('Importar y añadir'),
                       subtitle: const Text('Añade una base sin sustituir tus datos actuales.'),
-                      trailing: const Icon(Icons.chevron_right), onTap: _import),
+                      trailing: const Icon(Icons.chevron_right), onTap: withButtonFeedback(_import)),
                     const Divider(height: 1),
                     ListTile(
                       leading: const Icon(Icons.restore),
@@ -6162,7 +6176,7 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
                         'Sustituye todo el inventario por el de una copia.',
                       ),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: _restore,
+                      onTap: withButtonFeedback(_restore),
                     ),
                     const Divider(height: 1),
                     ListTile(
@@ -6172,7 +6186,7 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
                         'Verifica que la base SQLite no tenga errores.',
                       ),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: _checkIntegrity,
+                      onTap: withButtonFeedback(_checkIntegrity),
                     ),
                   ],
                 ),
@@ -6183,7 +6197,7 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
                   const Expanded(child: SectionTitle('Registros guardados')),
                   IconButton(
                     tooltip: 'Actualizar',
-                    onPressed: _refreshUi,
+                    onPressed: withButtonFeedback(_refreshUi),
                     icon: const Icon(Icons.refresh),
                   ),
                 ],
@@ -6358,7 +6372,7 @@ class LoanStatusButton extends StatelessWidget {
       key: const ValueKey('tool_loan_status'),
       tooltip: loan != null ? 'Prestada: ver préstamo' : legacy ?
           'Prestada: completar datos' : 'Disponible: prestar herramienta',
-      onPressed: () => _open(context),
+      onPressed: withButtonFeedback(() => _open(context)),
       icon: Icon(lent ? Icons.handshake_outlined : Icons.inventory_2_outlined,
         color: lent ? const Color(0xFF967346) : const Color(0xFF697780)),
     );
@@ -6407,18 +6421,18 @@ class LoanStatusCard extends StatelessWidget {
               'del préstamo o cambia el estado si ya se devolvió.')),
           const SizedBox(height: 12),
           if (active && onEdit != null) OutlinedButton.icon(
-            key: const ValueKey('edit_loan'), onPressed: onEdit,
+            key: const ValueKey('edit_loan'), onPressed: withButtonFeedback(onEdit),
             icon: const Icon(Icons.edit_outlined), label: const Text('Editar préstamo')),
           FilledButton.icon(
             key: ValueKey(active ? 'return_tool' : 'lend_tool'),
-            onPressed: active ? onReturn : onLend,
+            onPressed: withButtonFeedback(active ? onReturn : onLend),
             icon: Icon(active ? Icons.assignment_turned_in_outlined : Icons.handshake_outlined),
             label: Text(active ? 'Registrar devolución' : legacy ?
               'Completar préstamo' : 'Prestar'),
           ),
-          if (active) OutlinedButton.icon(onPressed: onLend, icon: const Icon(Icons.add),
+          if (active) OutlinedButton.icon(onPressed: withButtonFeedback(onLend), icon: const Icon(Icons.add),
             label: const Text('Prestar unidades o piezas disponibles')),
-          if (onHistory != null) TextButton.icon(onPressed: onHistory,
+          if (onHistory != null) TextButton.icon(onPressed: withButtonFeedback(onHistory),
             icon: const Icon(Icons.history), label: const Text('Historial de préstamos')),
         ],
       )),
@@ -6545,7 +6559,7 @@ class _LoanFormPageState extends State<LoanFormPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.initialLoan == null ?
+    appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title: Text(widget.initialLoan == null ?
       'Prestar herramienta' : 'Editar préstamo')),
     body: SafeArea(child: Form(key: _form, child: ListView(
       padding: const EdgeInsets.all(16), children: [
@@ -6564,14 +6578,14 @@ class _LoanFormPageState extends State<LoanFormPage> {
             'Escribe quién recibe la herramienta' : null),
         const SizedBox(height: 12),
         OutlinedButton.icon(key: const ValueKey('loan_start_date'),
-          onPressed: () => _chooseDate(false), icon: const Icon(Icons.today_outlined),
+          onPressed: withButtonFeedback(() => _chooseDate(false)), icon: const Icon(Icons.today_outlined),
           label: Text('Fecha de préstamo: ${loanDateText(_startedOn)}')),
         const SizedBox(height: 8),
         OutlinedButton.icon(key: const ValueKey('loan_due_date'),
-          onPressed: () => _chooseDate(true), icon: const Icon(Icons.event_outlined),
+          onPressed: withButtonFeedback(() => _chooseDate(true)), icon: const Icon(Icons.event_outlined),
           label: Text(_dueOn == null ? 'Devolución prevista (opcional)' :
             'Devolución prevista: ${loanDateText(_dueOn!)}')),
-        if (_dueOn != null) TextButton(onPressed: () => setState(() => _dueOn = null),
+        if (_dueOn != null) TextButton(onPressed: withButtonFeedback(() => setState(() => _dueOn = null)),
           child: const Text('Quitar fecha prevista')),
         const SizedBox(height: 12),
         TextFormField(key: const ValueKey('loan_notes'), controller: _notes,
@@ -6583,7 +6597,7 @@ class _LoanFormPageState extends State<LoanFormPage> {
         if (widget.initialLoan == null && _components.isNotEmpty) SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero, secondary: const Icon(Icons.widgets_outlined),
           title: const Text('Prestar piezas seleccionadas'), value: _piecesOnly,
-          onChanged: (value) => setState(() => _piecesOnly = value)),
+          onChanged: withControlFeedback((value) => setState(() => _piecesOnly = value))),
         if (widget.initialLoan == null && !_piecesOnly) TextFormField(
           key: const ValueKey('loan_quantity'), controller: _quantity,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -6606,13 +6620,13 @@ class _LoanFormPageState extends State<LoanFormPage> {
         ExpansionTile(tilePadding: EdgeInsets.zero,
           title: const Text('Contacto, accesorios y avisos'),
           leading: const Icon(Icons.fact_check_outlined), children: [
-            if (_borrowers.isNotEmpty) DropdownButtonFormField<String>(isExpanded: true,
+            if (_borrowers.isNotEmpty) DropdownButtonFormField<String>(onTap: () => ButtonFeedbackController.instance.tap(), enableFeedback: false, isExpanded: true,
               decoration: const InputDecoration(labelText: 'Personas habituales'),
               items: [for (final person in _borrowers) DropdownMenuItem(
                 value: person['name'] as String, child: Text(person['name'] as String))],
-              onChanged: (value) { if (value == null) return;
+              onChanged: withControlFeedback((value) { if (value == null) return;
                 final person = _borrowers.firstWhere((p) => p['name'] == value);
-                _borrower.text = value; _contact.text = person['contact'] as String; }),
+                _borrower.text = value; _contact.text = person['contact'] as String; })),
             const SizedBox(height: 12), TextFormField(controller: _contact,
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(labelText: 'Teléfono / contacto (opcional)', prefixIcon: Icon(Icons.phone_outlined))),
@@ -6625,7 +6639,7 @@ class _LoanFormPageState extends State<LoanFormPage> {
           ]),
         const SizedBox(height: 24),
         FilledButton.icon(key: const ValueKey('confirm_loan'),
-          onPressed: _saving || _loadingContents || _contentError != null ? null : _confirm,
+          onPressed: withButtonFeedback(_saving || _loadingContents || _contentError != null ? null : _confirm),
           icon: const Icon(Icons.check), label: Text(_saving ? 'Guardando…' :
             widget.initialLoan == null ? 'Confirmar préstamo' : 'Guardar cambios')),
       ],
@@ -6658,16 +6672,16 @@ class _LoanReturnDialogState extends State<LoanReturnDialog> {
       crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('${widget.loan.toolName}\nPrestada a ${widget.loan.borrower}'),
         const SizedBox(height: 12),
-        OutlinedButton.icon(onPressed: _chooseDate,
+        OutlinedButton.icon(onPressed: withButtonFeedback(_chooseDate),
           icon: const Icon(Icons.event_available_outlined),
           label: Text(loanDateText(_date))),
         const SizedBox(height: 8),
         const Text('La herramienta quedará disponible y el préstamo se conservará en el historial.'),
       ])),
-    actions: [TextButton(onPressed: () => Navigator.pop(context),
+    actions: [TextButton(onPressed: withButtonFeedback(() => Navigator.pop(context)),
       child: const Text('Cancelar')),
       FilledButton(key: const ValueKey('confirm_return'),
-        onPressed: () => Navigator.pop(context, _date), child: const Text('Confirmar devolución'))],
+        onPressed: withButtonFeedback(() => Navigator.pop(context, _date)), child: const Text('Confirmar devolución'))],
   );
 }
 
@@ -6735,14 +6749,14 @@ class _LoansPageState extends State<LoansPage> {
       (_view == 2 || (_view == 1 ? loan.isOverdue : loan.isActive)) &&
       '${loan.toolName} ${loan.borrower} ${loan.notes}'.toLowerCase().contains(_query)).toList();
     return Scaffold(
-      appBar: AppBar(title: Text(widget.toolName == null ? 'Préstamos' :
+      appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title: Text(widget.toolName == null ? 'Préstamos' :
         'Préstamos · ${widget.toolName}')),
       body: SafeArea(child: Column(children: [
         Padding(padding: const EdgeInsets.all(16), child: Column(children: [
           Wrap(spacing: 8, runSpacing: 8, children: [
             for (var i = 0; i < 3; i++) ChoiceChip(
               label: Text('${const ['Activos', 'Retrasados', 'Historial'][i]} (${counts[i]})'),
-              selected: _view == i, onSelected: (_) => setState(() => _view = i)),
+              selected: _view == i, onSelected: withControlFeedback((_) => setState(() => _view = i))),
           ]),
           const SizedBox(height: 12),
           TextField(onChanged: (value) => setState(() => _query = value.trim().toLowerCase()),
@@ -6752,7 +6766,7 @@ class _LoansPageState extends State<LoansPage> {
         Expanded(child: _loading ? const Center(child: CircularProgressIndicator()) :
           _error != null ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Text('No se pudieron cargar los préstamos'),
-            TextButton(onPressed: _load, child: const Text('Reintentar')),
+            TextButton(onPressed: withButtonFeedback(_load), child: const Text('Reintentar')),
           ])) : visible.isEmpty ? Center(child: Padding(padding: const EdgeInsets.all(20),
             child: Text(_query.isNotEmpty ? 'No hay resultados para esta búsqueda' :
               const ['No hay préstamos activos', 'No hay devoluciones retrasadas',
@@ -6762,8 +6776,8 @@ class _LoansPageState extends State<LoansPage> {
             separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (_, index) {
               final loan = visible[index];
-              return Card(margin: EdgeInsets.zero, child: InkWell(
-                onTap: () async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => LoanDetailsPage(loan: loan))); if (mounted) await _load(); },
+              return Card(margin: EdgeInsets.zero, child: InkWell(enableFeedback: false,
+                onTap: withButtonFeedback(() async { await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => LoanDetailsPage(loan: loan))); if (mounted) await _load(); }),
                 child: Padding(
                 padding: const EdgeInsets.all(16), child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -6783,12 +6797,12 @@ class _LoansPageState extends State<LoansPage> {
                           const Color(0xFFB76E00) : const Color(0xFF24824A))),
                     if (loan.isActive) ...[
                       const SizedBox(height: 8),
-                      FilledButton.icon(onPressed: _busy ? null : () => _return(loan),
+                      FilledButton.icon(onPressed: withButtonFeedback(_busy ? null : () => _return(loan)),
                         icon: const Icon(Icons.assignment_turned_in_outlined),
                         label: const Text('Registrar devolución')),
                     ],
                     OutlinedButton.icon(key: ValueKey('edit_loan_${loan.id}'),
-                      onPressed: _busy ? null : () => _edit(loan),
+                      onPressed: withButtonFeedback(_busy ? null : () => _edit(loan)),
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Editar préstamo')),
                   ],
@@ -7011,8 +7025,8 @@ class _EditToolPageState extends State<EditToolPage> {
       final replace = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
         title: const Text('Sustituir código'),
         content: Text('Código actual: ${_barcode.text}\nCódigo leído: $code'),
-        actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sustituir'))]));
+        actions: [TextButton(onPressed: withButtonFeedback(() => Navigator.pop(context, false)), child: const Text('Cancelar')),
+          FilledButton(onPressed: withButtonFeedback(() => Navigator.pop(context, true)), child: const Text('Sustituir'))]));
       if (!mounted || replace != true) return;
     }
     setState(() => _barcode.text = code);
@@ -7169,14 +7183,14 @@ class _EditToolPageState extends State<EditToolPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
+            onPressed: withButtonFeedback(() => Navigator.pop(dialogContext)),
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: withButtonFeedback(() {
               final value = controller.text.trim();
               if (value.isNotEmpty) Navigator.pop(dialogContext, value);
-            },
+            }),
             child: const Text('Descargar'),
           ),
         ],
@@ -7255,7 +7269,7 @@ class _EditToolPageState extends State<EditToolPage> {
         ),
         actions: [
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext),
+            onPressed: withButtonFeedback(() => Navigator.pop(dialogContext)),
             child: const Text('Aceptar'),
           ),
         ],
@@ -7301,7 +7315,7 @@ class _EditToolPageState extends State<EditToolPage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField<String>(
+              DropdownButtonFormField<String>(onTap: () => ButtonFeedbackController.instance.tap(), enableFeedback: false,
                 initialValue: selectedType,
                 decoration: const InputDecoration(labelText: 'Tipo'),
                 items: const [
@@ -7320,10 +7334,10 @@ class _EditToolPageState extends State<EditToolPage> {
                   ),
                   DropdownMenuItem(value: 'Detalle', child: Text('Detalle')),
                 ],
-                onChanged: (value) {
+                onChanged: withControlFeedback((value) {
                   if (value == null) return;
                   setDialogState(() => selectedType = value);
-                },
+                }),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -7338,14 +7352,14 @@ class _EditToolPageState extends State<EditToolPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
+              onPressed: withButtonFeedback(() => Navigator.pop(dialogContext)),
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, {
+              onPressed: withButtonFeedback(() => Navigator.pop(dialogContext, {
                 'type': selectedType,
                 'description': descriptionController.text.trim(),
-              }),
+              })),
               child: const Text('Guardar'),
             ),
           ],
@@ -7393,35 +7407,35 @@ class _EditToolPageState extends State<EditToolPage> {
                   spacing: 4,
                   children: [
                     TextButton.icon(
-                      onPressed: image.isPrimary
+                      onPressed: withButtonFeedback(image.isPrimary
                           ? null
                           : () {
                               _setPrimaryImage(image);
                               Navigator.pop(dialogContext);
-                            },
+                            }),
                       icon: const Icon(Icons.star_outline),
                       label: Text(
                         image.isPrimary ? 'Principal' : 'Hacer principal',
                       ),
                     ),
                     TextButton.icon(
-                      onPressed: () {
+                      onPressed: withButtonFeedback(() {
                         Navigator.pop(dialogContext);
                         _editImageMetadata(image);
-                      },
+                      }),
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Datos'),
                     ),
                     TextButton.icon(
-                      onPressed: () {
+                      onPressed: withButtonFeedback(() {
                         Navigator.pop(dialogContext);
                         _removeImage(image);
-                      },
+                      }),
                       icon: const Icon(Icons.delete_outline),
                       label: const Text('Eliminar'),
                     ),
                     TextButton(
-                      onPressed: () => Navigator.pop(dialogContext),
+                      onPressed: withButtonFeedback(() => Navigator.pop(dialogContext)),
                       child: const Text('Cerrar'),
                     ),
                   ],
@@ -7457,7 +7471,7 @@ class _EditToolPageState extends State<EditToolPage> {
                     ),
                     const Spacer(),
                     TextButton(
-                      onPressed: () => Navigator.pop(sheetContext),
+                      onPressed: withButtonFeedback(() => Navigator.pop(sheetContext)),
                       child: const Text('Cerrar'),
                     ),
                   ],
@@ -7478,10 +7492,10 @@ class _EditToolPageState extends State<EditToolPage> {
                     return _ToolImageThumbnail(
                       image: image,
                       size: double.infinity,
-                      onTap: () {
+                      onTap: withButtonFeedback(() {
                         Navigator.pop(sheetContext);
                         _openImage(image);
-                      },
+                      }),
                     );
                   },
                 ),
@@ -7528,7 +7542,7 @@ class _EditToolPageState extends State<EditToolPage> {
     final voltages = voltageOptionsFor(_voltage);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null,
         title: Text(
           _isEditing
               ? 'Editar artículo'
@@ -7546,15 +7560,15 @@ class _EditToolPageState extends State<EditToolPage> {
             onHistory: _isEditing ? _openLoanHistory : null,
           ),
           TextButton(
-            onPressed: _save,
+            onPressed: withButtonFeedback(_save),
             child: const Text(
               'GUARDAR',
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
           ),
-          if (_isEditing) PopupMenuButton<String>(
+          if (_isEditing) PopupMenuButton<String>(onOpened: () => ButtonFeedbackController.instance.tap(),
             tooltip: 'Opciones del artículo', enabled: !_managementBusy,
-            onSelected: (_) => _deleteArticle(),
+            onSelected: withControlFeedback((_) => _deleteArticle()),
             itemBuilder: (_) => const [PopupMenuItem(value: 'delete',
               child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.delete_outline),
                 title: Text('Eliminar artículo')))]),
@@ -7583,7 +7597,7 @@ class _EditToolPageState extends State<EditToolPage> {
                     : null,
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
+              DropdownButtonFormField<String>(onTap: () => ButtonFeedbackController.instance.tap(), enableFeedback: false,
                 key: const ValueKey('tool_type'),
                 initialValue: selectedType,
                 isExpanded: true,
@@ -7628,10 +7642,10 @@ class _EditToolPageState extends State<EditToolPage> {
                       ),
                     )
                     .toList(),
-                onChanged: (value) {
+                onChanged: withControlFeedback((value) {
                   if (value == null) return;
                   setState(() => _type = value);
-                },
+                }),
                 validator: (value) => value == null || value.isEmpty
                     ? 'Selecciona el tipo'
                     : null,
@@ -7641,13 +7655,13 @@ class _EditToolPageState extends State<EditToolPage> {
                 secondary: const Icon(Icons.widgets_outlined, color: managementColor),
                 title: const Text('Es un conjunto'),
                 subtitle: const Text('Gestionar sus piezas por separado'),
-                value: _isSet, onChanged: (value) => setState(() => _isSet = value)),
+                value: _isSet, onChanged: withControlFeedback((value) => setState(() => _isSet = value))),
               if (_currentItem?.outOfService ?? false) const ListTile(
                 contentPadding: EdgeInsets.zero, leading: Icon(Icons.build_outlined, color: Colors.red),
                 title: Text('Fuera de servicio'), subtitle: Text('Consulta Mantenimiento para habilitarla')),
               if (_showVoltage) ...[
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
+                DropdownButtonFormField<String>(onTap: () => ButtonFeedbackController.instance.tap(), enableFeedback: false,
                   key: const ValueKey('tool_voltage'),
                   initialValue: _voltage.isEmpty ? null : _voltage,
                   isExpanded: true,
@@ -7691,17 +7705,17 @@ class _EditToolPageState extends State<EditToolPage> {
                         ),
                       )
                       .toList(),
-                  onChanged: (value) {
+                  onChanged: withControlFeedback((value) {
                     if (value == null) return;
                     setState(() => _voltage = value);
-                  },
+                  }),
                 ),
               ],
               const SizedBox(height: 12),
               DescriptionQuillCard(
                 text: _descriptionPlain,
                 deltaJson: _descriptionDelta,
-                onTap: _openQuillDescription,
+                onTap: withButtonFeedback(_openQuillDescription),
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -7712,11 +7726,11 @@ class _EditToolPageState extends State<EditToolPage> {
                   labelText: 'Código de barras',
                   prefixIcon: const Icon(Icons.qr_code),
                   suffixIcon: IconButton(tooltip: 'Leer código con cámara',
-                    onPressed: _scanBarcode, icon: const Icon(Icons.camera_alt_outlined)),
+                    onPressed: withButtonFeedback(_scanBarcode), icon: const Icon(Icons.camera_alt_outlined)),
                 ),
               ),
               Align(alignment: Alignment.centerLeft, child: TextButton.icon(
-                onPressed: _managementBusy ? null : _openOwnLabel,
+                onPressed: withButtonFeedback(_managementBusy ? null : _openOwnLabel),
                 icon: const Icon(Icons.qr_code_2, size: 20), label: const Text('Etiqueta QR propia'))),
               const SizedBox(height: 12),
               ToolDetailsForm(brand: _brand, model: _model, serialNumber: _serialNumber,
@@ -7760,7 +7774,7 @@ class _EditToolPageState extends State<EditToolPage> {
               const SizedBox(height: 22),
               const SectionTitle('Estado'),
               const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
+              DropdownButtonFormField<String>(onTap: () => ButtonFeedbackController.instance.tap(), enableFeedback: false,
                 key: UniqueKey(),
                 initialValue: selectedCondition,
                 isExpanded: true,
@@ -7804,7 +7818,7 @@ class _EditToolPageState extends State<EditToolPage> {
                       ),
                     )
                     .toList(),
-                onChanged: _currentItem?.activeLoan != null ? null : (value) {
+                onChanged: withControlFeedback(_currentItem?.activeLoan != null ? null : (value) {
                   if (value == null) return;
                   if (isLoanCondition(value)) {
                     _prepareLoan();
@@ -7813,7 +7827,7 @@ class _EditToolPageState extends State<EditToolPage> {
                   } else {
                     setState(() => _condition = value);
                   }
-                },
+                }),
               ),
               const SizedBox(height: 22),
               const SectionTitle('Compra e imagen'),
@@ -7844,7 +7858,7 @@ class _EditToolPageState extends State<EditToolPage> {
                   const Spacer(),
                   if (_images.length > 4)
                     TextButton(
-                      onPressed: _openAllImages,
+                      onPressed: withButtonFeedback(_openAllImages),
                       child: Text('Ver todas (${_images.length})'),
                     ),
                 ],
@@ -7893,7 +7907,7 @@ class _EditToolPageState extends State<EditToolPage> {
                             return _ToolImageThumbnail(
                               image: image,
                               size: 88,
-                              onTap: () => _openImage(image),
+                              onTap: withButtonFeedback(() => _openImage(image)),
                             );
                           },
                         ),
@@ -7903,7 +7917,7 @@ class _EditToolPageState extends State<EditToolPage> {
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
-                onPressed: _save,
+                onPressed: withButtonFeedback(_save),
                 icon: const Icon(Icons.save_outlined),
                 label: const Text('Guardar artículo'),
                 style: FilledButton.styleFrom(
@@ -7951,18 +7965,18 @@ class _CompactImageToolbar extends StatelessWidget {
           _CompactImageAction(
             icon: Icons.photo_camera,
             tooltip: 'Cámara',
-            onTap: onCamera,
+            onTap: withButtonFeedback(onCamera),
           ),
-          _CompactImageAction(icon: Icons.link, tooltip: 'URL', onTap: onUrl),
+          _CompactImageAction(icon: Icons.link, tooltip: 'URL', onTap: withButtonFeedback(onUrl)),
           _CompactImageAction(
             icon: Icons.auto_awesome,
             tooltip: 'IA',
-            onTap: onAi,
+            onTap: withButtonFeedback(onAi),
           ),
           _CompactImageAction(
             icon: Icons.photo_library_outlined,
             tooltip: 'Galería',
-            onTap: onGallery,
+            onTap: withButtonFeedback(onGallery),
           ),
           const Spacer(),
           const Padding(
@@ -7998,7 +8012,7 @@ class _CompactImageAction extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       tooltip: tooltip,
-      onPressed: onTap,
+      onPressed: withButtonFeedback(onTap),
       visualDensity: VisualDensity.compact,
       constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
       iconSize: 25,
@@ -8030,8 +8044,8 @@ class _ToolImageThumbnail extends StatelessWidget {
         color: const Color(0xFFE9EDF0),
         borderRadius: BorderRadius.circular(9),
         clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: exists ? onTap : null,
+        child: InkWell(enableFeedback: false,
+          onTap: withButtonFeedback(exists ? onTap : null),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -8110,8 +8124,8 @@ class DescriptionQuillCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasText = text.trim().isNotEmpty;
 
-    return InkWell(
-      onTap: onTap,
+    return InkWell(enableFeedback: false,
+      onTap: withButtonFeedback(onTap),
       borderRadius: BorderRadius.circular(12),
       child: InputDecorator(
         isEmpty: false,
@@ -8327,14 +8341,14 @@ class _QuillDescriptionPageState extends State<QuillDescriptionPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null,
         title: const Text(
           'Editor Quill',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
           TextButton(
-            onPressed: _accept,
+            onPressed: withButtonFeedback(_accept),
             child: const Text(
               'ACEPTAR',
               style: TextStyle(fontWeight: FontWeight.w800),
@@ -8357,7 +8371,9 @@ class _QuillDescriptionPageState extends State<QuillDescriptionPage> {
             ),
             QuillSimpleToolbar(
               controller: _controller,
-              config: const QuillSimpleToolbarConfig(),
+              config: QuillSimpleToolbarConfig(buttonOptions: QuillSimpleToolbarButtonOptions(
+                base: QuillToolbarBaseButtonOptions(afterButtonPressed: () =>
+                  ButtonFeedbackController.instance.tap()))),
             ),
             Expanded(
               child: Container(

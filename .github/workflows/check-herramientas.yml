@@ -135,7 +135,7 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back emulated -camera-front emulated
           working-directory: flutter
-          script: python3 startup_android/smoke_test.py ${{ contains(github.event.head_commit.message, '[trash-check]') && '--trash-only' || contains(github.event.head_commit.message, '[scanner-check]') && '--scanner-only' || '' }}
+          script: python3 startup_android/smoke_test.py ${{ contains(github.event.head_commit.message, '[feedback-check]') && '--feedback-only' || contains(github.event.head_commit.message, '[trash-check]') && '--trash-only' || contains(github.event.head_commit.message, '[scanner-check]') && '--scanner-only' || '' }}
       - name: Upload Android screenshots
         if: always()
         uses: actions/upload-artifact@v4

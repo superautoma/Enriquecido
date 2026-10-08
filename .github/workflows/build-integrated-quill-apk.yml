@@ -101,7 +101,7 @@ jobs:
 
       - name: Verify layout, startup and voltage persistence
         timeout-minutes: 6
-        run: flutter test test/tool_trash_test.dart test/tool_codes_test.dart test/tool_details_test.dart test/backup_import_test.dart test/tool_inventory_test.dart test/tool_management_test.dart test/tool_loans_test.dart test/tool_voltage_test.dart test/startup_loading_test.dart test/icon_badge_layout_test.dart
+        run: flutter test test/button_feedback_test.dart test/tool_trash_test.dart test/tool_codes_test.dart test/tool_details_test.dart test/backup_import_test.dart test/tool_inventory_test.dart test/tool_management_test.dart test/tool_loans_test.dart test/tool_voltage_test.dart test/startup_loading_test.dart test/icon_badge_layout_test.dart
 
       - name: Build optimized APK
         timeout-minutes: 15
@@ -154,7 +154,7 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back emulated -camera-front emulated
           working-directory: flutter
-          script: python3 startup_android/smoke_test.py ${{ contains(github.event.head_commit.message, '[trash-check]') && '--trash-only' || '' }}
+          script: python3 startup_android/smoke_test.py ${{ contains(github.event.head_commit.message, '[feedback-check]') && '--feedback-only' || contains(github.event.head_commit.message, '[trash-check]') && '--trash-only' || '' }}
 
       - name: Upload startup screenshots
         if: always()

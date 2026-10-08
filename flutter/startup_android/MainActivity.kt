@@ -19,6 +19,7 @@ import io.flutter.embedding.engine.renderer.FlutterUiDisplayListener
 class MainActivity : FlutterFragmentActivity() {
     private var loadingView: View? = null
     private var flutterVisible = false
+    private var buttonFeedback: ButtonFeedback? = null
 
     private val uiListener = object : FlutterUiDisplayListener {
         override fun onFlutterUiDisplayed() {
@@ -91,6 +92,7 @@ class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         ToolManagement.attach(this, flutterEngine)
+        buttonFeedback = ButtonFeedback(this, flutterEngine)
         flutterEngine.renderer.addIsDisplayingFlutterUiListener(uiListener)
         if (flutterEngine.renderer.isDisplayingFlutterUi) {
             uiListener.onFlutterUiDisplayed()
@@ -98,6 +100,8 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        buttonFeedback?.dispose()
+        buttonFeedback = null
         flutterEngine.renderer.removeIsDisplayingFlutterUiListener(uiListener)
         super.cleanUpFlutterEngine(flutterEngine)
     }

@@ -31,15 +31,15 @@ class _InventoryFilterSheetState extends State<InventoryFilterSheet> {
   Widget _choices<T>(Map<T, String> choices, T selected, ValueChanged<T> onChanged) => Wrap(
     spacing: 8, runSpacing: 6, children: choices.entries.map((entry) => ChoiceChip(
       label: Text(entry.value), selected: entry.key == selected,
-      onSelected: (_) => setState(() => onChanged(entry.key)))).toList());
+      onSelected: withControlFeedback((_) => setState(() => onChanged(entry.key))))).toList());
   Widget _multiple(List<String> choices, Set<String> selected, ValueChanged<Set<String>> onChanged) => Wrap(
     spacing: 8, runSpacing: 6, children: choices.map((label) => FilterChip(
       label: Text(label.isEmpty ? 'Sin indicar' : label), selected: selected.contains(label),
-      onSelected: (value) => setState(() {
+      onSelected: withControlFeedback((value) => setState(() {
         final next = {...selected};
         if (value) { next.add(label); } else { next.remove(label); }
         onChanged(next);
-      }))).toList());
+      })))).toList());
 
   @override
   Widget build(BuildContext context) {
@@ -64,14 +64,14 @@ class _InventoryFilterSheetState extends State<InventoryFilterSheet> {
       child: Column(children: [
         Padding(padding: const EdgeInsets.fromLTRB(16, 12, 8, 4), child: Row(children: [
           const Expanded(child: Text('Filtrar y ordenar', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700))),
-          IconButton(tooltip: 'Cerrar filtros', onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close))])),
+          IconButton(tooltip: 'Cerrar filtros', onPressed: withButtonFeedback(() => Navigator.pop(context)), icon: const Icon(Icons.close))])),
         Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(16, 0, 16, 20), children: [
           Text('Puedes combinar filtros. $count resultados.'),
           _title('Ordenar por'),
-          DropdownButtonFormField<InventorySort>(initialValue: _value.sort, isExpanded: true,
+          DropdownButtonFormField<InventorySort>(onTap: () => ButtonFeedbackController.instance.tap(), enableFeedback: false, initialValue: _value.sort, isExpanded: true,
             items: inventorySortLabels.entries.map((entry) => DropdownMenuItem(
               value: entry.key, child: Text(entry.value))).toList(),
-            onChanged: (value) => setState(() => _value = _value.copyWith(sort: value))),
+            onChanged: withControlFeedback((value) => setState(() => _value = _value.copyWith(sort: value)))),
           _title('Disponibilidad'),
           _choices(const {InventoryAvailability.all: 'Todas', InventoryAvailability.available: 'Disponibles',
             InventoryAvailability.borrowed: 'Con préstamos', InventoryAvailability.overdue: 'Préstamo vencido',
@@ -103,20 +103,20 @@ class _InventoryFilterSheetState extends State<InventoryFilterSheet> {
             (value) => _value = _value.copyWith(content: value)),
           SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Mostrar también las piezas'),
             subtitle: const Text('Incluye las fichas guardadas dentro de conjuntos.'),
-            value: _value.includePieces, onChanged: (value) => setState(() => _value = _value.copyWith(includePieces: value))),
+            value: _value.includePieces, onChanged: withControlFeedback((value) => setState(() => _value = _value.copyWith(includePieces: value)))),
           _title('Mantenimiento'),
           _choices(const {InventoryMaintenance.all: 'Todos', InventoryMaintenance.pending: 'Pendiente',
             InventoryMaintenance.overdue: 'Vencido'}, _value.maintenance,
             (value) => _value = _value.copyWith(maintenance: value)),
           CheckboxListTile(contentPadding: EdgeInsets.zero, title: const Text('Con documentos'),
-            value: _value.withDocuments, onChanged: (value) => setState(() => _value = _value.copyWith(withDocuments: value))),
+            value: _value.withDocuments, onChanged: withControlFeedback((value) => setState(() => _value = _value.copyWith(withDocuments: value)))),
           CheckboxListTile(contentPadding: EdgeInsets.zero, title: const Text('Con fotografías'),
-            value: _value.withPhotos, onChanged: (value) => setState(() => _value = _value.copyWith(withPhotos: value))),
+            value: _value.withPhotos, onChanged: withControlFeedback((value) => setState(() => _value = _value.copyWith(withPhotos: value)))),
         ])),
         Padding(padding: const EdgeInsets.all(12), child: LayoutBuilder(builder: (context, constraints) {
-          final clear = TextButton(onPressed: () => setState(() => _value = _value.clearFilters()),
+          final clear = TextButton(onPressed: withButtonFeedback(() => setState(() => _value = _value.clearFilters())),
             child: const Text('Limpiar filtros'));
-          final apply = FilledButton(onPressed: () => Navigator.pop(context, _value),
+          final apply = FilledButton(onPressed: withButtonFeedback(() => Navigator.pop(context, _value)),
             child: Text('Ver $count resultados'));
           if (MediaQuery.textScalerOf(context).scale(14) > 20) {
             return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [apply, clear]);
@@ -189,7 +189,7 @@ class InventoryToolTile extends StatelessWidget {
       ],
     ]);
     return Material(color: Colors.white, borderRadius: BorderRadius.circular(14),
-      child: InkWell(borderRadius: BorderRadius.circular(14), onTap: onTap,
+      child: InkWell(enableFeedback: false, borderRadius: BorderRadius.circular(14), onTap: withButtonFeedback(onTap),
         child: Padding(padding: EdgeInsets.all(compact ? 10 : 12), child: grid ?
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Center(child: _picture(78)), const SizedBox(height: 10), details]) :
@@ -213,12 +213,12 @@ class InventoryResults extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget tile(int index) => InventoryToolTile(item: items[index], facts: facts, view: view,
-      conditionOptions: conditionOptions, onTap: () => onOpen(items[index]));
+      conditionOptions: conditionOptions, onTap: withButtonFeedback(() => onOpen(items[index])));
     Widget results;
     if (items.isEmpty) {
       results = ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(24),
         children: [const SizedBox(height: 40), const Center(child: Text('No se encontraron herramientas')),
-          if (hasFilters) Center(child: TextButton(onPressed: onClear, child: const Text('Limpiar búsqueda y filtros')))]);
+          if (hasFilters) Center(child: TextButton(onPressed: withButtonFeedback(onClear), child: const Text('Limpiar búsqueda y filtros')))]);
     } else if (view == InventoryView.grid) {
       results = LayoutBuilder(builder: (context, constraints) {
         final scale = MediaQuery.textScalerOf(context).scale(14) / 14;

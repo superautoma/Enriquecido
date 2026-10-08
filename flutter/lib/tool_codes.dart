@@ -87,7 +87,7 @@ class _ToolCodeScannerPageState extends State<ToolCodeScannerPage> {
         height: MediaQuery.sizeOf(context).height * .5, child: Column(children: [
           const Padding(padding: EdgeInsets.all(16), child: Text('Elige el código que quieres leer')),
           Expanded(child: ListView(children: codes.map((value) => ListTile(title: Text(value),
-            onTap: () => Navigator.pop(context, value))).toList())),
+            onTap: withButtonFeedback(() => Navigator.pop(context, value)))).toList())),
         ]))));
     if (!_current) return;
     if (code != null) { Navigator.pop(context, code); } else { await _resume(); }
@@ -129,12 +129,12 @@ class _ToolCodeScannerPageState extends State<ToolCodeScannerPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Leer código'), actions: [
+    appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title: const Text('Leer código'), actions: [
       ValueListenableBuilder<ms.MobileScannerState>(valueListenable: _controller,
         builder: (context, state, _) => IconButton(tooltip: 'Linterna',
-          onPressed: state.torchState == ms.TorchState.unavailable ? null : () async {
+          onPressed: withButtonFeedback(state.torchState == ms.TorchState.unavailable ? null : () async {
             try { await _controller.toggleTorch(); } catch (_) { _message('La linterna no está disponible.'); }
-          }, icon: Icon(state.torchState == ms.TorchState.on ? Icons.flash_on : Icons.flash_off))),
+          }), icon: Icon(state.torchState == ms.TorchState.on ? Icons.flash_on : Icons.flash_off))),
     ]),
     body: SafeArea(child: Column(children: [
       const Padding(padding: EdgeInsets.all(16), child: Text(
@@ -148,7 +148,7 @@ class _ToolCodeScannerPageState extends State<ToolCodeScannerPage> {
             const Text('No se puede acceder a la cámara. Permite su uso en los ajustes de la aplicación '
               'o utiliza una imagen o la entrada manual.', style: TextStyle(color: Colors.white), textAlign: TextAlign.center),
             const SizedBox(height: 12),
-            FilledButton(onPressed: _resume, child: const Text('Reintentar')),
+            FilledButton(onPressed: withButtonFeedback(_resume), child: const Text('Reintentar')),
           ])))),
         overlayBuilder: (context, constraints) => IgnorePointer(child: Center(child: Container(
           width: constraints.maxWidth * .8, height: constraints.maxHeight * .55,
@@ -157,8 +157,8 @@ class _ToolCodeScannerPageState extends State<ToolCodeScannerPage> {
       ))),
       Padding(padding: const EdgeInsets.all(12), child: Wrap(alignment: WrapAlignment.center,
         spacing: 12, runSpacing: 4, children: [
-          TextButton.icon(onPressed: _image, icon: const Icon(Icons.image_outlined), label: const Text('Leer imagen')),
-          TextButton.icon(onPressed: _manual, icon: const Icon(Icons.keyboard_outlined), label: const Text('Introducir código')),
+          TextButton.icon(onPressed: withButtonFeedback(_image), icon: const Icon(Icons.image_outlined), label: const Text('Leer imagen')),
+          TextButton.icon(onPressed: withButtonFeedback(_manual), icon: const Icon(Icons.keyboard_outlined), label: const Text('Introducir código')),
         ])),
     ])),
   );
@@ -183,8 +183,8 @@ class _ManualToolCodeDialogState extends State<ManualToolCodeDialog> {
     title: const Text('Introducir código'),
     content: TextField(controller: _input, autofocus: true, key: const ValueKey('scan_manual_code'),
       decoration: const InputDecoration(labelText: 'Código de barras o QR'), onSubmitted: (_) => _accept()),
-    actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-      FilledButton(onPressed: _accept, child: const Text('Usar código'))]);
+    actions: [TextButton(onPressed: withButtonFeedback(() => Navigator.pop(context)), child: const Text('Cancelar')),
+      FilledButton(onPressed: withButtonFeedback(_accept), child: const Text('Usar código'))]);
 }
 
 Future<Uint8List> toolLabelPdf(ToolItem tool) async {
@@ -239,7 +239,7 @@ class _ToolLabelPageState extends State<ToolLabelPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('Etiqueta QR propia')),
+  Widget build(BuildContext context) => Scaffold(appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title: const Text('Etiqueta QR propia')),
     body: SafeArea(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [
       Text(widget.tool.name, style: Theme.of(context).textTheme.titleLarge, textAlign: TextAlign.center),
       const SizedBox(height: 20),
@@ -252,11 +252,11 @@ class _ToolLabelPageState extends State<ToolLabelPage> {
         'Escanéala desde el listado para abrirla.', textAlign: TextAlign.center),
       const SizedBox(height: 20),
       Wrap(alignment: WrapAlignment.center, spacing: 12, runSpacing: 8, children: [
-        OutlinedButton.icon(icon: const Icon(Icons.copy_outlined), label: const Text('Copiar código'), onPressed: () async {
+        OutlinedButton.icon(icon: const Icon(Icons.copy_outlined), label: const Text('Copiar código'), onPressed: withButtonFeedback(() async {
           await Clipboard.setData(ClipboardData(text: widget.tool.labelCode));
           if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado')));
-        }),
-        FilledButton.icon(onPressed: _sharing ? null : _sharePdf, icon: const Icon(Icons.picture_as_pdf_outlined),
+        })),
+        FilledButton.icon(onPressed: withButtonFeedback(_sharing ? null : _sharePdf), icon: const Icon(Icons.picture_as_pdf_outlined),
           label: const Text('Compartir PDF')),
       ]),
       const SizedBox(height: 12),

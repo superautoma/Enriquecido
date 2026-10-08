@@ -1,5 +1,13 @@
 # Base de herramientas
 
+«Opciones → Sonido y vibración» permite activar por separado un clic corto y
+la respuesta háptica al pulsar botones, elegir opciones o abrir una ficha.
+«Probar botón» reproduce los efectos seleccionados. Las preferencias se guardan
+en SQLite y viajan con la copia completa. El sonido respeta el modo silencio;
+la vibración utiliza la respuesta háptica de Android. Los campos de texto,
+desplazamientos y pulsaciones canceladas no generan efectos. La respuesta no
+retrasa las acciones ni necesita nuevos permisos.
+
 La aplicación reúne herramientas individuales y conjuntos con piezas vinculadas. Las piezas conservan su ficha, fotografías, documentos, mantenimiento y préstamos; no se duplican en el listado principal.
 
 En cada ficha se dispone de cuatro accesos con iconos: Conjunto, Documentos, Mantenimiento y Préstamos. Abrir estos apartados guarda primero la ficha para que los registros queden vinculados a una herramienta existente.

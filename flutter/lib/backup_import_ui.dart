@@ -51,7 +51,7 @@ class _ImportBackupPageState extends State<ImportBackupPage> {
   Widget build(BuildContext context) {
     final plan = _plan;
     return PopScope(canPop: !_busy, child: Scaffold(
-      appBar: AppBar(title: const Text('Importar y añadir')),
+      appBar: AppBar(leading: Navigator.canPop(context) ? BackButton(onPressed: withButtonFeedback(() => Navigator.maybePop(context))) : null, title: const Text('Importar y añadir')),
       body: SafeArea(child: ListView(padding: const EdgeInsets.all(20), children: [
         const Icon(Icons.playlist_add_outlined, size: 44, color: managementColor),
         const SizedBox(height: 14),
@@ -66,7 +66,7 @@ class _ImportBackupPageState extends State<ImportBackupPage> {
         ] else if (_result != null) ...[
           const Icon(Icons.check_circle_outline, color: Colors.green, size: 36),
           const SizedBox(height: 12), Text(_result!.summary), const SizedBox(height: 16),
-          FilledButton(onPressed: () => Navigator.pop(context, !_result!.alreadyImported),
+          FilledButton(onPressed: withButtonFeedback(() => Navigator.pop(context, !_result!.alreadyImported)),
             child: const Text('Volver al listado')),
         ] else ...[
           if (plan != null) ...[
@@ -85,11 +85,11 @@ class _ImportBackupPageState extends State<ImportBackupPage> {
             ],
             const SizedBox(height: 16),
             if (plan.alreadyImported) const Text('Este ZIP ya se ha importado. No se volverán a añadir sus fichas.')
-            else if (_error == null) FilledButton.icon(onPressed: _import,
+            else if (_error == null) FilledButton.icon(onPressed: withButtonFeedback(_import),
               icon: const Icon(Icons.playlist_add), label: const Text('Añadir a mi inventario')),
             const SizedBox(height: 12),
           ],
-          OutlinedButton.icon(onPressed: _select, icon: const Icon(Icons.folder_open),
+          OutlinedButton.icon(onPressed: withButtonFeedback(_select), icon: const Icon(Icons.folder_open),
             label: Text(plan == null ? 'Seleccionar archivo ZIP' : 'Seleccionar otro ZIP')),
         ],
         if (_error != null) ...[const SizedBox(height: 16), Text(_error!, style: const TextStyle(color: Color(0xFFBF3434)))],

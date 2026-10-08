@@ -75,6 +75,9 @@ class StartupInstallTest(unittest.TestCase):
             package = 'org/gestorherramientas/gestor_herramientas_quill_test'
             self.assertTrue((main / 'java' / package / 'StartupActivity.java').exists())
             self.assertTrue((main / 'kotlin' / package / 'MainActivity.kt').exists())
+            self.assertTrue((main / 'kotlin' / package / 'ButtonFeedback.kt').exists())
+            self.assertEqual((main / 'res/raw/button_click.wav').read_bytes(),
+                             (ROOT / 'res/raw/button_click.wav').read_bytes())
             self.assertTrue((main / 'res/values-v31/startup_styles.xml').exists())
             self.assertTrue((main / 'res/drawable-v21/launch_background.xml').exists())
             styles = ET.parse(main / 'res/values-v31/startup_styles.xml').getroot()
