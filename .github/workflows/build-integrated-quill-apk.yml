@@ -9,6 +9,7 @@ on:
       - prestamos-herramientas
     paths:
       - "flutter/lib/**"
+      - "flutter/test/**"
       - "flutter/pubspec.yaml"
       - "flutter/assets/**"
       - "flutter/startup_android/install_startup.py"
@@ -16,6 +17,7 @@ on:
       - "flutter/startup_android/*.kt"
       - "flutter/startup_android/res/**"
       - ".github/dev-signing/android-debug.keystore.b64"
+      - ".github/workflows/build-integrated-quill-apk.yml"
 
 concurrency:
   group: integrated-apk-${{ github.ref }}

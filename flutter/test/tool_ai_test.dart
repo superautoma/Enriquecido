@@ -352,7 +352,8 @@ void main() {
     await tester.tap(find.text('Ver respuesta de ChatGPT')); await tester.pumpAndSettle();
     expect(find.text(reply), findsOneWidget); expect(find.text('Propuesta de ficha'), findsNothing);
     expect(await tester.runAsync(() => ToolsDatabase.instance.loadTools()), isEmpty);
-    await tester.scrollUntilVisible(find.byKey(const ValueKey('ai_gallery')), -250);
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('ai_gallery')), -250,
+      scrollable: find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first);
     await tester.tap(find.byKey(const ValueKey('ai_gallery'))); await tester.pumpAndSettle();
     expect(find.text('Ver respuesta de ChatGPT'), findsNothing); expect(find.text(reply), findsNothing);
     expect(tester.takeException(), isNull);
