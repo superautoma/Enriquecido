@@ -14,7 +14,9 @@ output.mkdir(exist_ok=True)
 
 
 def adb(*args):
-    return subprocess.check_output(["adb", *args], timeout=35)
+    # Older Android package managers need longer to verify a release APK.
+    timeout = 180 if args and args[0] == 'install' else 35
+    return subprocess.check_output(["adb", *args], timeout=timeout)
 
 
 def screenshot(name):
@@ -163,7 +165,8 @@ def select_import_zip():
 
 
 
-adb("install", "-r", "build/app/outputs/flutter-apk/app-release.apk")
+adb("install", "--no-streaming", "-r", "build/app/outputs/flutter-apk/app-release.apk")
+adb('logcat', '-c')
 adb("shell", "am", "force-stop", package)
 adb("shell", "am", "start", "-n", f"{package}/.StartupActivity")
 screenshot("startup-first-frame.png")
