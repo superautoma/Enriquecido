@@ -1,0 +1,76 @@
+name: Guardar version estable de Herramientas
+run-name: Guardar V${{ inputs.build_number || 'pruebas' }} estable
+
+on:
+  push:
+    branches: [main, prestamos-herramientas]
+    paths:
+      - '.github/workflows/save-stable-tools.yml'
+      - 'scripts/stable_tools_release.py'
+      - 'scripts/test_stable_tools_release.py'
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: 'Numero de la APK probada (por ejemplo, 101); no uses el numero del workflow de comprobacion'
+        required: true
+        type: string
+      confirmed:
+        description: 'He probado esta APK en mi movil y funciona correctamente'
+        required: true
+        default: false
+        type: boolean
+      dry_run:
+        description: 'Solo comprobar, sin guardar ni publicar'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: stable-tools-${{ inputs.build_number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test stable version safeguards
+        run: python3 -m unittest discover -s scripts -p 'test_stable_tools_release.py' -v
+
+  save:
+    if: github.event_name == 'workflow_dispatch'
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ secrets.STABLE_RELEASE_TOKEN || github.token }}
+      BUILD_NUMBER: ${{ inputs.build_number }}
+      CONFIRMED: ${{ inputs.confirmed }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Identify the tested APK and its exact source commit
+        id: plan
+        run: python3 scripts/stable_tools_release.py plan
+      - name: Download the original APK without rebuilding
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.plan.outputs.artifact_id }}
+          path: stable-apk
+          github-token: ${{ env.GH_TOKEN }}
+          run-id: ${{ steps.plan.outputs.run_id }}
+          merge-multiple: true
+      - name: Verify signature and save the stable version
+        run: python3 scripts/stable_tools_release.py save
