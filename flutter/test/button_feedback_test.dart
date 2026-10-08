@@ -115,7 +115,8 @@ void main() {
       data: const MediaQueryData(textScaler: TextScaler.linear(2)), child: const ButtonFeedbackPage())));
     expect(tester.takeException(), isNull);
     final testButton = find.byKey(const ValueKey('test_button_feedback'));
-    await tester.ensureVisible(testButton);
+    await tester.scrollUntilVisible(testButton, 200);
+    await tester.pumpAndSettle();
     await tester.tap(testButton);
     await tester.pumpAndSettle();
     expect(calls.single, {'sound': true, 'vibration': true});

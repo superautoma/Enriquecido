@@ -24,11 +24,12 @@ class ButtonFeedbackController extends ValueNotifier<ButtonFeedbackPreferences> 
   ButtonFeedbackController() : super(const ButtonFeedbackPreferences());
 
   static final instance = ButtonFeedbackController();
-  Future<void> _write = Future<void>.value();
+  Future<void>? _write;
   bool _tapQueued = false;
 
   Future<void> load() async {
-    await _write;
+    final pendingWrite = _write;
+    if (pendingWrite != null) await pendingWrite;
     final rows = await (await ToolsDatabase.instance.database).query('management_settings',
       where: 'key=?', whereArgs: [buttonFeedbackSettingsKey]);
     try {
@@ -43,14 +44,21 @@ class ButtonFeedbackController extends ValueNotifier<ButtonFeedbackPreferences> 
   Future<void> update(ButtonFeedbackPreferences preferences) {
     final previous = value;
     value = preferences;
-    final operation = _write.then((_) async {
+    final pendingWrite = _write;
+    Future<void> persist() async {
+      if (pendingWrite != null) await pendingWrite;
       await (await ToolsDatabase.instance.database).insert('management_settings',
         {'key': buttonFeedbackSettingsKey, 'value': jsonEncode(preferences.toMap())},
         conflictAlgorithm: ConflictAlgorithm.replace);
-    });
-    _write = operation.catchError((Object error) {
+    }
+    final operation = persist();
+    late final Future<void> queuedWrite;
+    queuedWrite = operation.catchError((Object error) {
       if (identical(value, preferences)) value = previous;
+    }).whenComplete(() {
+      if (identical(_write, queuedWrite)) _write = null;
     });
+    _write = queuedWrite;
     return operation;
   }
 
