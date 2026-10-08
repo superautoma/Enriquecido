@@ -94,7 +94,7 @@ jobs:
         run: flutter pub get
 
       - name: Analyze integrated test
-        run: flutter analyze --no-fatal-infos lib/main_quill_integrated_test.dart lib/button_feedback.dart lib/tool_management.dart lib/tool_management_ui.dart lib/tool_inventory.dart lib/tool_inventory_ui.dart lib/tool_details.dart lib/tool_codes.dart lib/tool_trash.dart lib/backup_import.dart lib/backup_import_ui.dart
+        run: flutter analyze --no-fatal-infos lib/main_quill_integrated_test.dart lib/button_feedback.dart lib/tool_ai.dart lib/tool_ai_ui.dart lib/tool_management.dart lib/tool_management_ui.dart lib/tool_inventory.dart lib/tool_inventory_ui.dart lib/tool_details.dart lib/tool_codes.dart lib/tool_trash.dart lib/backup_import.dart lib/backup_import_ui.dart
 
       - name: Verify native startup installation
         run: python3 -m unittest discover -s startup_android -p "test_*.py"
@@ -154,7 +154,7 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back emulated -camera-front emulated
           working-directory: flutter
-          script: python3 startup_android/smoke_test.py ${{ contains(github.event.head_commit.message, '[feedback-check]') && '--feedback-only' || contains(github.event.head_commit.message, '[trash-check]') && '--trash-only' || '' }}
+          script: python3 startup_android/smoke_test.py ${{ contains(github.event.head_commit.message, '[ai-check]') && '--ai-only' || contains(github.event.head_commit.message, '[feedback-check]') && '--feedback-only' || contains(github.event.head_commit.message, '[trash-check]') && '--trash-only' || '' }}
 
       - name: Upload startup screenshots
         if: always()
@@ -166,7 +166,7 @@ jobs:
           retention-days: 14
 
       - name: Check feedback and startup on legacy Android
-        if: contains(github.event.head_commit.message, '[feedback-check]')
+        if: contains(github.event.head_commit.message, '[feedback-check]') || contains(github.event.head_commit.message, '[ai-check]')
         timeout-minutes: 8
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -177,10 +177,10 @@ jobs:
           working-directory: flutter
           script: |
             python3 -c "import shutil; shutil.rmtree('startup-check', ignore_errors=True)"
-            python3 startup_android/smoke_test.py --feedback-only
+            python3 startup_android/smoke_test.py ${{ contains(github.event.head_commit.message, '[ai-check]') && '--ai-only' || '--feedback-only' }}
 
       - name: Upload legacy Android screenshots
-        if: always() && contains(github.event.head_commit.message, '[feedback-check]')
+        if: always() && (contains(github.event.head_commit.message, '[feedback-check]') || contains(github.event.head_commit.message, '[ai-check]'))
         uses: actions/upload-artifact@v4
         with:
           name: startup-check-api-24
@@ -189,7 +189,7 @@ jobs:
           retention-days: 14
 
       - name: Check feedback and startup on modern Android
-        if: contains(github.event.head_commit.message, '[feedback-check]')
+        if: contains(github.event.head_commit.message, '[feedback-check]') || contains(github.event.head_commit.message, '[ai-check]')
         timeout-minutes: 8
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -200,10 +200,10 @@ jobs:
           working-directory: flutter
           script: |
             python3 -c "import shutil; shutil.rmtree('startup-check', ignore_errors=True)"
-            python3 startup_android/smoke_test.py --feedback-only
+            python3 startup_android/smoke_test.py ${{ contains(github.event.head_commit.message, '[ai-check]') && '--ai-only' || '--feedback-only' }}
 
       - name: Upload modern Android screenshots
-        if: always() && contains(github.event.head_commit.message, '[feedback-check]')
+        if: always() && (contains(github.event.head_commit.message, '[feedback-check]') || contains(github.event.head_commit.message, '[ai-check]'))
         uses: actions/upload-artifact@v4
         with:
           name: startup-check-api-35

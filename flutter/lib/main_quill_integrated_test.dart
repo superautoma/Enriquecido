@@ -32,6 +32,8 @@ part 'tool_inventory_ui.dart';
 part 'backup_import.dart';
 part 'backup_import_ui.dart';
 part 'button_feedback.dart';
+part 'tool_ai.dart';
+part 'tool_ai_ui.dart';
 
 void main() {
   runApp(const GestorHerramientasApp());
@@ -3115,18 +3117,29 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     }
   }
 
-  Future<void> _openEditor({ToolItem? item, String initialBarcode = ''}) async {
+  Future<void> _openAiPhoto() async {
+    final draft = await Navigator.of(context).push<AiToolDraft>(
+      MaterialPageRoute(builder: (_) => const AiPhotoPage()));
+    if (draft != null && mounted) await _openEditor(aiDraft: draft);
+  }
+
+  Future<void> _openEditor({ToolItem? item, String initialBarcode = '', AiToolDraft? aiDraft}) async {
     final result = await Navigator.of(context).push<ToolItem>(
       MaterialPageRoute(
         builder: (_) => EditToolPage(
           item: item?.copy(),
           nextId: _nextId,
           initialBarcode: initialBarcode,
+          aiDraft: aiDraft,
         ),
       ),
     );
 
     if (result == null) {
+      if (aiDraft?.photoPath != null) {
+        final photo = File(aiDraft!.photoPath!);
+        if (await photo.exists()) await photo.delete();
+      }
       if (mounted) await _loadItems();
       return;
     }
@@ -3306,6 +3319,10 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
             icon: const Icon(Icons.more_vert),
             onSelected: withControlFeedback((value) {
               switch (value) {
+                case 'ai_photo':
+                  _openAiPhoto();
+                case 'ai_settings':
+                  Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ChatGptSettingsPage()));
                 case 'button_feedback':
                   Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ButtonFeedbackPage()));
                 case 'trash':
@@ -3331,6 +3348,10 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
               }
             }),
             itemBuilder: (context) => const [
+              PopupMenuItem(value: 'ai_photo', child: ListTile(contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.auto_awesome_outlined), title: Text('Crear ficha con IA'))),
+              PopupMenuItem(value: 'ai_settings', child: ListTile(contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.manage_accounts_outlined), title: Text('Conexión con ChatGPT'))),
               PopupMenuItem(value: 'button_feedback', child: ListTile(contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.touch_app_outlined), title: Text('Sonido y vibración'))),
               PopupMenuItem(value: 'trash', child: ListTile(contentPadding: EdgeInsets.zero,
@@ -6817,11 +6838,12 @@ class _LoansPageState extends State<LoansPage> {
 }
 
 class EditToolPage extends StatefulWidget {
-  const EditToolPage({super.key, required this.item, required this.nextId, this.initialBarcode = ''});
+  const EditToolPage({super.key, required this.item, required this.nextId, this.initialBarcode = '', this.aiDraft});
 
   final ToolItem? item;
   final int nextId;
   final String initialBarcode;
+  final AiToolDraft? aiDraft;
 
   @override
   State<EditToolPage> createState() => _EditToolPageState();
@@ -6870,13 +6892,14 @@ class _EditToolPageState extends State<EditToolPage> {
     final item = _currentItem;
     _isSet = item?.isSet ?? false;
 
-    _name = TextEditingController(text: item?.name ?? '');
-    _descriptionPlain = item?.description ?? '';
+    final draft = item == null ? widget.aiDraft : null;
+    _name = TextEditingController(text: item?.name ?? draft?.name ?? '');
+    _descriptionPlain = item?.description ?? draft?.description ?? '';
     _descriptionDelta = item?.descriptionDelta ?? '';
     _barcode = TextEditingController(text: item?.barcode ?? widget.initialBarcode);
-    _brand = TextEditingController(text: item?.brand ?? '');
-    _model = TextEditingController(text: item?.model ?? '');
-    _serialNumber = TextEditingController(text: item?.serialNumber ?? '');
+    _brand = TextEditingController(text: item?.brand ?? draft?.brand ?? '');
+    _model = TextEditingController(text: item?.model ?? draft?.model ?? '');
+    _serialNumber = TextEditingController(text: item?.serialNumber ?? draft?.serialNumber ?? '');
     _locationSite = TextEditingController(text: item?.locationSite ?? '');
     _locationRack = TextEditingController(text: item?.locationRack ?? '');
     _locationShelf = TextEditingController(text: item?.locationShelf ?? '');
@@ -6892,12 +6915,16 @@ class _EditToolPageState extends State<EditToolPage> {
       text: item == null ? '' : item.purchasePrice.toStringAsFixed(2),
     );
     _condition = item?.activeLoan != null ? 'Prestado' : item?.condition ?? 'Bueno';
-    _type = item?.type ?? '';
-    _voltage = item?.voltage ?? '';
+    _type = item?.type ?? draft?.type ?? '';
+    _voltage = item?.voltage ?? draft?.voltage ?? '';
     _loanDraft = item?.loanDraft;
     _returnLoanOn = item?.returnLoanOn;
     _images =
         item?.images.map((image) => image.copy()).toList() ?? <ToolImage>[];
+    if (draft?.photoPath != null) {
+      _images.add(ToolImage(toolId: widget.nextId, path: draft!.photoPath!,
+        description: 'Fotografía usada para preparar la ficha', isPrimary: true));
+    }
     _loadFieldOptions();
   }
 
@@ -7581,7 +7608,31 @@ class _EditToolPageState extends State<EditToolPage> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
             children: [
-              ManagementShortcuts(onOpen: _managementBusy ? null : _openManagement),
+              if (!_isEditing && widget.aiDraft == null) ...[
+                OutlinedButton.icon(key: const ValueKey('create_with_ai'),
+                  onPressed: withButtonFeedback(() async {
+                    final draft = await Navigator.of(context).push<AiToolDraft>(
+                      MaterialPageRoute(builder: (_) => const AiPhotoPage()));
+                    if (!mounted || draft == null) return;
+                    // Opening a separate draft preserves any manual entries here.
+                    final result = await Navigator.of(context).push<ToolItem>(MaterialPageRoute(
+                      builder: (_) => EditToolPage(item: null, nextId: widget.nextId, aiDraft: draft)));
+                    if (result == null && draft.photoPath != null) {
+                      final photo = File(draft.photoPath!);
+                      if (await photo.exists()) await photo.delete();
+                    }
+                    if (mounted && result != null) Navigator.of(context).pop(result);
+                  }), icon: const Icon(Icons.auto_awesome_outlined),
+                  label: const Text('Crear ficha con IA')),
+                const SizedBox(height: 12),
+              ],
+              if (widget.aiDraft != null) ...[
+                const Text('Propuesta de ChatGPT: revisa los datos. El artículo se creará al pulsar GUARDAR.',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+                if (widget.aiDraft!.warnings.isNotEmpty) Text(widget.aiDraft!.warnings.join('\n')),
+                const SizedBox(height: 16),
+              ],
+              if (widget.aiDraft == null) ManagementShortcuts(onOpen: _managementBusy ? null : _openManagement),
               const SizedBox(height: 16),
               const SectionTitle('Información básica'),
               const SizedBox(height: 10),

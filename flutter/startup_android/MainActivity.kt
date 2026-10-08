@@ -20,6 +20,7 @@ class MainActivity : FlutterFragmentActivity() {
     private var loadingView: View? = null
     private var flutterVisible = false
     private var buttonFeedback: ButtonFeedback? = null
+    private var toolAi: ToolAi? = null
 
     private val uiListener = object : FlutterUiDisplayListener {
         override fun onFlutterUiDisplayed() {
@@ -93,6 +94,7 @@ class MainActivity : FlutterFragmentActivity() {
         super.configureFlutterEngine(flutterEngine)
         ToolManagement.attach(this, flutterEngine)
         buttonFeedback = ButtonFeedback(this, flutterEngine)
+        toolAi = ToolAi(this, flutterEngine)
         flutterEngine.renderer.addIsDisplayingFlutterUiListener(uiListener)
         if (flutterEngine.renderer.isDisplayingFlutterUi) {
             uiListener.onFlutterUiDisplayed()
@@ -102,6 +104,8 @@ class MainActivity : FlutterFragmentActivity() {
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         buttonFeedback?.dispose()
         buttonFeedback = null
+        toolAi?.dispose()
+        toolAi = null
         flutterEngine.renderer.removeIsDisplayingFlutterUiListener(uiListener)
         super.cleanUpFlutterEngine(flutterEngine)
     }

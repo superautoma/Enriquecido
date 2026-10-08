@@ -76,6 +76,11 @@ class StartupInstallTest(unittest.TestCase):
             self.assertTrue((main / 'java' / package / 'StartupActivity.java').exists())
             self.assertTrue((main / 'kotlin' / package / 'MainActivity.kt').exists())
             self.assertTrue((main / 'kotlin' / package / 'ButtonFeedback.kt').exists())
+            self.assertTrue((main / 'kotlin' / package / 'ToolAi.kt').exists())
+            links = [d for i in activities['.MainActivity'].findall('intent-filter') for d in i.findall('data')
+                     if d.get(ANDROID + 'scheme') == 'gestorherramientas']
+            self.assertEqual(len(links), 1)
+            self.assertEqual(links[0].get(ANDROID + 'host'), 'chatgpt')
             self.assertEqual((main / 'res/raw/button_click.wav').read_bytes(),
                              (ROOT / 'res/raw/button_click.wav').read_bytes())
             self.assertTrue((main / 'res/values-v31/startup_styles.xml').exists())

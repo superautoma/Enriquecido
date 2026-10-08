@@ -1,5 +1,43 @@
 # Base de herramientas
 
+## Crear una ficha desde una foto con ChatGPT
+
+En «Opciones → Crear ficha con IA», toma una foto de la herramienta y su etiqueta
+o elige una imagen de la galería. «Conectar ChatGPT» abre la pantalla de conexión:
+«Continuar con ChatGPT» usa el navegador del móvil para seleccionar la cuenta,
+autorizar el plan compatible y volver a la aplicación. No pide la contraseña
+dentro del gestor ni necesita una clave de API. Las cuentas guardadas se mantienen
+por separado; se muestran los modelos que ofrece la cuenta activa y un enlace
+«Gestionar uso». La autorización utiliza el flujo oficial de Sign in with ChatGPT
+para proyectos personales locales. Su disponibilidad y límites dependen del plan.
+
+La fotografía solo se envía a OpenAI cuando se pulsa «Analizar con ChatGPT».
+La respuesta prepara nombre, tipo, descripción y datos de identificación que
+sean legibles. Los identificadores que no aparecen en el texto leído se dejan
+vacíos. La cantidad, el precio, la ubicación y la condición se revisan en el
+formulario normal. «Revisar ficha» abre ese formulario y el artículo solo se
+crea al pulsar «GUARDAR». No se aceptan respuestas interrumpidas o incompletas.
+El análisis se puede cancelar y los errores de uso remiten a «Gestionar uso».
+
+Las credenciales se cifran con Android Keystore y se conservan fuera del directorio
+de las copias de inventario y de las copias automáticas de Android. La sesión se
+renueva de forma serializada; cerrar sesión intenta revocar el permiso remoto y
+elimina los tokens locales. Las respuestas se solicitan con `store:false` al
+endpoint público de Responses, sin acceder a conversaciones guardadas en ChatGPT.
+La autenticación usa PKCE, estado y nonce, y valida firma, emisor, audiencia,
+caducidad e identidad de la cuenta. Una sesión iniciada sin el permiso de usar
+el plan no habilita el análisis de fotos.
+
+Documentación oficial:
+- https://developers.openai.com/siwc/token-sharing-open-source/sign-in
+- https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference
+- https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations
+
+Las pruebas locales/CI simulan la red para errores, cancelación y respuestas,
+y comprueban las pantallas y el almacenamiento nativo. La autorización real de
+la cuenta y el reconocimiento real de una fotografía deben probarse en el móvil
+del propietario; no se presupone acceso por el hecho de instalar la APK.
+
 «Opciones → Sonido y vibración» permite activar por separado un clic corto y
 la respuesta háptica al pulsar botones, elegir opciones o abrir una ficha.
 «Probar botón» reproduce los efectos seleccionados. Las preferencias se guardan

@@ -12,6 +12,7 @@ sources.mkdir(parents=True, exist_ok=True)
 shutil.copy2(root / 'MainActivity.kt', sources / 'MainActivity.kt')
 shutil.copy2(root / 'ToolManagement.kt', sources / 'ToolManagement.kt')
 shutil.copy2(root / 'ButtonFeedback.kt', sources / 'ButtonFeedback.kt')
+shutil.copy2(root / 'ToolAi.kt', sources / 'ToolAi.kt')
 java = android / 'java' / Path(package.replace('.', '/'))
 java.mkdir(parents=True, exist_ok=True)
 shutil.copy2(root / 'StartupActivity.java', java / 'StartupActivity.java')
@@ -49,6 +50,12 @@ if not any(r.get(attr('name')) == '.ReminderReceiver' for r in application.finda
                    'android.intent.action.TIME_SET', 'android.intent.action.TIMEZONE_CHANGED']:
         ET.SubElement(intent, 'action', {attr('name'): action})
 main = next(a for a in application.findall('activity') if a.get(attr('name')) == '.MainActivity')
+if not any(d.get(attr('scheme')) == 'gestorherramientas' for i in main.findall('intent-filter') for d in i.findall('data')):
+    intent = ET.SubElement(main, 'intent-filter')
+    ET.SubElement(intent, 'action', {attr('name'): 'android.intent.action.VIEW'})
+    for category in ['android.intent.category.DEFAULT', 'android.intent.category.BROWSABLE']:
+        ET.SubElement(intent, 'category', {attr('name'): category})
+    ET.SubElement(intent, 'data', {attr('scheme'): 'gestorherramientas', attr('host'): 'chatgpt'})
 for intent in list(main.findall('intent-filter')):
     if any(a.get(attr('name')) == 'android.intent.action.MAIN' for a in intent.findall('action')):
         main.remove(intent)
