@@ -372,7 +372,7 @@ class ChatGptConnection extends ChangeNotifier {
     return aiIdClaims(raw, id, nonce: nonce, subject: subject);
   }
 
-  void _applyTokens(ChatGptProfile p, Map<String, dynamic> t, {Map<String, dynamic>? identity}) {
+  void _applyTokens(ChatGptProfile p, Map<String, dynamic> t, {Map<String, dynamic>? identity, bool keepScopes = false}) {
     if (t['access_token'] is! String || (t['access_token'] as String).isEmpty ||
         t['token_type'] is! String || (t['token_type'] as String).toLowerCase() != 'bearer' ||
         t['expires_in'] is! num || (t['expires_in'] as num) <= 0) {
@@ -385,7 +385,11 @@ class ChatGptConnection extends ChangeNotifier {
     for (final field in ['access_token', 'refresh_token', 'id_token']) {
       if (t[field] is String && (t[field] as String).isNotEmpty) p.values[field] = t[field];
     }
-    if (t['scope'] is String) p.values['scopes'] = (t['scope'] as String).split(' ').where((s) => s.isNotEmpty).toList();
+    if (t['scope'] is String) {
+      p.values['scopes'] = (t['scope'] as String).split(' ').where((s) => s.isNotEmpty).toList();
+    } else if (!keepScopes) {
+      p.values['scopes'] = <String>[];
+    }
     p.values['expires_at'] = DateTime.now().millisecondsSinceEpoch + ((t['expires_in'] as num) * 1000).round();
   }
 
@@ -406,7 +410,7 @@ class ChatGptConnection extends ChangeNotifier {
     final tokens = await _token({'grant_type': 'refresh_token', 'client_id': p.clientId,
       'refresh_token': p.field('refresh_token'), 'resource': chatGptResource});
     if (tokens['id_token'] != null) await _identity(tokens['id_token'], p.clientId, subject: p.subject);
-    _applyTokens(p, tokens); await _save();
+    _applyTokens(p, tokens, keepScopes: true); await _save();
   }
 
   Future<List<ChatGptModel>> models() async {

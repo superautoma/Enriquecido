@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,6 +31,26 @@ class ModelsHttp extends AiHttp {
 }
 
 class NetworkHttpOverrides extends HttpOverrides {}
+
+class AuthHttp extends AiHttp {
+  Map<String, String> authorization = {};
+  bool grantUsage = true;
+  Map<String, String>? exchanged;
+  @override
+  Future<Map<String, dynamic>> json(Uri uri, {String method = 'GET',
+    Map<String, String> headers = const {}, String? body}) async {
+    if (uri.path.endsWith('/openid-configuration')) return {
+      'issuer': chatGptIssuer, 'jwks_uri': '$chatGptIssuer/.well-known/jwks.json'};
+    if (uri.path.endsWith('/jwks.json')) return {'keys': []};
+    exchanged = Uri.splitQueryString(body!);
+    final s = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    return {'access_token': 'new-local-test-token', 'refresh_token': 'new-local-test-refresh',
+      'token_type': 'Bearer', 'expires_in': 3600,
+      if (grantUsage) 'scope': 'openid email profile offline_access resource.invoke chatgpt.tokens.use.direct',
+      'id_token': fakeIdToken({'iss': chatGptIssuer, 'sub': 'local-subject',
+        'aud': exchanged!['client_id'], 'nonce': authorization['nonce'], 'iat': s, 'exp': s + 3600})};
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -105,7 +126,7 @@ void main() {
     final subscription = server.listen((request) async {
       requests.add(jsonDecode(await utf8.decoder.bind(request).join()) as Map<String, dynamic>);
       expect(request.headers.value(HttpHeaders.authorizationHeader), 'Bearer local-test-token');
-      request.response.headers.contentType = ContentType('text', 'event-stream');
+      request.response.headers.contentType = ContentType('text', 'event-stream', charset: 'utf-8');
       request.response.write('data: ${jsonEncode({'type': 'response.output_text.delta', 'delta': jsonEncode(draftData())})}\n\n');
       if (request.uri.path == '/completed') request.response.write('data: ${jsonEncode({'type': 'response.completed', 'response': completedPhoto()})}\n\n');
       if (request.uri.path == '/limit') request.response.write('data: ${jsonEncode({'type': 'response.failed', 'response': {'error': {'code': 'subscription_sharing_usage_limit_exceeded'}}})}\n\n');
@@ -149,6 +170,63 @@ void main() {
     expect(await ToolsDatabase.instance.loadTools(), isEmpty);
   });
 
+  test('Browser authorization binds the loopback callback, issued client and PKCE before enabling use', () async {
+    final http = AuthHttp();
+    final connection = ChatGptConnection(http: http);
+    var checkedSignature = false;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(toolAiChannel, (call) async {
+      if (call.method == 'read') return savedCredentials;
+      if (call.method == 'write') { savedCredentials = (call.arguments as Map)['value'] as String; return null; }
+      if (call.method == 'verifySignature') { checkedSignature = true; return true; }
+      if (call.method == 'openBrowser') {
+        final url = Uri.parse((call.arguments as Map)['url'] as String);
+        expect(url.origin, chatGptIssuer);
+        http.authorization = url.queryParameters;
+        expect(http.authorization['client_id'], 'dynamic_agent_client');
+        expect(http.authorization['resource'], chatGptResource);
+        expect(http.authorization['code_challenge_method'], 'S256');
+        final callback = Uri.parse(http.authorization['redirect_uri']!).replace(queryParameters: {
+          'code': 'local-test-code', 'state': http.authorization['state']!, 'client_id': 'oaiapp_new_test'});
+        final client = HttpOverrides.runWithHttpOverrides(HttpClient.new, NetworkHttpOverrides());
+        try { final response = await (await client.getUrl(callback)).close(); expect(response.statusCode, 200); await response.drain<void>(); }
+        finally { client.close(force: true); }
+      }
+      return null;
+    });
+    await connection.signIn(addAccount: true);
+    expect(checkedSignature, true); expect(connection.active!.clientId, 'oaiapp_new_test');
+    expect(connection.active!.sharing, true); expect(connection.profiles, hasLength(2));
+    expect(http.exchanged!['client_id'], 'oaiapp_new_test');
+    expect(http.exchanged!['redirect_uri'], http.authorization['redirect_uri']);
+    expect(http.exchanged!['code_verifier'], isNotEmpty);
+    expect(base64UrlEncode(crypto.sha256.convert(utf8.encode(http.exchanged!['code_verifier']!)).bytes).replaceAll('=', ''),
+      http.authorization['code_challenge']);
+    final original = connection.profiles.first;
+    expect(original.clientId, 'oaiapp_local_test'); expect(original.accessToken, 'local-test-token');
+    // Reauthorization without explicit usage scopes must not inherit the old grant.
+    http.grantUsage = false;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(toolAiChannel, (call) async {
+      if (call.method == 'read') return savedCredentials;
+      if (call.method == 'write') { savedCredentials = (call.arguments as Map)['value'] as String; return null; }
+      if (call.method == 'verifySignature') return true;
+      if (call.method == 'openBrowser') {
+        final url = Uri.parse((call.arguments as Map)['url'] as String);
+        http.authorization = url.queryParameters;
+        expect(http.authorization['client_id'], 'oaiapp_new_test');
+        expect(http.authorization.containsKey('agent_name_hint'), false);
+        final callback = Uri.parse(http.authorization['redirect_uri']!).replace(queryParameters: {
+          'code': 'local-test-code', 'state': http.authorization['state']!});
+        final client = HttpOverrides.runWithHttpOverrides(HttpClient.new, NetworkHttpOverrides());
+        try { await (await (await client.getUrl(callback)).close()).drain<void>(); }
+        finally { client.close(force: true); }
+      }
+      return null;
+    });
+    await connection.signIn();
+    expect(connection.active!.connected, true); expect(connection.active!.sharing, false);
+    await expectLater(connection.authorizedProfile(), throwsA(isA<AiPhotoException>().having((e) => e.code, 'code', 'permission')));
+  });
+
   testWidgets('Photo analysis remains a draft until review; failed/cancelled requests do not create articles', (tester) async {
     final connection = ChatGptConnection(http: ModelsHttp());
     var analyses = 0;
@@ -162,7 +240,7 @@ void main() {
     await tester.tap(find.text('Abrir')); await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('ai_gallery'))); await tester.pumpAndSettle();
     expect(analyses, 0); expect(await tester.runAsync(() => ToolsDatabase.instance.loadTools()), isEmpty);
-    await tester.ensureVisible(find.byKey(const ValueKey('ai_analyze')));
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('ai_analyze')), 250);
     await tester.tap(find.byKey(const ValueKey('ai_analyze'))); await tester.pumpAndSettle();
     expect(analyses, 1); expect(await tester.runAsync(() => ToolsDatabase.instance.loadTools()), isEmpty);
     await tester.scrollUntilVisible(find.byKey(const ValueKey('ai_review')), 250);
@@ -184,9 +262,9 @@ void main() {
       picker: (_) async => XFile(photo.path), analyzer: (_, _, _) => result.future)));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('ai_gallery'))); await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const ValueKey('ai_analyze')));
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('ai_analyze')), 250);
     await tester.tap(find.byKey(const ValueKey('ai_analyze'))); await tester.pump();
-    await tester.ensureVisible(find.text('Cancelar análisis'));
+    await tester.scrollUntilVisible(find.text('Cancelar análisis'), 150);
     await tester.tap(find.text('Cancelar análisis')); await tester.pumpAndSettle();
     result.complete(AiToolDraft.fromMap(draftData(), ['Herramienta eléctrica'])); await tester.pumpAndSettle();
     expect(find.text('Propuesta de ficha'), findsNothing);
