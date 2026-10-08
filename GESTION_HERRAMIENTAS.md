@@ -4,9 +4,12 @@
 la respuesta háptica al pulsar botones, elegir opciones o abrir una ficha.
 «Probar botón» reproduce los efectos seleccionados. Las preferencias se guardan
 en SQLite y viajan con la copia completa. El sonido respeta el modo silencio;
-la vibración utiliza la respuesta háptica de Android. Los campos de texto,
+la vibración utiliza un pulso directo de 70 ms a intensidad máxima, con
+compatibilidad para Android anteriores y comprobación del motor disponible.
+El instalador declara el permiso normal VIBRATE, sin petición interactiva.
+Los campos de texto,
 desplazamientos y pulsaciones canceladas no generan efectos. La respuesta no
-retrasa las acciones ni necesita nuevos permisos.
+retrasa las acciones.
 
 La aplicación reúne herramientas individuales y conjuntos con piezas vinculadas. Las piezas conservan su ficha, fotografías, documentos, mantenimiento y préstamos; no se duplican en el listado principal.
 

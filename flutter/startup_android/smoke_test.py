@@ -152,6 +152,21 @@ adb("shell", "am", "force-stop", package)
 adb("shell", "am", "start", "-n", f"{package}/.StartupActivity")
 screenshot("startup-first-frame.png")
 if '--feedback-only' in sys.argv:
+    def direct_vibrations(name):
+        dump = adb('shell', 'dumpsys', 'vibrator').decode()
+        (output / name).write_text(dump)
+        return [row for row in dump.splitlines() if package in row
+                and re.search(r'(?:mDuration|duration)\s*[=:]\s*70\b', row)
+                and re.search(r'(?:mAmplitude|amplitude)\s*[=:]\s*255\b', row)]
+
+    def expect_preview_vibration(before, name):
+        for _ in range(10):
+            after = direct_vibrations(name)
+            if len(after) == len(before) + 1:
+                return
+            time.sleep(.1)
+        raise AssertionError('Preview must request one explicit 70 ms vibration')
+
     def switch_state(label):
         wait_for(label)
         adb('shell', 'uiautomator', 'dump', '/sdcard/startup-window.xml')
@@ -166,13 +181,18 @@ if '--feedback-only' in sys.argv:
     tap('Sonido y vibración')
     assert switch_state('Sonido al pulsar')
     assert switch_state('Vibración al pulsar')
+    before_preview = direct_vibrations('feedback-vibrator-before.txt')
     tap('Probar botón')
+    expect_preview_vibration(before_preview, 'feedback-vibrator-on.txt')
     screenshot('feedback-settings-on.png')
     tap('Sonido al pulsar')
     assert not switch_state('Sonido al pulsar')
     tap('Vibración al pulsar')
     assert not switch_state('Vibración al pulsar')
+    before_disabled = direct_vibrations('feedback-vibrator-disabled-before.txt')
     tap('Probar botón')
+    assert direct_vibrations('feedback-vibrator-disabled-after.txt') == before_disabled, \
+        'Disabled feedback must not request a vibration'
     adb('shell', 'am', 'force-stop', package)
     adb('shell', 'am', 'start', '-n', f'{package}/.StartupActivity')
     wait_for('3 artículos')
@@ -184,7 +204,9 @@ if '--feedback-only' in sys.argv:
     tap('Vibración al pulsar')
     assert not switch_state('Sonido al pulsar')
     assert switch_state('Vibración al pulsar')
+    before_vibration_only = direct_vibrations('feedback-vibrator-only-before.txt')
     tap('Probar botón')
+    expect_preview_vibration(before_vibration_only, 'feedback-vibrator-only-after.txt')
     screenshot('feedback-vibration-only.png')
     tap('Sonido al pulsar')
     assert switch_state('Sonido al pulsar')
@@ -196,7 +218,7 @@ if '--feedback-only' in sys.argv:
     wait_for('3 artículos')
     errors = adb('logcat', '-d', '-s', 'AndroidRuntime:E').decode()
     assert 'FATAL EXCEPTION' not in errors, errors
-    print('Android feedback settings: independent toggles, preview, restart persistence, '
+    print('Android feedback settings: explicit 70 ms vibration at amplitude 255, independent toggles, preview, restart persistence, '
           'inventory navigation and absence of native crashes verified.')
     sys.exit(0)
 

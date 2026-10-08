@@ -88,6 +88,8 @@ class StartupInstallTest(unittest.TestCase):
             root = ET.parse(manifest).getroot()
             self.assertEqual(sum(p.get(ANDROID + 'name') == 'android.permission.CAMERA'
                                  for p in root.findall('uses-permission')), 1)
+            self.assertEqual(sum(p.get(ANDROID + 'name') == 'android.permission.VIBRATE'
+                                 for p in root.findall('uses-permission')), 1)
             camera = next(f for f in root.findall('uses-feature')
                           if f.get(ANDROID + 'name') == 'android.hardware.camera')
             self.assertEqual(camera.get(ANDROID + 'required'), 'false')

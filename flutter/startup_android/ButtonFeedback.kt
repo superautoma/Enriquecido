@@ -5,11 +5,14 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.SoundPool
-import android.view.HapticFeedbackConstants
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-/** Small preloaded click and standard, system-controlled haptic response. */
+/** Preloaded click and an explicit, short pulse controlled by the app's switch. */
 class ButtonFeedback(private val activity: Activity, engine: FlutterEngine) {
     private val channel = MethodChannel(engine.dartExecutor.binaryMessenger,
         "org.gestorherramientas/button_feedback")
@@ -36,14 +39,30 @@ class ButtonFeedback(private val activity: Activity, engine: FlutterEngine) {
                 result.notImplemented()
             } else {
                 if (call.argument<Boolean>("sound") == true) playClick()
-                if (call.argument<Boolean>("vibration") == true) {
-                    try {
-                        activity.window.decorView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    } catch (_: Exception) { /* Hardware feedback is optional. */ }
-                }
+                if (call.argument<Boolean>("vibration") == true) vibrateTap()
                 result.success(null)
             }
         }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun vibrateTap() {
+        try {
+            val vibrator = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                (activity.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)
+                    ?.defaultVibrator
+            } else {
+                activity.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }) ?: return
+            if (!vibrator.hasVibrator()) return
+            // KEYBOARD_TAP can be imperceptible or disabled by keyboard/touch
+            // settings. An explicit 70 ms pulse gives this app its own response.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(70L, 255))
+            } else {
+                vibrator.vibrate(70L)
+            }
+        } catch (_: Exception) { /* Hardware feedback must not block an action. */ }
     }
 
     private fun playClick() {

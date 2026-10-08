@@ -141,7 +141,7 @@ class _ButtonFeedbackPageState extends State<ButtonFeedbackPage> {
           const Divider(height: 1),
           SwitchListTile(key: const ValueKey('button_vibration'),
             secondary: const Icon(Icons.vibration_outlined),
-            title: const Text('Vibración al pulsar'), subtitle: const Text('Una respuesta breve'),
+            title: const Text('Vibración al pulsar'), subtitle: const Text('Un pulso corto y más marcado'),
             value: preferences.vibration,
             onChanged: _saving ? null : withControlFeedback<bool>((value) =>
               _update(preferences.copyWith(vibration: value)))),
