@@ -116,6 +116,70 @@ void main() {
       {'type': 'message', 'content': [{'type': 'refusal', 'refusal': 'No'}]}]}, []), throwsA(isA<AiPhotoException>()));
   });
 
+  test('Photo drafts accept one complete JSON object in Markdown and retain invalid replies for review', () {
+    final pliers = {...draftData(), 'name': 'Alicate de corte diagonal', 'type': 'Manual',
+      'description': 'Alicate de corte con mangos rojos y amarillos.',
+      'brand': '', 'model': '', 'serialNumber': '', 'voltage': '', 'labelText': '1000V'};
+    Map<String, dynamic> response(String text) => {'status': 'completed', 'output': [
+      {'type': 'message', 'content': [{'type': 'output_text', 'text': text}]}]};
+    final json = jsonEncode(pliers);
+    for (final text in [json, '\uFEFF$json', '```json\n$json\n```',
+      'Esta es la propuesta:\n```json\n$json\n```\nRevisa los datos antes de guardar.']) {
+      final draft = aiDraftFromResponse(response(text), ['Manual']);
+      expect(draft.name, 'Alicate de corte diagonal'); expect(draft.type, 'Manual');
+      expect(draft.serialNumber, isEmpty); expect(draft.voltage, isEmpty);
+    }
+    for (final text in [json.substring(0,json.length-1), '$json\n$json', '[$json]',
+      '[$json] no es una ficha', jsonEncode({...pliers, 'quantity': 10}),
+      jsonEncode({...pliers}..remove('identified')), 'Es un alicate de corte diagonal.']) {
+      expect(() => aiDraftFromResponse(response(text), ['Manual']), throwsA(isA<AiPhotoException>()
+        .having((e) => e.code, 'code', 'format').having((e) => e.responseText, 'reply', text)));
+    }
+    expect(() => aiDraftFromResponse({'status': 'completed', 'output': []}, ['Manual']),
+      throwsA(isA<AiPhotoException>().having((e) => e.responseText, 'reply', isNull)));
+  });
+
+  test('Stream text is reconstructed only after completion, including done messages and refusals', () async {
+    final json = jsonEncode(draftData());
+    final chunks = [json.substring(0,20), json.substring(20,73), json.substring(73)];
+    final deltas = [for (final part in chunks)
+      <String, dynamic>{'type': 'response.output_text.delta', 'output_index': 1, 'content_index': 0, 'delta': part}];
+    final done = <String, dynamic>{'type': 'response.completed', 'response': {'status': 'completed', 'output': []}};
+    final result = await aiCompletedResponse(Stream.fromIterable([...deltas, done]));
+    expect(aiDraftFromResponse(result, ['Herramienta eléctrica']).serialNumber, '000123');
+    final snapshots = await aiCompletedResponse(Stream.fromIterable([
+      {'type': 'response.output_text.delta', 'output_index': 0, 'delta': 'partial'},
+      {'type': 'response.output_text.done', 'output_index': 0, 'text': json}, done]));
+    expect(aiResponseText(snapshots), json);
+    final message = await aiCompletedResponse(Stream.fromIterable([
+      {'type': 'response.output_item.done', 'output_index': 1, 'item': (completedPhoto()['output'] as List).single}, done]));
+    expect(aiResponseText(message), json);
+    final channels = await aiCompletedResponse(Stream.fromIterable([
+      {'type': 'response.output_item.added', 'output_index': 0, 'item': {'type': 'message', 'channel': 'commentary'}},
+      {'type': 'response.output_text.delta', 'output_index': 0, 'delta': 'Voy a revisar la foto.'},
+      ...deltas, done]));
+    expect(aiResponseText(channels), json);
+    final authoritative = await aiCompletedResponse(Stream.fromIterable([
+      ...deltas, {'type': 'response.completed', 'response': completedPhoto()}]));
+    expect(aiResponseText(authoritative), json);
+    for (final ending in <Map<String,dynamic>>[
+      {'type': 'response.failed', 'response': {'error': {'code': 'subscription_sharing_usage_limit_exceeded'}}},
+      {'type': 'response.incomplete', 'response': {'status': 'incomplete'}},
+    ]) {
+      await expectLater(aiCompletedResponse(Stream.fromIterable([...deltas, ending])), throwsA(isA<AiPhotoException>()));
+    }
+    await expectLater(aiCompletedResponse(Stream.fromIterable(deltas)),
+      throwsA(isA<AiPhotoException>().having((e) => e.code, 'code', 'incomplete')));
+    for (final refusal in [
+      <String, dynamic>{'type': 'response.refusal.done', 'refusal': 'No'},
+      <String, dynamic>{'type': 'response.output_item.done', 'output_index': 2,
+        'item': {'type': 'message', 'content': [{'type': 'refusal', 'refusal': 'No'}]}}
+    ]) {
+      await expectLater(aiCompletedResponse(Stream.fromIterable([...deltas, refusal, done])),
+        throwsA(isA<AiPhotoException>().having((e) => e.code, 'code', 'photo')));
+    }
+  });
+
   test('SSE handles UTF8/chunk boundaries and never accepts a partial stream', () async {
     final data = utf8.encode('event: response.completed\r\ndata: ${jsonEncode({'type': 'response.completed', 'response': completedPhoto()})}\r\n\r\n');
     final events = await aiSseEvents(Stream.fromIterable(data.map((byte) => [byte]))).toList();
@@ -129,6 +193,7 @@ void main() {
       request.response.headers.contentType = ContentType('text', 'event-stream', charset: 'utf-8');
       request.response.write('data: ${jsonEncode({'type': 'response.output_text.delta', 'delta': jsonEncode(draftData())})}\n\n');
       if (request.uri.path == '/completed') request.response.write('data: ${jsonEncode({'type': 'response.completed', 'response': completedPhoto()})}\n\n');
+      if (request.uri.path == '/stream-only') request.response.write('data: ${jsonEncode({'type': 'response.completed', 'response': {'status': 'completed', 'output': []}})}\n\n');
       if (request.uri.path == '/limit') request.response.write('data: ${jsonEncode({'type': 'response.failed', 'response': {'error': {'code': 'subscription_sharing_usage_limit_exceeded'}}})}\n\n');
       await request.response.close();
     });
@@ -138,11 +203,13 @@ void main() {
       final root = 'http://127.0.0.1:${server.port}';
       final result = await http.response(Uri.parse('$root/completed'), 'local-test-token', {'stream': true, 'store': false});
       expect(result['status'], 'completed');
+      final streamed = await http.response(Uri.parse('$root/stream-only'), 'local-test-token', {});
+      expect(aiDraftFromResponse(streamed, ['Herramienta eléctrica']).name, 'Taladro');
       await expectLater(http.response(Uri.parse('$root/interrupted'), 'local-test-token', {}),
         throwsA(isA<AiPhotoException>().having((e) => e.code, 'code', 'incomplete')));
       await expectLater(http.response(Uri.parse('$root/limit'), 'local-test-token', {}),
         throwsA(isA<AiPhotoException>().having((e) => e.code, 'code', 'limit')));
-      expect(requests, hasLength(3));
+      expect(requests, hasLength(4));
     } finally { http.cancel(); await subscription.cancel(); await server.close(force: true); }
   });
 
@@ -270,6 +337,25 @@ void main() {
     expect(find.text('Propuesta de ficha'), findsNothing);
     expect(find.text('Análisis cancelado. Puedes volver a intentarlo.'), findsOneWidget);
     expect(await tester.runAsync(() => ToolsDatabase.instance.loadTools()), isEmpty);
+  });
+
+  testWidgets('A format failure shows the completed reply without creating an article; another photo clears it', (tester) async {
+    const reply = 'Es un alicate de corte diagonal.';
+    await tester.pumpWidget(MaterialApp(home: AiPhotoPage(connection: ChatGptConnection(http: ModelsHttp()),
+      typeOptions: defaultFieldOptions('type'), picker: (_) async => XFile(photo.path),
+      analyzer: (_, _, _) async => throw const AiPhotoException('No se pudo preparar la ficha.', code: 'format', responseText: reply))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('ai_gallery'))); await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('ai_analyze')), 250);
+    await tester.tap(find.byKey(const ValueKey('ai_analyze'))); await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('ai_response')), 200);
+    await tester.tap(find.text('Ver respuesta de ChatGPT')); await tester.pumpAndSettle();
+    expect(find.text(reply), findsOneWidget); expect(find.text('Propuesta de ficha'), findsNothing);
+    expect(await tester.runAsync(() => ToolsDatabase.instance.loadTools()), isEmpty);
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('ai_gallery')), -250);
+    await tester.tap(find.byKey(const ValueKey('ai_gallery'))); await tester.pumpAndSettle();
+    expect(find.text('Ver respuesta de ChatGPT'), findsNothing); expect(find.text(reply), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('ChatGPT settings fit narrow screens and large text without exposing credentials', (tester) async {

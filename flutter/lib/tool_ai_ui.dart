@@ -156,6 +156,7 @@ class _AiPhotoPageState extends State<AiPhotoPage> {
   bool _loading = true, _busy = false;
   String? _error;
   String _errorCode = '';
+  String? _responseText;
   List<String> _types = [];
 
   @override
@@ -180,7 +181,7 @@ class _AiPhotoPageState extends State<AiPhotoPage> {
   }
 
   Future<void> _pick(ImageSource source) async {
-    setState(() { _busy = true; _error = null; _errorCode = ''; });
+    setState(() { _busy = true; _error = null; _errorCode = ''; _responseText = null; });
     try {
       final photo = await (widget.picker?.call(source) ?? ImagePicker().pickImage(
         source: source, imageQuality: 88, maxWidth: 1800, maxHeight: 1800, requestFullMetadata: false));
@@ -207,7 +208,7 @@ class _AiPhotoPageState extends State<AiPhotoPage> {
 
   Future<void> _run() async {
     if (_photo == null || _busy) return;
-    setState(() { _busy = true; _draft = null; _error = null; _errorCode = ''; });
+    setState(() { _busy = true; _draft = null; _error = null; _errorCode = ''; _responseText = null; });
     final http = AiHttp(); _analysisHttp = http;
     try {
       final draft = await (widget.analyzer ?? _analyze)(File(_photo!.path), _types, http);
@@ -215,6 +216,7 @@ class _AiPhotoPageState extends State<AiPhotoPage> {
     } catch (error) {
       if (mounted && identical(_analysisHttp, http)) setState(() {
         _error = aiErrorText(error); _errorCode = error is AiPhotoException ? error.code : '';
+        _responseText = error is AiPhotoException ? error.responseText : null;
       });
     } finally {
       http.cancel();
@@ -226,7 +228,7 @@ class _AiPhotoPageState extends State<AiPhotoPage> {
 
   void _cancel() {
     _analysisHttp?.cancel(); _analysisHttp = null;
-    setState(() { _busy = false; _error = 'Análisis cancelado. Puedes volver a intentarlo.'; });
+    setState(() { _busy = false; _responseText = null; _error = 'Análisis cancelado. Puedes volver a intentarlo.'; });
   }
 
   Future<void> _review() async {
@@ -292,6 +294,9 @@ class _AiPhotoPageState extends State<AiPhotoPage> {
         ],
         if (_error != null) Padding(padding: const EdgeInsets.symmetric(vertical: 12),
           child: Text(_error!, key: const ValueKey('ai_photo_error'), style: TextStyle(color: Theme.of(context).colorScheme.error))),
+        if (_responseText != null) ExpansionTile(key: const ValueKey('ai_response'), tilePadding: EdgeInsets.zero,
+          title: const Text('Ver respuesta de ChatGPT'),
+          children: [Padding(padding: const EdgeInsets.only(bottom: 16), child: SelectableText(_responseText!))]),
         if (_errorCode == 'limit') FilledButton(onPressed: withButtonFeedback(() async {
           try { await connection.openUsage(); } catch (error) { if (mounted) setState(() => _error = aiErrorText(error)); }
         }), child: const Text('Gestionar uso')),

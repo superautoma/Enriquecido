@@ -12,6 +12,10 @@ por separado; se muestran los modelos que ofrece la cuenta activa y un enlace
 para proyectos personales locales. Su disponibilidad y límites dependen del plan.
 
 La fotografía solo se envía a OpenAI cuando se pulsa «Analizar con ChatGPT».
+La app conserva el texto recibido por partes y espera la confirmación final antes
+de preparar la ficha. Acepta un único objeto JSON completo, incluso si viene en un
+bloque de texto. Si la respuesta no se puede convertir en ficha, «Ver respuesta de
+ChatGPT» permite leerla en esa pantalla; no se guarda ni se crea un artículo.
 La respuesta prepara nombre, tipo, descripción y datos de identificación que
 sean legibles. Los identificadores que no aparecen en el texto leído se dejan
 vacíos. La cantidad, el precio, la ubicación y la condición se revisan en el

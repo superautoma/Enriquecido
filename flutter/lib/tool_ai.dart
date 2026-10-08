@@ -6,9 +6,10 @@ const chatGptResource = 'https://api.openai.com/v1';
 const chatGptUsageUrl = 'https://chatgpt.com/#settings/Usage';
 
 class AiPhotoException implements Exception {
-  const AiPhotoException(this.message, {this.code = 'general'});
+  const AiPhotoException(this.message, {this.code = 'general', this.responseText});
   final String message;
   final String code;
+  final String? responseText;
   @override
   String toString() => message;
 }
@@ -60,6 +61,76 @@ Stream<Map<String, dynamic>> aiSseEvents(Stream<List<int>> bytes) async* {
     if (event is! Map<String, dynamic>) throw const FormatException('Invalid event');
     yield event;
   }
+}
+
+String aiResponseText(Map<String, dynamic> response) {
+  final texts = <String>[];
+  final output = response['output'];
+  if (output is List) {
+    for (final item in output.whereType<Map>()) {
+      if (item['type'] != 'message' || item['content'] is! List) continue;
+      for (final content in (item['content'] as List).whereType<Map>()) {
+        if (content['type'] == 'refusal') throw const AiPhotoException(
+          'ChatGPT no pudo analizar esta imagen. Prueba otra fotografía.', code: 'photo');
+        if (item['channel'] == 'analysis' || item['channel'] == 'commentary') continue;
+        if (content['type'] == 'output_text' && content['text'] is String) texts.add(content['text'] as String);
+      }
+    }
+  }
+  if (texts.isEmpty && response['output_text'] is String) return response['output_text'] as String;
+  return texts.join('\n');
+}
+
+/// Keep streamed message text, but publish it only after a successful terminal event.
+Future<Map<String, dynamic>> aiCompletedResponse(Stream<Map<String, dynamic>> events) async {
+  final items = <int, Map<String, dynamic>>{};
+  final texts = <int, Map<int, String>>{};
+  var refused = false;
+  await for (final event in events) {
+    final outputIndex = event['output_index'] is int ? event['output_index'] as int : 0;
+    final contentIndex = event['content_index'] is int ? event['content_index'] as int : 0;
+    switch (event['type']) {
+      case 'error': throw aiServiceError(event);
+      case 'response.failed': throw aiServiceError(event['response']);
+      case 'response.incomplete': throw const AiPhotoException('La propuesta quedó incompleta. Vuelve a analizar la foto.', code: 'incomplete');
+      case 'response.refusal.delta':
+      case 'response.refusal.done': refused = true;
+      case 'response.output_item.added':
+      case 'response.output_item.done':
+        final item = event['item'];
+        if (item is Map<String, dynamic>) items[outputIndex] = item;
+      case 'response.output_text.delta':
+      case 'response.output_text.done':
+        final value = event[event['type'] == 'response.output_text.done' ? 'text' : 'delta'];
+        if (value is! String) throw const FormatException('Invalid text event');
+        final parts = texts.putIfAbsent(outputIndex, () => <int, String>{});
+        final text = event['type'] == 'response.output_text.done' ? value : (parts[contentIndex] ?? '') + value;
+        if (text.length > 65536) throw const AiPhotoException('La respuesta de ChatGPT es demasiado larga.');
+        parts[contentIndex] = text;
+      case 'response.completed':
+        final completed = event['response'];
+        if (completed is! Map<String, dynamic> || completed['status'] != 'completed') {
+          throw const AiPhotoException('La propuesta quedó incompleta.', code: 'incomplete');
+        }
+        if (refused) throw const AiPhotoException('ChatGPT no pudo analizar esta imagen. Prueba otra fotografía.', code: 'photo');
+        // The terminal snapshot is authoritative when it contains an answer or refusal.
+        if (aiResponseText(completed).trim().isNotEmpty) return completed;
+        final indexes = {...items.keys, ...texts.keys}.toList()..sort();
+        final output = <Map<String, dynamic>>[];
+        for (final index in indexes) {
+          final item = items[index] ?? <String, dynamic>{'type': 'message', 'role': 'assistant'};
+          if (item['type'] != 'message') continue;
+          final snapshot = aiResponseText({'output': [item]});
+          if (snapshot.trim().isNotEmpty) { output.add(item); continue; }
+          final parts = texts[index];
+          if (parts == null) { output.add(item); continue; }
+          final order = parts.keys.toList()..sort();
+          output.add({...item, 'content': [for (final i in order) {'type': 'output_text', 'text': parts[i]}]});
+        }
+        return {...completed, 'output': output};
+    }
+  }
+  throw const AiPhotoException('La conexión se interrumpió antes de terminar la propuesta.', code: 'incomplete');
 }
 
 class AiHttp {
@@ -133,20 +204,7 @@ class AiHttp {
           try { error = jsonDecode(utf8.decode(bytes)); } on FormatException { /* Use status only. */ }
           throw aiServiceError(error, response.statusCode);
         }
-        await for (final event in aiSseEvents(response)) {
-          switch (event['type']) {
-            case 'error': throw aiServiceError(event);
-            case 'response.failed': throw aiServiceError(event['response']);
-            case 'response.incomplete': throw const AiPhotoException('La propuesta quedó incompleta. Vuelve a analizar la foto.', code: 'incomplete');
-            case 'response.completed':
-              final completed = event['response'];
-              if (completed is! Map<String, dynamic> || completed['status'] != 'completed') {
-                throw const AiPhotoException('La propuesta quedó incompleta.', code: 'incomplete');
-              }
-              return completed;
-          }
-        }
-        throw const AiPhotoException('La conexión se interrumpió antes de terminar la propuesta.', code: 'incomplete');
+        return aiCompletedResponse(aiSseEvents(response));
       }
       return await send().timeout(const Duration(seconds: 90));
     } on AiPhotoException { rethrow; }
@@ -514,9 +572,12 @@ Map<String, dynamic> aiPhotoRequest(String model, Uint8List bytes, String mime, 
       'No deduzcas modelo exacto, marca, número de serie o tensión por el aspecto. '
       'Deja como cadena vacía todo dato ilegible o desconocido. No inventes cantidad, precio, ubicación, estado, código de barras ni datos de internet. '
       'Selecciona type entre las categorías proporcionadas, o vacío si hay duda. '
-      'warnings contiene dudas concretas y breves, sin porcentajes de confianza. Devuelve solo la ficha JSON solicitada.',
+      'warnings contiene dudas concretas y breves, sin porcentajes de confianza. '
+      'Devuelve exactamente un objeto JSON que cumpla el esquema adjunto. Sin Markdown, bloques de código ni comentarios antes o después.',
     'input': [{'role': 'user', 'content': [
-      {'type': 'input_text', 'text': 'Prepara la propuesta de ficha para el artículo de la fotografía.'},
+      {'type': 'input_text', 'text': 'Prepara la propuesta de ficha para el artículo de la fotografía. '
+        'Incluye todos los campos de este esquema JSON, usando cadenas vacías para los datos desconocidos y un array para warnings: '
+        '${jsonEncode({'type': 'object', 'properties': properties, 'required': properties.keys.toList(), 'additionalProperties': false})}'},
       {'type': 'input_image', 'image_url': 'data:$mime;base64,${base64Encode(bytes)}', 'detail': 'high'},
     ]}],
     'text': {'format': {'type': 'json_schema', 'name': 'tool_photo_draft', 'strict': true,
@@ -525,20 +586,36 @@ Map<String, dynamic> aiPhotoRequest(String model, Uint8List bytes, String mime, 
 }
 
 AiToolDraft aiDraftFromResponse(Map<String, dynamic> response, List<String> types) {
-  if (response['status'] != 'completed' || response['output'] is! List) throw const AiPhotoException('La propuesta no se completó.', code: 'incomplete');
-  final texts = <String>[];
-  for (final item in (response['output'] as List).whereType<Map>()) {
-    if (item['type'] != 'message' || item['content'] is! List) continue;
-    for (final content in (item['content'] as List).whereType<Map>()) {
-      if (content['type'] == 'refusal') throw const AiPhotoException('ChatGPT no pudo analizar esta imagen. Prueba otra fotografía.', code: 'photo');
-      if (content['type'] == 'output_text' && content['text'] is String) texts.add(content['text'] as String);
-    }
-  }
+  if (response['status'] != 'completed') throw const AiPhotoException('La propuesta no se completó.', code: 'incomplete');
+  final text = aiResponseText(response).replaceFirst(RegExp(r'^\uFEFF'), '').trim();
+  if (text.isEmpty) throw const AiPhotoException('ChatGPT terminó sin devolver una propuesta. Vuelve a analizar la foto.', code: 'format');
+  final preview = text.length > 16000 ? '${text.substring(0,16000)}\n…' : text;
   try {
-    final data = jsonDecode(texts.join());
+    if (text.length > 65536) throw const FormatException('Draft too long');
+    Object? data;
+    try { data = jsonDecode(text); }
+    on FormatException {
+      // Some account models wrap JSON in Markdown or a short introduction.
+      // Extract one whole object; never repair missing data or partial JSON.
+      final start = text.indexOf('{'), end = text.lastIndexOf('}');
+      if (start < 0 || end < start || RegExp(r'[{}\[\]]').hasMatch(text.substring(0,start) + text.substring(end+1))) {
+        rethrow;
+      }
+      data = jsonDecode(text.substring(start,end+1));
+    }
     if (data is! Map<String, dynamic>) throw const FormatException('Invalid draft');
+    const fields = {'identified', 'name', 'description', 'type', 'brand', 'model', 'serialNumber', 'voltage', 'labelText', 'warnings'};
+    if (data.keys.toSet().difference(fields).isNotEmpty || fields.difference(data.keys.toSet()).isNotEmpty) {
+      throw const FormatException('Invalid fields');
+    }
     return AiToolDraft.fromMap(data, types);
-  } on FormatException { throw const AiPhotoException('La propuesta no tiene un formato válido. Vuelve a analizar la foto.', code: 'format'); }
+  } on FormatException {
+    throw AiPhotoException('ChatGPT ha respondido, pero no se pudo preparar la ficha. Puedes ver la respuesta y volver a intentarlo.',
+      code: 'format', responseText: preview);
+  } on AiPhotoException catch (error) {
+    if (error.code != 'format') rethrow;
+    throw AiPhotoException(error.message, code: error.code, responseText: preview);
+  }
 }
 
 String aiImageMime(Uint8List bytes) {
