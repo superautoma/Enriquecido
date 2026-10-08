@@ -93,3 +93,26 @@ La importación reasigna los identificadores y todos sus enlaces dentro de una t
 El mismo ZIP, identificado por SHA-256 de sus bytes, se importa una sola vez, aunque se cambie su nombre. Ese historial se guarda en management_settings y viaja con las copias completas. Una copia distinta se considera una nueva importación. Ante una copia incompleta o una operación fallida, no se conservan inserciones parciales y se retiran los archivos nuevos de ese intento. Las copias antiguas se actualizan solamente en el directorio temporal.
 
 «Restaurar y sustituir» conserva su función de recuperación completa y explica que sustituye el inventario. Para unir bases se utiliza «Importar y añadir».
+
+## Edición de varias herramientas
+
+En «Mis herramientas», «Seleccionar varias» permite marcar fichas en tarjetas,
+lista o cuadrícula. «Seleccionar resultados» añade solamente los resultados de
+la búsqueda y filtros actuales. Cambiar la búsqueda conserva las selecciones
+anteriores e indica cuántas quedan fuera de los resultados.
+
+«Editar seleccionadas» permite aplicar un valor común a nombre, descripción con
+formato, tipo, estado, tensión, marca, modelo, ubicación, cantidad, unidad,
+stock mínimo, precio, fuera de servicio y notas de servicio. Cada campo debe
+marcarse expresamente; los demás se conservan. Un campo opcional marcado y vacío
+se borra. Antes de guardar se revisan los campos, valores y herramientas afectados.
+Cancelar la revisión no cambia los datos.
+
+Todos los cambios se guardan en una sola transacción. Si una ficha ha cambiado
+en alguno de los campos elegidos, está en la papelera o infringe las reglas de
+stock y préstamos, no se aplica ningún cambio. Los préstamos activos protegen
+el estado y unidad, y la cantidad nunca puede bajar de las unidades prestadas.
+Un conjunto con piezas mantiene cantidad 1. Préstamos, fotos, documentos,
+códigos, números de serie y pertenencia a conjuntos se gestionan en cada ficha.
+La edición múltiple conserva identificadores e historiales y no cambia el
+esquema de la base de datos.

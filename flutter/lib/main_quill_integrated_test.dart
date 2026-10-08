@@ -34,6 +34,7 @@ part 'backup_import_ui.dart';
 part 'button_feedback.dart';
 part 'tool_ai.dart';
 part 'tool_ai_ui.dart';
+part 'tool_bulk_edit.dart';
 
 void main() {
   runApp(const GestorHerramientasApp());
@@ -2959,6 +2960,8 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
   ];
 
   final List<ToolItem> _items = [];
+  final Set<int> _bulkSelection = {};
+  bool _selectingTools = false;
   InventoryPreferences _inventoryPreferences = const InventoryPreferences();
   InventoryFacts _inventoryFacts = InventoryFacts([]);
   Future<void> _preferencesWrite = Future<void>.value();
@@ -3006,6 +3009,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
           ..clear()
           ..addAll(items);
         _inventoryFacts = facts;
+        _bulkSelection.retainAll(items.map((item) => item.id));
         _inventoryPreferences = preferences;
         _refreshing = false;
         _conditionOptions = conditionOptions.isEmpty
@@ -3164,6 +3168,18 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
   Future<void> _openTrash() async {
     await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ToolTrashPage()));
     if (mounted) await _loadItems();
+  }
+
+  Future<void> _editSelectedTools() async {
+    final selected = _items.where((item) => _bulkSelection.contains(item.id)).toList();
+    if (selected.isEmpty) return;
+    final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(
+      builder: (_) => BulkEditToolsPage(items: selected.map((item) => item.copy()).toList())));
+    if (!mounted || changed != true) return;
+    setState(() { _bulkSelection.clear(); _selectingTools = false; });
+    await _loadItems();
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${selected.length} herramientas actualizadas')));
   }
 
   Future<void> _openLoans() async {
@@ -3419,6 +3435,28 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       body: SafeArea(
         child: Column(
           children: [
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                TextButton.icon(key: const ValueKey('bulk_select'),
+                  onPressed: withButtonFeedback(() => setState(() {
+                    _selectingTools = !_selectingTools;
+                    _bulkSelection.clear();
+                  })), icon: Icon(_selectingTools ? Icons.close : Icons.checklist),
+                  label: Text(_selectingTools ? 'Cancelar selección' : 'Seleccionar varias')),
+                if (_selectingTools) ...[
+                  Text('${_bulkSelection.length} seleccionadas'),
+                  if (_bulkSelection.difference(visible.map((item) => item.id).toSet()).isNotEmpty)
+                    Text('${_bulkSelection.difference(visible.map((item) => item.id).toSet()).length} fuera de los resultados'),
+                  TextButton(onPressed: withButtonFeedback(() => setState(() {
+                    _bulkSelection.addAll(visible.map((item) => item.id));
+                  })), child: const Text('Seleccionar resultados')),
+                  TextButton(onPressed: withButtonFeedback(() => setState(_bulkSelection.clear)),
+                    child: const Text('Quitar selección')),
+                  FilledButton.icon(key: const ValueKey('bulk_edit'),
+                    onPressed: withButtonFeedback(_bulkSelection.isEmpty ? null : _editSelectedTools),
+                    icon: const Icon(Icons.edit_outlined), label: const Text('Editar seleccionadas')),
+                ],
+              ])),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
               child: TextField(
@@ -3469,6 +3507,10 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                   child: const Text('Limpiar filtros')))),
             Expanded(child: InventoryResults(items: visible, view: _inventoryPreferences.view,
               facts: _inventoryFacts, conditionOptions: _conditionOptions,
+              selecting: _selectingTools, selectedIds: _bulkSelection,
+              onSelect: (item) => setState(() {
+                if (!_bulkSelection.add(item.id)) _bulkSelection.remove(item.id);
+              }),
               onOpen: (item) => _openEditor(item: item), onRefresh: _loadItems,
               onClear: _clearInventoryFilters,
               hasFilters: _inventoryPreferences.filterCount > 0 || _query.isNotEmpty)),

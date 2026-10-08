@@ -129,7 +129,9 @@ class _InventoryFilterSheetState extends State<InventoryFilterSheet> {
 
 class InventoryToolTile extends StatelessWidget {
   const InventoryToolTile({super.key, required this.item, required this.facts,
-    required this.conditionOptions, required this.onTap, this.view = InventoryView.cards});
+    required this.conditionOptions, required this.onTap, this.view = InventoryView.cards,
+    this.selecting = false, this.selected = false});
+  final bool selecting, selected;
   final ToolItem item;
   final InventoryFacts facts;
   final List<FieldOption> conditionOptions;
@@ -188,12 +190,14 @@ class InventoryToolTile extends StatelessWidget {
           maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Color(0xFFB76E00))),
       ],
     ]);
-    return Material(color: Colors.white, borderRadius: BorderRadius.circular(14),
+    final picture = selecting ? Checkbox(value: selected,
+      onChanged: withControlFeedback((_) => onTap())) : _picture(compact ? 38 : 52);
+    return Material(color: selected ? const Color(0xFFEAF4FE) : Colors.white, borderRadius: BorderRadius.circular(14),
       child: InkWell(enableFeedback: false, borderRadius: BorderRadius.circular(14), onTap: withButtonFeedback(onTap),
         child: Padding(padding: EdgeInsets.all(compact ? 10 : 12), child: grid ?
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Center(child: _picture(78)), const SizedBox(height: 10), details]) :
-          Row(children: [_picture(compact ? 38 : 52), SizedBox(width: compact ? 10 : 12),
+            Center(child: selecting ? picture : _picture(78)), const SizedBox(height: 10), details]) :
+          Row(children: [picture, SizedBox(width: compact ? 10 : 12),
             Expanded(child: details), const Icon(Icons.chevron_right, size: 20, color: Color(0xFF9AA0A6))]))));
   }
 }
@@ -201,7 +205,11 @@ class InventoryToolTile extends StatelessWidget {
 class InventoryResults extends StatelessWidget {
   const InventoryResults({super.key, required this.items, required this.view,
     required this.facts, required this.conditionOptions, required this.onOpen,
-    required this.onRefresh, required this.onClear, this.hasFilters = false});
+    required this.onRefresh, required this.onClear, this.hasFilters = false,
+    this.selecting = false, this.selectedIds = const {}, this.onSelect});
+  final bool selecting;
+  final Set<int> selectedIds;
+  final ValueChanged<ToolItem>? onSelect;
   final List<ToolItem> items;
   final InventoryView view;
   final InventoryFacts facts;
@@ -213,7 +221,8 @@ class InventoryResults extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget tile(int index) => InventoryToolTile(item: items[index], facts: facts, view: view,
-      conditionOptions: conditionOptions, onTap: () => onOpen(items[index]));
+      selecting: selecting, selected: selectedIds.contains(items[index].id),
+      conditionOptions: conditionOptions, onTap: () => selecting ? onSelect?.call(items[index]) : onOpen(items[index]));
     Widget results;
     if (items.isEmpty) {
       results = ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(24),
