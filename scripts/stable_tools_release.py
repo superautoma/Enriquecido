@@ -113,6 +113,20 @@ def plan(api, build_number, confirmed, dry_run):
     }
 
 
+def signer_digest(certificate_output):
+    # apksigner may list the same certificate for several Android SDK ranges.
+    # Source Stamp certificates are not APK signing certificates.
+    digests = re.findall(
+        r'^Signer (?:#[1-9][0-9]*|\(minSdkVersion=[^\r\n]+\))'
+        r' certificate SHA-256 digest:[ \t]*([0-9a-fA-F]{64})[ \t]*$',
+        certificate_output, flags=re.MULTILINE)
+    unique = {digest.lower() for digest in digests}
+    if len(unique) != 1:
+        raise RuntimeError('La firma de la APK no se pudo verificar: '
+                           'se esperaba un unico certificado de firma')
+    return unique.pop()
+
+
 def verify_apk(api, info, directory):
     apks = list(Path(directory).rglob('*.apk'))
     if len(apks) != 1 or apks[0].name != 'app-release.apk':
@@ -124,10 +138,8 @@ def verify_apk(api, info, directory):
         raise RuntimeError('No se encontro apksigner para verificar la APK')
     signer = max(signers, key=lambda p: tuple(int(n) for n in re.findall(r'\d+', p.parent.name)))
     certificate = command(str(signer), 'verify', '--print-certs', str(apk))
-    digests = re.findall(r'^Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]{64})$',
-                         certificate, flags=re.MULTILINE)
-    if len(digests) != 1:
-        raise RuntimeError('La firma de la APK no se pudo verificar')
+    print('Resultado de apksigner:\n' + certificate)
+    digest = signer_digest(certificate)
     if tag_commit(api, 'gestor-herramientas-v101') != BASELINE_COMMIT:
         raise ValueError('La referencia V101 ha cambiado; se cancela')
     key = api.get('contents/.github/dev-signing/android-debug.keystore.b64?ref=' + BASELINE_COMMIT)
@@ -142,7 +154,7 @@ def verify_apk(api, info, directory):
             'keytool', '-exportcert', '-keystore', str(key_path),
             '-storepass', 'android', '-alias', 'androiddebugkey'])
     expected = hashlib.sha256(cert).hexdigest()
-    if digests[0].lower() != expected:
+    if digest != expected:
         raise ValueError('La APK no tiene la firma estable de V101')
     aapt = signer.parent / 'aapt'
     package = command(str(aapt), 'dump', 'badging', str(apk))

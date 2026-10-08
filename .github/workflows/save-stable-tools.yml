@@ -8,6 +8,7 @@ on:
       - '.github/workflows/save-stable-tools.yml'
       - 'scripts/stable_tools_release.py'
       - 'scripts/test_stable_tools_release.py'
+      - '.github/stable-tools-request.json'
   workflow_dispatch:
     inputs:
       build_number:
@@ -45,7 +46,7 @@ jobs:
         run: python3 -m unittest discover -s scripts -p 'test_stable_tools_release.py' -v
 
   save:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[save-stable]'))
     needs: tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -61,6 +62,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Read the confirmed stable-version request
+        if: github.event_name == 'push'
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          request = json.loads(Path('.github/stable-tools-request.json').read_text())
+          number = request['build_number']
+          if not isinstance(number, str) or not re.fullmatch(r'[1-9][0-9]*', number):
+              raise ValueError('Invalid build number')
+          if request['confirmed'] is not True or not isinstance(request['dry_run'], bool):
+              raise ValueError('A tested APK must be explicitly confirmed')
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write('BUILD_NUMBER=' + number + '\n')
+              output.write('CONFIRMED=true\n')
+              output.write('DRY_RUN=' + str(request['dry_run']).lower() + '\n')
+          PY
       - name: Identify the tested APK and its exact source commit
         id: plan
         run: python3 scripts/stable_tools_release.py plan

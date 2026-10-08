@@ -28,6 +28,13 @@ version antes de que caduque su artefacto. Si ya ha caducado, el proceso se
 detiene: una nueva compilacion no sustituye el binario que se probo.
 Las publicaciones conservan los archivos hasta que alguien los elimine.
 
+Cuando Pedro confirme una APK en el chat, Codex puede guardar el numero exacto
+en `.github/stable-tools-request.json` con `confirmed: true` y `dry_run: false`,
+y publicar ese cambio con `[save-stable]` en el mensaje de commit. Ese cambio
+activa el mismo guardado, sin volver a rellenar el formulario. Los cambios sin
+ese marcador ejecutan solo las pruebas. Nunca confirmar automaticamente una
+APK que Pedro no haya validado.
+
 ## Verificar sin guardar
 
 Dejar marcada **Solo comprobar, sin guardar ni publicar**. Se ejecutan las

@@ -162,6 +162,32 @@ class StableReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'una sola APK'):
                 release.verify_apk(self.api, self.plan(), directory)
 
+    def test_reads_legacy_signer_output(self):
+        digest = 'ab' * 32
+        output = f'Signer #1 certificate SHA-256 digest: {digest}\n'
+        self.assertEqual(release.signer_digest(output), digest)
+
+    def test_reads_signer_certificates_for_sdk_ranges_and_dev_releases(self):
+        digest = 'ab' * 32
+        output = (
+            f'Signer (minSdkVersion=24, maxSdkVersion=32) certificate SHA-256 digest: {digest}\n'
+            f'Signer (minSdkVersion=33 (dev release=true), maxSdkVersion=2147483647) '
+            f'certificate SHA-256 digest: {digest.upper()}\n'
+            f'Source Stamp Signer certificate SHA-256 digest: {"cd" * 32}\n')
+        self.assertEqual(release.signer_digest(output), digest)
+
+    def test_reads_duplicate_digest_without_accepting_different_certificates(self):
+        output = f'Signer #1 certificate SHA-256 digest: {"ab" * 32}\n'
+        self.assertEqual(release.signer_digest(output * 2), 'ab' * 32)
+        with self.assertRaises(RuntimeError):
+            release.signer_digest(output + f'Signer #2 certificate SHA-256 digest: {"cd" * 32}\n')
+
+    def test_does_not_accept_stamp_only_or_malformed_certificate(self):
+        for output in ['Source Stamp Signer certificate SHA-256 digest: ' + 'ab' * 32,
+                       'Signer #1 certificate SHA-256 digest: 1234', 'DOES NOT VERIFY']:
+            with self.subTest(output=output), self.assertRaises(RuntimeError):
+                release.signer_digest(output)
+
 
 if __name__ == '__main__':
     unittest.main()
