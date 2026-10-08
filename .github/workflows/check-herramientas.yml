@@ -116,7 +116,17 @@ jobs:
               print('No matching compiled APK is available; run the APK build workflow first')
           PY
       - name: Download the existing APK
+        id: apk_download
         if: steps.apk.outputs.ready == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: gestor-quill-integrado-apk
+          path: flutter/build/app/outputs/flutter-apk
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.apk.outputs.run_id }}
+      - name: Retry APK download after a transfer failure
+        if: steps.apk.outputs.ready == 'true' && steps.apk_download.outcome == 'failure'
         uses: actions/download-artifact@v4
         with:
           name: gestor-quill-integrado-apk

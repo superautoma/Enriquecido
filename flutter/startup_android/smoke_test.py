@@ -21,6 +21,22 @@ def screenshot(name):
     (output / name).write_bytes(adb("exec-out", "screencap", "-p"))
 
 
+def save_failure_diagnostics(error_type, error, traceback):
+    # Retain native startup errors when a screen never becomes accessible.
+    for name, command in [
+        ('failure-logcat.txt', ('logcat', '-d')),
+        ('failure-activities.txt', ('shell', 'dumpsys', 'activity', 'activities')),
+    ]:
+        try:
+            (output / name).write_bytes(adb(*command))
+        except subprocess.SubprocessError:
+            pass
+    sys.__excepthook__(error_type, error, traceback)
+
+
+sys.excepthook = save_failure_diagnostics
+
+
 def wait_for(label, exclude_class=None, timeout=120, prefer_exact=False):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
