@@ -166,6 +166,8 @@ if '--feedback-only' in sys.argv:
     (output / 'feedback-permissions.txt').write_text(permissions)
     assert re.search(r'android\.permission\.VIBRATE:\s*granted=true', permissions), \
         'The installed APK must have the normal VIBRATE permission'
+    installed_version = re.search(r'\bversionCode=(\d+)', permissions)
+    assert installed_version, 'The installed APK version must be available'
 
     def direct_vibrations(name):
         dump = adb('shell', 'dumpsys', service).decode()
@@ -211,6 +213,7 @@ if '--feedback-only' in sys.argv:
     scroll_tap('Comprobar de nuevo')
     wait_for('Motor de vibración detectado.' if has_vibrator
              else 'Este dispositivo no tiene motor de vibración disponible.')
+    wait_for(f'Versión instalada: {installed_version[1]}')
     screenshot('feedback-hardware-status.png')
     adb('logcat', '-c')
     scroll_tap('Probar vibración (1 segundo)')
