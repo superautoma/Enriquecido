@@ -30,6 +30,82 @@ class _SvgAdvancedPageState extends State<SvgAdvancedPage> {
   int? _pointer;
   Offset? _pointerStart;
   bool _pointerMoved = false;
+  final _cameraPointers = <int, Offset>{};
+  Matrix4 _cameraStart = Matrix4.identity();
+  Offset _cameraFocal = Offset.zero;
+  double _cameraDistance = 1, _cameraScale = 1;
+
+  Offset get _cameraCenter =>
+      _cameraPointers.values.fold(Offset.zero, (a, b) => a + b) /
+      _cameraPointers.length.toDouble();
+  void _rebaseCamera() {
+    if (_cameraPointers.isEmpty) return;
+    _cameraStart = Matrix4.copy(_view.value);
+    _cameraFocal = _cameraCenter;
+    _cameraScale = math.sqrt(
+      math.pow(_view.value.entry(0, 0), 2) +
+          math.pow(_view.value.entry(1, 0), 2),
+    );
+    _cameraDistance = _cameraPointers.length < 2
+        ? 1
+        : math.max(
+            1,
+            (_cameraPointers.values.first - _cameraPointers.values.last)
+                .distance,
+          );
+  }
+
+  Widget _cameraView(Widget surface) => RawGestureDetector(
+    gestures: {
+      EagerGestureRecognizer:
+          GestureRecognizerFactoryWithHandlers<EagerGestureRecognizer>(
+            EagerGestureRecognizer.new,
+            (_) {},
+          ),
+    },
+    child: Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (e) {
+        if (_cameraPointers.length >= 2) return;
+        _cameraPointers[e.pointer] = e.localPosition;
+        _rebaseCamera();
+      },
+      onPointerMove: (e) {
+        if (!_cameraPointers.containsKey(e.pointer)) return;
+        _cameraPointers[e.pointer] = e.localPosition;
+        final center = _cameraCenter;
+        final ratio = _cameraPointers.length < 2
+            ? 1.0
+            : ((_cameraPointers.values.first - _cameraPointers.values.last)
+                          .distance /
+                      _cameraDistance)
+                  .clamp(.5 / _cameraScale, 8 / _cameraScale);
+        _view.value = Matrix4.translationValues(center.dx, center.dy, 0)
+          ..multiply(Matrix4.diagonal3Values(ratio, ratio, 1))
+          ..multiply(
+            Matrix4.translationValues(-_cameraFocal.dx, -_cameraFocal.dy, 0),
+          )
+          ..multiply(_cameraStart);
+      },
+      onPointerUp: (e) {
+        _cameraPointers.remove(e.pointer);
+        _rebaseCamera();
+      },
+      onPointerCancel: (e) {
+        _cameraPointers.remove(e.pointer);
+        _rebaseCamera();
+      },
+      child: InteractiveViewer(
+        transformationController: _view,
+        panEnabled: false,
+        scaleEnabled: false,
+        minScale: .5,
+        maxScale: 8,
+        boundaryMargin: const EdgeInsets.all(320),
+        child: surface,
+      ),
+    ),
+  );
   SvgVectorHandle? _dragHandle;
   final _form = GlobalKey<FormState>();
   @override
@@ -476,20 +552,14 @@ class _SvgAdvancedPageState extends State<SvgAdvancedPage> {
           ),
         ),
       );
-      // Editing gets its own gesture arena; the viewer handles gestures only in
-      // Vista mode. Keep its matrix when switching so zoom never changes geometry.
+      // Canvas gestures take priority over the surrounding scroll view.
+      // Keep the camera matrix when switching modes; it never changes geometry.
       return Center(
         child: SizedBox.square(
           key: const ValueKey('advanced_canvas'),
           dimension: size,
           child: _mode == 'Vista'
-              ? InteractiveViewer(
-                  transformationController: _view,
-                  minScale: .5,
-                  maxScale: 8,
-                  boundaryMargin: const EdgeInsets.all(320),
-                  child: surface,
-                )
+              ? _cameraView(surface)
               : ClipRect(
                   child: Transform(
                     transform: _view.value,
@@ -567,6 +637,9 @@ class _SvgAdvancedPageState extends State<SvgAdvancedPage> {
                 selected: _mode == mode,
                 onSelected: withControlFeedback(
                   (_) => setState(() {
+                    _end(cancel: true);
+                    _cameraPointers.clear();
+                    _pointer = null;
                     _mode = mode;
                     _handle = null;
                   }),

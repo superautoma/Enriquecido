@@ -310,4 +310,80 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets(
+    'Vista pans vertically and pinches with scale limits without editing SVG',
+    (tester) async {
+      await launch(tester, (_) {});
+      await tapVisible(tester, find.widgetWithText(ChoiceChip, 'Vista'));
+      final canvas = find.byKey(const ValueKey('advanced_canvas'));
+      await tester.ensureVisible(canvas);
+      await tester.pumpAndSettle();
+      String rendered() =>
+          (tester
+                      .widget<SvgPicture>(
+                        find.descendant(
+                          of: canvas,
+                          matching: find.byType(SvgPicture),
+                        ),
+                      )
+                      .bytesLoader
+                  as SvgStringLoader)
+              .provideSvg(null);
+      final original = rendered();
+      final controller = tester
+          .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+          .transformationController!;
+      await tester.drag(canvas, const Offset(0, 40));
+      await tester.pumpAndSettle();
+      expect(controller.value.getTranslation().y, closeTo(40, .01));
+      final center = tester.getCenter(canvas);
+      final a = await tester.startGesture(
+            center - const Offset(30, 0),
+            pointer: 1,
+          ),
+          b = await tester.startGesture(
+            center + const Offset(30, 0),
+            pointer: 2,
+          );
+      await a.moveTo(center - const Offset(50, 0));
+      await b.moveTo(center + const Offset(50, 0));
+      await tester.pump();
+      await a.moveTo(center - const Offset(70, 0));
+      await b.moveTo(center + const Offset(70, 0));
+      await tester.pump();
+      expect(controller.value.entry(0, 0), greaterThan(1.5));
+      await a.moveTo(center - const Offset(2000, 0));
+      await b.moveTo(center + const Offset(2000, 0));
+      await tester.pump();
+      expect(controller.value.entry(0, 0), closeTo(8, .001));
+      await a.moveTo(center - const Offset(.1, 0));
+      await b.moveTo(center + const Offset(.1, 0));
+      await tester.pump();
+      expect(controller.value.entry(0, 0), closeTo(.5, .001));
+      await a.up();
+      await b.up();
+      await tester.pumpAndSettle();
+      final c = await tester.startGesture(
+        center - const Offset(30, 0),
+        pointer: 3,
+      );
+      final d = await tester.startGesture(
+        center + const Offset(30, 0),
+        pointer: 4,
+      );
+      await c.moveTo(center - const Offset(1, 0));
+      await d.moveTo(center + const Offset(1, 0));
+      await tester.pump();
+      expect(controller.value.entry(0, 0), closeTo(.5, .001));
+      await c.up();
+      await d.up();
+      await tester.pumpAndSettle();
+      expect(rendered(), original);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.text('¿Descartar edición avanzada?'), findsNothing);
+      expect(await tester.runAsync(() => docs.list().toList()), isEmpty);
+    },
+  );
 }
