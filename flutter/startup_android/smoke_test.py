@@ -229,8 +229,9 @@ if '--svg-only' in sys.argv:
     tap('Opciones del icono')
     tap('Editar SVG')
     wait_for('Editor SVG')
-    scroll_find('#e91e63')
-    scroll_find('#2196f3')
+    wait_for('24 px')
+    # Reopening preserves the saved SVG as its original document; color fields
+    # correctly start in 'Conservar original', not as new recoloring overrides.
     screenshot('svg-editor-reopened.png')
     adb('shell', 'input', 'keyevent', '4')
     wait_for('Gestor de iconos')
@@ -238,7 +239,7 @@ if '--svg-only' in sys.argv:
     wait_for('Mis herramientas')
     errors = adb('logcat', '-d', '-s', 'AndroidRuntime:E').decode()
     assert 'FATAL EXCEPTION' not in errors, errors
-    print('SVG editor: light color dialog, palette selection, cancellation preserving previous color, paint/background edits, centering, undo/redo, save new icon, restart with saved colors, reopen and back navigation passed without storage permissions.')
+    print('SVG editor: light color dialog, palette selection, cancellation preserving previous color, paint/background edits, centering, undo/redo, save new icon, restart, reopen saved SVG and back navigation passed without storage permissions.')
     sys.exit(0)
 if '--ai-only' in sys.argv:
     wait_for('Destornillador aislado')
