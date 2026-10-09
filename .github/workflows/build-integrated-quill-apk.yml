@@ -9,6 +9,7 @@ on:
       - prestamos-herramientas
       - desarrollo-edicion-multiple
       - desarrollo-editor-svg
+      - mejora-selector-colores
     paths:
       - "flutter/lib/**"
       - "flutter/test/**"
