@@ -193,9 +193,11 @@ if '--svg-only' in sys.argv:
     adb('shell', 'input', 'keyevent', '4')
     # Exercise the integrated dialog, not the legacy quick swatches.
     scroll_tap('Elegir color: Relleno')
-    wait_for('Tonalidades')
+    wait_for('Color: Relleno')
     screenshot('svg-color-selector.png')
     tap('Color #e91e63')
+    scroll_find('Tonalidades')
+    screenshot('svg-color-tonalities.png')
     tap('Seleccionar')
     wait_for('#e91e63')
     scroll_tap('Elegir color: Relleno')
