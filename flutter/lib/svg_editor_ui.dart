@@ -1,5 +1,260 @@
 part of 'main_quill_integrated_test.dart';
 
+/// A cancelled dialog returns null; a confirmed original is represented by ''.
+Future<String?> showSvgColorSelector(
+  BuildContext context, {
+  required String title,
+  String? initialValue,
+}) => showDialog<String>(
+  context: context,
+  builder: (_) => SvgColorSelector(title: title, initialValue: initialValue),
+);
+
+class SvgColorSelector extends StatefulWidget {
+  final String title;
+  final String? initialValue;
+  const SvgColorSelector({super.key, required this.title, this.initialValue});
+  @override
+  State<SvgColorSelector> createState() => _SvgColorSelectorState();
+}
+
+class _SvgColorSelectorState extends State<SvgColorSelector> {
+  static const palette = [
+    '#f44336',
+    '#e91e63',
+    '#ff2491',
+    '#9c27b0',
+    '#673ab7',
+    '#3f51b5',
+    '#2196f3',
+    '#03a9f4',
+    '#00bcd4',
+    '#009688',
+    '#4caf50',
+    '#8bc34a',
+    '#cddc39',
+    '#ffeb3b',
+    '#ffc107',
+    '#ff9800',
+    '#795548',
+    '#607d8b',
+    '#9e9e9e',
+    '#000000',
+    '#ffffff',
+  ];
+  late String _selected;
+  late Color _family;
+  late TextEditingController _hex;
+  final _form = GlobalKey<FormState>();
+  bool _custom = false;
+  Color _color(String hex) =>
+      Color(int.parse('ff${hex.substring(1)}', radix: 16));
+  String _code(Color color) =>
+      '#${(color.toARGB32() & 0xffffff).toRadixString(16).padLeft(6, '0')}';
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.initialValue ?? '';
+    _family = _selected.startsWith('#')
+        ? _color(_selected)
+        : const Color(0xff009688);
+    _hex = TextEditingController(
+      text: _selected.startsWith('#') ? _selected : _code(_family),
+    );
+  }
+
+  @override
+  void dispose() {
+    _hex.dispose();
+    super.dispose();
+  }
+
+  void _choose(String value, {bool family = false}) => setState(() {
+    _selected = value;
+    if (value.startsWith('#')) {
+      _hex.text = value;
+      if (family) _family = _color(value);
+    }
+    _custom = false;
+  });
+  Widget _swatch(String hex, double size, {bool family = false}) {
+    final color = _color(hex);
+    final selected = _selected.toLowerCase() == hex.toLowerCase();
+    return Semantics(
+      label: 'Color $hex',
+      selected: selected,
+      button: true,
+      child: Tooltip(
+        message: 'Color $hex',
+        child: InkResponse(
+          key: ValueKey('svg_color_$hex'),
+          onTap: () => _choose(hex, family: family),
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color,
+              border: Border.all(
+                color: selected
+                    ? const Color(0xff00796b)
+                    : const Color(0xffb0bec5),
+                width: selected ? 3 : 1,
+              ),
+            ),
+            child: selected
+                ? Icon(
+                    Icons.check,
+                    color: color.computeLuminance() > .45
+                        ? Colors.black
+                        : Colors.white,
+                  )
+                : null,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final shades = [
+      Color.lerp(Colors.white, _family, .25)!,
+      Color.lerp(Colors.white, _family, .55)!,
+      _family,
+      Color.lerp(_family, Colors.black, .25)!,
+      Color.lerp(_family, Colors.black, .5)!,
+    ];
+    return AlertDialog(
+      backgroundColor: const Color(0xfffafdfc),
+      surfaceTintColor: Colors.transparent,
+      title: Text(
+        widget.title,
+        style: const TextStyle(color: Color(0xff263238)),
+      ),
+      content: SizedBox(
+        width: 360,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _form,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                LayoutBuilder(
+                  builder: (context, box) {
+                    final size =
+                        ((box.maxWidth -
+                                    8 * ((box.maxWidth < 272 ? 4 : 5) - 1)) /
+                                (box.maxWidth < 272 ? 4 : 5))
+                            .clamp(48.0, 52.0);
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final hex in palette)
+                          _swatch(hex, size, family: true),
+                      ],
+                    );
+                  },
+                ),
+                const Divider(height: 28),
+                const Text(
+                  'Tonalidades',
+                  style: TextStyle(color: Color(0xff263238)),
+                ),
+                const SizedBox(height: 12),
+                LayoutBuilder(
+                  builder: (context, box) {
+                    final size =
+                        ((box.maxWidth -
+                                    8 * ((box.maxWidth < 272 ? 4 : 5) - 1)) /
+                                (box.maxWidth < 272 ? 4 : 5))
+                            .clamp(48.0, 52.0);
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final color in shades) _swatch(_code(color), size),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (_custom)
+                  TextFormField(
+                    key: const ValueKey('svg_color_hex'),
+                    controller: _hex,
+                    decoration: const InputDecoration(
+                      labelText: 'Hexadecimal',
+                      hintText: '#RRGGBB',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) =>
+                        RegExp(
+                          r'^#[0-9a-fA-F]{6}$',
+                        ).hasMatch(value?.trim() ?? '')
+                        ? null
+                        : 'Introduce un color #RRGGBB',
+                  )
+                else
+                  Text(
+                    _selected.isEmpty
+                        ? 'Conservar original'
+                        : _selected == 'none'
+                        ? 'Sin color'
+                        : 'Hexadecimal: $_selected',
+                    style: const TextStyle(color: Color(0xff263238)),
+                  ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _choose('none'),
+                      icon: const Icon(Icons.block),
+                      label: const Text('Sin color'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _choose(''),
+                      icon: const Icon(Icons.restore),
+                      label: const Text('Conservar original'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => setState(() => _custom = true),
+          child: const Text('Personalizar'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xff00897b),
+            foregroundColor: Colors.white,
+          ),
+          onPressed: () {
+            if (_custom) {
+              if (!_form.currentState!.validate()) return;
+              _selected = _hex.text.trim().toLowerCase();
+            }
+            Navigator.pop(context, _selected);
+          },
+          child: const Text('Seleccionar'),
+        ),
+      ],
+    );
+  }
+}
+
 Future<String> svgSourceForIcon(String key) async {
   if (!canOpenSvgEditor(key))
     throw const FormatException('Selecciona un icono SVG.');
@@ -258,7 +513,9 @@ class _SvgEditorPageState extends State<SvgEditorPage> {
     } catch (e) {
       if (mounted)
         setState(
-          () => _error = e is FormatException ? '${e.message}' : 'No se pudo guardar. El original y las asignaciones se conservan.',
+          () => _error = e is FormatException
+              ? '${e.message}'
+              : 'No se pudo guardar. El original y las asignaciones se conservan.',
         );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -301,6 +558,36 @@ class _SvgEditorPageState extends State<SvgEditorPage> {
             apply(hex);
           else
             setState(() {});
+        },
+      ),
+      OutlinedButton.icon(
+        key: ValueKey('svg_select_$id'),
+        icon: const Icon(Icons.palette_outlined),
+        label: Text('Elegir color: $title'),
+        onPressed: () async {
+          final selected = await showSvgColorSelector(
+            context,
+            title: 'Color: $title',
+            initialValue: value,
+          );
+          if (!mounted || selected == null) return;
+          setState(() {
+            if (selected.isEmpty) {
+              _change(
+                _history.current.copyWith(
+                  clearFill: id == 'fill',
+                  clearStroke: id == 'stroke',
+                  clearBackground: id == 'background',
+                ),
+              );
+            } else {
+              apply(selected);
+            }
+            _revision++;
+            _fillInput = _history.current.fill;
+            _strokeInput = _history.current.stroke;
+            _backgroundInput = _history.current.background;
+          });
         },
       ),
       Wrap(

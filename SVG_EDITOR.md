@@ -44,3 +44,11 @@ Puerta de entrada: fase 1 validada en APK real y conformidad expresa del usuario
 6. Pruebas de pérdida cero, matrices anidadas, multicolor, orden, nodos/Bézier, undo/redo por operación y round-trip. Guardado mantiene copias, rutas/claves originales y compatibilidad con backup; reemplazar en uso requeriría un flujo separado y respaldado.
 
 No se han añadido herramientas de capas, formas nuevas, selección de nodos ni manejadores Bézier a la fase 1.
+
+## Selector de colores previo a la fase 2
+
+En los controles de relleno, trazo y fondo, «Elegir color» abre una ventana clara con paleta circular, marca de selección y tonalidades. «Personalizar» permite introducir #RRGGBB. «Seleccionar» confirma un único cambio en el historial; «Cancelar», volver atrás o cerrar la ventana no cambia el SVG. «Sin color» elimina la pintura y «Conservar original» mantiene el valor del documento original. Los controles de entrada y accesos rápidos anteriores siguen disponibles. La ventana se desplaza en pantallas pequeñas y sus muestras tienen un área mínima de 48 píxeles lógicos.
+
+Esta mejora pertenece al editor básico: no incorpora formas, capas ni nodos de la fase 2. No cambia SQLite, fotografías, préstamos, archivos originales, identificación ni firma Android.
+
+Comprobaciones locales de esta mejora: 191 pruebas Flutter aprobadas (4 nuevas del selector), análisis integrado sin errores ni advertencias y con un aviso informativo previo, compilación Android release correcta e identificación y certificado estable verificados. La APK local utiliza versionCode 107; este número no corresponde a una ejecución de GitHub Actions. Pendiente: ejecución del selector en Android y publicación de una APK validada. No se ha iniciado la fase 2.
