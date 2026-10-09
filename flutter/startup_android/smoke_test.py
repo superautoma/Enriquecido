@@ -73,7 +73,8 @@ def tap(label, exclude_class=None):
     tap_node(node)
 
 
-def scroll_find(label):
+def scroll_find(label, *, dialog=False):
+    last_swipe = None
     for _ in range(6):
         adb('shell', 'uiautomator', 'dump', '/sdcard/startup-window.xml')
         xml = adb('shell', 'cat', '/sdcard/startup-window.xml').decode()
@@ -84,16 +85,32 @@ def scroll_find(label):
                 return node
         screen = next(root.iter('node'))
         left, top, right, bottom = map(int, re.findall(r'\d+', screen.attrib['bounds']))
+        start_fraction, end_fraction = .8, .35
+        if dialog:
+            # Dialog actions are outside the scrolling content. A whole-screen
+            # swipe starts on those fixed buttons and never scrolls the palette.
+            viewports = []
+            for node in root.iter('node'):
+                if node.get('scrollable') != 'true':
+                    continue
+                bounds = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
+                if len(bounds) == 4 and bounds[2] > bounds[0] and bounds[3] > bounds[1]:
+                    viewports.append(bounds)
+            if viewports:
+                left, top, right, bottom = max(viewports, key=lambda b: (b[2]-b[0])*(b[3]-b[1]))
+            else:
+                start_fraction, end_fraction = .55, .25
         x = (left + right) // 2
-        start_y = top + int((bottom - top) * .8)
-        end_y = top + int((bottom - top) * .35)
+        start_y = top + int((bottom - top) * start_fraction)
+        end_y = top + int((bottom - top) * end_fraction)
+        last_swipe = (x, start_y, x, end_y)
         adb('shell', 'input', 'swipe', str(x), str(start_y), str(x), str(end_y), '350')
     screenshot('scroll-failed.png')
-    raise AssertionError(f'Could not scroll to {label}')
+    raise AssertionError(f'Could not scroll to {label}; dialog={dialog}, last swipe={last_swipe}')
 
 
-def scroll_tap(label):
-    tap_node(scroll_find(label))
+def scroll_tap(label, *, dialog=False):
+    tap_node(scroll_find(label, dialog=dialog))
 
 
 def tap_node(node):
@@ -196,7 +213,7 @@ if '--svg-only' in sys.argv:
     wait_for('Color: Relleno')
     screenshot('svg-color-selector.png')
     tap('Color #e91e63')
-    scroll_find('Tonalidades')
+    scroll_find('Tonalidades', dialog=True)
     screenshot('svg-color-tonalities.png')
     tap('Seleccionar')
     wait_for('#e91e63')
@@ -210,7 +227,7 @@ if '--svg-only' in sys.argv:
     tap('Seleccionar')
     wait_for('#2196f3')
     scroll_tap('Elegir color: Fondo SVG (círculo)')
-    scroll_tap('Color #ffffff')
+    scroll_tap('Color #ffffff', dialog=True)
     tap('Seleccionar')
     scroll_tap('Centrar y ajustar')
     tap('Deshacer')
