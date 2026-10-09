@@ -27,6 +27,7 @@ class _SvgAdvancedPageState extends State<SvgAdvancedPage> {
   String? _error;
   SvgVectorHandle? _handle;
   Offset? _dragStart;
+  Offset _dragApplied = Offset.zero;
   int? _pointer;
   Offset? _pointerStart;
   bool _pointerMoved = false;
@@ -363,14 +364,23 @@ class _SvgAdvancedPageState extends State<SvgAdvancedPage> {
     _canvas.top + pixel.dy * _canvas.height / size,
   );
   double get _gridStep => math.max(5.0, _canvas.width / 60);
+  List<SvgVectorElement> get _guideElements {
+    final excluded = Set<String>.of(_doc.selection);
+    final candidates = <SvgVectorElement>[];
+    // Elements are in preorder; selection of a group includes its descendants.
+    for (final e in _doc.elements) {
+      if (excluded.contains(e.parentId)) excluded.add(e.id);
+      if (!e.hidden && e.type != 'g' && !excluded.contains(e.id))
+        candidates.add(e);
+    }
+    return candidates;
+  }
+
   List<double> get _guideX => [
     _doc.viewport.left,
     _doc.viewport.center.dx,
     _doc.viewport.right,
-    ..._doc.elements
-        .where(
-          (e) => !e.hidden && e.type != 'g' && !_doc.selection.contains(e.id),
-        )
+    ..._guideElements
         .take(50)
         .expand((e) => [e.bounds.left, e.bounds.center.dx, e.bounds.right]),
   ];
@@ -378,10 +388,7 @@ class _SvgAdvancedPageState extends State<SvgAdvancedPage> {
     _doc.viewport.top,
     _doc.viewport.center.dy,
     _doc.viewport.bottom,
-    ..._doc.elements
-        .where(
-          (e) => !e.hidden && e.type != 'g' && !_doc.selection.contains(e.id),
-        )
+    ..._guideElements
         .take(50)
         .expand((e) => [e.bounds.top, e.bounds.center.dy, e.bounds.bottom]),
   ];
@@ -396,13 +403,14 @@ class _SvgAdvancedPageState extends State<SvgAdvancedPage> {
     return best;
   }
 
-  Offset _snapped(Offset p) {
+  Offset _snapped(Offset p, {bool guides = true}) {
     if (_snap)
       p = Offset(
         (p.dx / _gridStep).round() * _gridStep,
         (p.dy / _gridStep).round() * _gridStep,
       );
-    if (_guides) p = Offset(_guide(p.dx, _guideX), _guide(p.dy, _guideY));
+    if (_guides && guides)
+      p = Offset(_guide(p.dx, _guideX), _guide(p.dy, _guideY));
     return p;
   }
 
@@ -424,6 +432,7 @@ class _SvgAdvancedPageState extends State<SvgAdvancedPage> {
       _doc.select(id);
     }
     _dragStart = p;
+    _dragApplied = Offset.zero;
     _doc.beginGesture();
     setState(() {});
   }
@@ -431,7 +440,10 @@ class _SvgAdvancedPageState extends State<SvgAdvancedPage> {
   void _update(DragUpdateDetails details, double size) {
     if (_dragStart == null) return;
     try {
-      final p = _snapped(_world(details.localPosition, size));
+      final p = _snapped(
+        _world(details.localPosition, size),
+        guides: _mode == 'Nodos',
+      );
       if (_mode == 'Nodos' && _dragHandle != null) {
         _doc.moveHandle(
           _single!,
@@ -441,7 +453,7 @@ class _SvgAdvancedPageState extends State<SvgAdvancedPage> {
           record: false,
         );
       } else {
-        var delta = p - _dragStart!;
+        var delta = p - _dragStart! - _dragApplied;
         if (_guides) {
           final shapes = _doc.elements
               .where((e) => _doc.selection.contains(e.id))
@@ -471,7 +483,7 @@ class _SvgAdvancedPageState extends State<SvgAdvancedPage> {
           }
         }
         _doc.transformSelection(dx: delta.dx, dy: delta.dy, record: false);
-        _dragStart = p;
+        _dragApplied += delta;
       }
       setState(() => _error = null);
     } on FormatException catch (e) {

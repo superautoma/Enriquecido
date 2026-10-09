@@ -386,4 +386,57 @@ void main() {
       expect(await tester.runAsync(() => docs.list().toList()), isEmpty);
     },
   );
+  testWidgets(
+    'Small drag updates escape guide snapping and ignore selected group descendants',
+    (tester) async {
+      await launch(tester, (_) {});
+      await tester.tap(find.text('Elementos'));
+      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Grupo · layer'));
+      await tester.tap(find.text('Lienzo'));
+      await tester.pumpAndSettle();
+      await tapVisible(
+        tester,
+        find.widgetWithText(FilterChip, 'Ajuste a guías'),
+      );
+      await tapVisible(tester, find.widgetWithText(ChoiceChip, 'Mover'));
+      final canvas = find.byKey(const ValueKey('advanced_canvas'));
+      await tester.ensureVisible(canvas);
+      String rendered() =>
+          (tester
+                      .widget<SvgPicture>(
+                        find.descendant(
+                          of: canvas,
+                          matching: find.byType(SvgPicture),
+                        ),
+                      )
+                      .bytesLoader
+                  as SvgStringLoader)
+              .provideSvg(null);
+      final original = rendered(),
+          before = SvgVectorDocument(
+            original,
+          ).elements.firstWhere((e) => e.id == 'layer').bounds;
+      final gesture = await tester.startGesture(tester.getCenter(canvas));
+      for (var i = 0; i < 30; i++) {
+        await gesture.moveBy(const Offset(2, 0));
+        await tester.pump();
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      final after = rendered(),
+          bounds = SvgVectorDocument(
+            after,
+          ).elements.firstWhere((e) => e.id == 'layer').bounds;
+      expect(bounds.center.dx - before.center.dx, closeTo(22.5, 3.1));
+      expect(
+        element(after, 'green').toXmlString(),
+        element(original, 'green').toXmlString(),
+      );
+      await tester.tap(find.byTooltip('Deshacer'));
+      await tester.pumpAndSettle();
+      expect(rendered(), original);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
