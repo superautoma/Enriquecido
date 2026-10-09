@@ -115,6 +115,7 @@ void main() {
     const input =
         '<svg viewBox="0 0 80 80"><circle id="fondo" cx="40" cy="40" r="35" fill="#abcdef"/><g transform="translate(20 10) rotate(25)" style="fill:none;stroke:#123456;stroke-width:2"><path d="M0 0L30 30"/></g></svg>';
     final doc = SvgEditorDocument.parse(input);
+    expect(doc.multicolor, isTrue);
     final unchanged = doc.export(const SvgEdits());
     expect(unchanged, contains('stroke="#123456"'));
     expect(unchanged, contains('translate(20 10) rotate(25)'));

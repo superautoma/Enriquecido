@@ -403,6 +403,14 @@ class SvgEditorDocument {
         final value = e.getAttribute(key);
         if (value != null && value != 'none') colors.add(value);
       }
+      for (final entry in (e.getAttribute('style') ?? '').split(';')) {
+        final pair = entry.split(':');
+        if (pair.length == 2 &&
+            {'fill', 'stroke'}.contains(pair[0].trim()) &&
+            pair[1].trim() != 'none') {
+          colors.add(pair[1].trim());
+        }
+      }
     }
     return colors.length > 1;
   }
