@@ -9,6 +9,7 @@ import 'package:barcode_widget/barcode_widget.dart' as bw;
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart' show EagerGestureRecognizer;
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
@@ -37,6 +38,7 @@ part 'tool_ai.dart';
 part 'tool_ai_ui.dart';
 part 'tool_bulk_edit.dart';
 part 'svg_editor_ui.dart';
+part 'svg_advanced_ui.dart';
 
 void main() {
   runApp(const GestorHerramientasApp());

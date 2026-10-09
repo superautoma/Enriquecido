@@ -73,7 +73,7 @@ def tap(label, exclude_class=None):
     tap_node(node)
 
 
-def scroll_find(label, *, dialog=False):
+def scroll_find(label, *, dialog=False, reverse=False):
     last_swipe = None
     for _ in range(6):
         adb('shell', 'uiautomator', 'dump', '/sdcard/startup-window.xml')
@@ -100,6 +100,8 @@ def scroll_find(label, *, dialog=False):
                 left, top, right, bottom = max(viewports, key=lambda b: (b[2]-b[0])*(b[3]-b[1]))
             else:
                 start_fraction, end_fraction = .55, .25
+        if reverse:
+            start_fraction, end_fraction = end_fraction, start_fraction
         x = (left + right) // 2
         start_y = top + int((bottom - top) * start_fraction)
         end_y = top + int((bottom - top) * end_fraction)
@@ -109,8 +111,8 @@ def scroll_find(label, *, dialog=False):
     raise AssertionError(f'Could not scroll to {label}; dialog={dialog}, last swipe={last_swipe}')
 
 
-def scroll_tap(label, *, dialog=False):
-    tap_node(scroll_find(label, dialog=dialog))
+def scroll_tap(label, *, dialog=False, reverse=False):
+    tap_node(scroll_find(label, dialog=dialog, reverse=reverse))
 
 
 def tap_node(node):
@@ -191,6 +193,81 @@ adb('logcat', '-c')
 adb("shell", "am", "force-stop", package)
 adb("shell", "am", "start", "-n", f"{package}/.StartupActivity")
 screenshot("startup-first-frame.png")
+if '--svg-advanced-only' in sys.argv:
+    wait_for('Mis herramientas')
+    tap('Gestor de iconos')
+    tap_field(0)
+    adb('shell', 'input', 'text', 'Alicates')
+    adb('shell', 'input', 'keyevent', '4')
+    tap('Opciones del icono')
+    tap('Editar SVG')
+    scroll_tap('Formas, capas y nodos')
+    wait_for('SVG avanzado')
+    screenshot('svg-advanced-open.png')
+    scroll_tap('Nuevo rectángulo', dialog=True)
+    scroll_tap('Relleno de selección', dialog=True)
+    wait_for('Color: Relleno de selección')
+    tap('Color #e91e63')
+    tap('Seleccionar')
+    scroll_tap('Nuevo trazado', dialog=True)
+    tap('Nodos')
+    scroll_find('Nodo 1.2', dialog=True)
+    screenshot('svg-advanced-nodes.png')
+    scroll_tap('Nodo 1.2', dialog=True)
+    scroll_tap('Editar coordenadas', dialog=True, reverse=True)
+    wait_for('Nodo')
+    tap_field(0)
+    adb('shell', 'input', 'keyevent', 'KEYCODE_MOVE_END')
+    for _ in range(16):
+        adb('shell', 'input', 'keyevent', 'KEYCODE_DEL')
+    adb('shell', 'input', 'text', '52.25')
+    adb('shell', 'input', 'keyevent', '4')
+    tap('Aplicar')
+    scroll_find('X 52.25', dialog=True)
+    scroll_tap('Nodo 1.2', dialog=True)
+    scroll_tap('Insertar nodo', dialog=True, reverse=True)
+    scroll_find('Nodo 2.2', dialog=True)
+    tap('Deshacer')
+    tap('Rehacer')
+    screenshot('svg-advanced-nodes-edited.png')
+    tap('Elementos')
+    scroll_find('Rectángulo', dialog=True)
+    scroll_find('Trazado', dialog=True)
+    screenshot('svg-advanced-elements.png')
+    tap_field(0)
+    adb('shell', 'input', 'keyevent', 'KEYCODE_MOVE_END')
+    adb('shell', 'input', 'text', '%sAdvancedQA')
+    adb('shell', 'input', 'keyevent', '4')
+    tap('Guardar SVG avanzado como copia')
+    wait_for('Gestor de iconos')
+    wait_for('AdvancedQA')
+    screenshot('svg-advanced-saved.png')
+    adb('shell', 'am', 'force-stop', package)
+    adb('shell', 'am', 'start', '-n', f'{package}/.StartupActivity')
+    wait_for('Mis herramientas')
+    tap('Gestor de iconos')
+    tap_field(0)
+    adb('shell', 'input', 'text', 'AdvancedQA')
+    adb('shell', 'input', 'keyevent', '4')
+    wait_for('1 iconos')
+    tap('Opciones del icono')
+    tap('Editar SVG')
+    scroll_tap('Formas, capas y nodos')
+    wait_for('SVG avanzado')
+    tap('Elementos')
+    scroll_find('Rectángulo', dialog=True)
+    scroll_find('Trazado', dialog=True)
+    screenshot('svg-advanced-reopened.png')
+    adb('shell', 'input', 'keyevent', '4')
+    wait_for('Editor SVG')
+    adb('shell', 'input', 'keyevent', '4')
+    wait_for('Gestor de iconos')
+    adb('shell', 'input', 'keyevent', '4')
+    wait_for('Mis herramientas')
+    errors = adb('logcat', '-d', '-s', 'AndroidRuntime:E').decode()
+    assert 'FATAL EXCEPTION' not in errors, errors
+    print('Advanced SVG: integrated entry, new rectangle and cubic path, per-shape palette, node coordinates and exact subdivision, undo/redo, tree, save copy, restart, reopen and back navigation passed.')
+    sys.exit(0)
 if '--svg-only' in sys.argv:
     wait_for('Mis herramientas')
     tap('Gestor de iconos')

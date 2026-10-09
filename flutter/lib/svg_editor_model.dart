@@ -6,6 +6,8 @@ import 'dart:ui';
 import 'package:path_parsing/path_parsing.dart';
 import 'package:xml/xml.dart';
 
+part 'svg_advanced_model.dart';
+
 // This module owns the supported SVG document. Phase 2 can add element commands
 // without changing the storage keys or the global-edit history of phase 1.
 const svgEditorMaxBytes = 512 * 1024;
@@ -152,6 +154,10 @@ XmlDocument validateSvgSource(String source) {
       if (name == 'id') {
         if (!RegExp(r'^[a-zA-Z_][a-zA-Z0-9_.-]{0,100}$').hasMatch(value))
           _invalid('Identificador SVG no válido.');
+      } else if (name == 'display' && {'none', 'inline'}.contains(value)) {
+        continue;
+      } else if (name == 'data-gestor-locked' && value == '1') {
+        continue;
       } else if (name == 'data-gestor-svg' && element == root && value == '1') {
         continue;
       } else if (name == 'viewBox' && element == root) {

@@ -330,11 +330,13 @@ Future<String> saveSvgEditorCopy(
   SvgEdits edits, {
   required String name,
   required String group,
+  String? preparedSource,
 }) async {
   final label = name.trim();
   if (label.isEmpty || label.length > 80 || !iconGroups.contains(group))
     throw const FormatException('Revisa el nombre y el grupo.');
-  final source = document.export(edits);
+  final source = preparedSource ?? document.export(edits);
+  validateSvgSource(source);
   await SvgStringLoader(source).loadBytes(null);
   final directory = await customIconsDirectory();
   final safe = label
@@ -709,6 +711,31 @@ class _SvgEditorPageState extends State<SvgEditorPage> {
                   children: [
                     const Text(
                       'Se guardará un nuevo archivo. El original y los iconos asignados se conservan.',
+                    ),
+                    OutlinedButton.icon(
+                      key: const ValueKey('svg_advanced'),
+                      icon: const Icon(Icons.account_tree_outlined),
+                      label: const Text('Formas, capas y nodos'),
+                      onPressed: withButtonFeedback(() async {
+                        try {
+                          final result = await Navigator.push<String>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => SvgAdvancedPage(
+                                source: widget.document.export(
+                                  _history.current,
+                                ),
+                                initialName: _name.text,
+                                initialGroup: _group,
+                              ),
+                            ),
+                          );
+                          if (mounted && result != null)
+                            Navigator.pop(context, result);
+                        } on FormatException catch (e) {
+                          if (mounted) setState(() => _error = '${e.message}');
+                        }
+                      }),
                     ),
                     TextFormField(
                       key: const ValueKey('svg_name'),
