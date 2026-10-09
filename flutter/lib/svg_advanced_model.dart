@@ -693,6 +693,9 @@ class SvgVectorDocument {
   });
   void toggleHidden(String id) => _mutate((doc) {
     final e = _find(doc, id);
+    if (e.parent is XmlElement &&
+        _flag(e.parent! as XmlElement, 'display', 'none'))
+      _invalid('Muestra primero el grupo padre.');
     if (_flag(e, 'data-gestor-locked', '1'))
       _invalid('Desbloquea el elemento.');
     if (e.getAttribute('display') == 'none') {
@@ -703,6 +706,9 @@ class SvgVectorDocument {
   });
   void toggleLocked(String id) => _mutate((doc) {
     final e = _find(doc, id);
+    if (e.parent is XmlElement &&
+        _flag(e.parent! as XmlElement, 'data-gestor-locked', '1'))
+      _invalid('Desbloquea primero el grupo padre.');
     if (e.getAttribute('data-gestor-locked') == '1') {
       e.removeAttribute('data-gestor-locked');
     } else {

@@ -433,4 +433,21 @@ void main() {
       );
     },
   );
+  test(
+    'Inherited lock and visibility cannot accidentally toggle a child flag',
+    () {
+      final doc = SvgVectorDocument(advancedSource);
+      doc.toggleLocked('layer');
+      final locked = doc.source;
+      expect(() => doc.toggleLocked('red'), throwsFormatException);
+      expect(doc.source, locked);
+      doc.toggleLocked('layer');
+      doc.toggleHidden('layer');
+      final hidden = doc.source;
+      expect(() => doc.toggleHidden('red'), throwsFormatException);
+      expect(doc.source, hidden);
+      doc.toggleHidden('layer');
+      expect(doc.elements.where((e) => e.hidden || e.locked), isEmpty);
+    },
+  );
 }
