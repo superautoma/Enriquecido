@@ -5,6 +5,7 @@ import subprocess
 import struct
 import sys
 import time
+import traceback as traceback_module
 import zlib
 import xml.etree.ElementTree as ET
 
@@ -33,6 +34,9 @@ def save_failure_diagnostics(error_type, error, traceback):
             (output / name).write_bytes(adb(*command))
         except subprocess.SubprocessError:
             pass
+    (output / 'failure-traceback.txt').write_text(''.join(traceback_module.format_exception(error_type, error, traceback)))
+    message = f'{error_type.__name__}: {error}'.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+    print(f'::error title=Android smoke test::{message}', flush=True)
     sys.__excepthook__(error_type, error, traceback)
 
 
@@ -170,6 +174,54 @@ adb('logcat', '-c')
 adb("shell", "am", "force-stop", package)
 adb("shell", "am", "start", "-n", f"{package}/.StartupActivity")
 screenshot("startup-first-frame.png")
+if '--svg-only' in sys.argv:
+    wait_for('Mis herramientas')
+    tap('Gestor de iconos')
+    wait_for('Gestor de iconos')
+    tap_field(0)
+    adb('shell', 'input', 'text', 'Alicates')
+    adb('shell', 'input', 'keyevent', '4')
+    tap('Opciones del icono')
+    tap('Editar SVG')
+    wait_for('Editor SVG')
+    wait_for('24 px')
+    screenshot('svg-editor-open.png')
+    # Edit the new copy's name; no storage permission is required for private icons.
+    tap_field(0)
+    adb('shell', 'input', 'keyevent', 'KEYCODE_MOVE_END')
+    adb('shell', 'input', 'text', '%sSVGQA')
+    adb('shell', 'input', 'keyevent', '4')
+    scroll_tap('Relleno #23836d')
+    scroll_tap('Color de línea #1976d2')
+    scroll_tap('Fondo SVG (círculo) #ffffff')
+    scroll_tap('Centrar y ajustar')
+    tap('Deshacer')
+    tap('Rehacer')
+    screenshot('svg-editor-adjusted.png')
+    scroll_tap('Guardar como nuevo SVG')
+    wait_for('Gestor de iconos')
+    wait_for('SVGQA')
+    screenshot('svg-library-saved.png')
+    adb('shell', 'am', 'force-stop', package)
+    adb('shell', 'am', 'start', '-n', f'{package}/.StartupActivity')
+    wait_for('Mis herramientas')
+    tap('Gestor de iconos')
+    tap_field(0)
+    adb('shell', 'input', 'text', 'SVGQA')
+    adb('shell', 'input', 'keyevent', '4')
+    wait_for('1 iconos')
+    tap('Opciones del icono')
+    tap('Editar SVG')
+    wait_for('Editor SVG')
+    screenshot('svg-editor-reopened.png')
+    adb('shell', 'input', 'keyevent', '4')
+    wait_for('Gestor de iconos')
+    adb('shell', 'input', 'keyevent', '4')
+    wait_for('Mis herramientas')
+    errors = adb('logcat', '-d', '-s', 'AndroidRuntime:E').decode()
+    assert 'FATAL EXCEPTION' not in errors, errors
+    print('SVG editor: open, real paint/background edits, centering, undo/redo, save new icon, restart, reopen and back navigation passed without storage permissions.')
+    sys.exit(0)
 if '--ai-only' in sys.argv:
     wait_for('Destornillador aislado')
     wait_for('3 artículos')

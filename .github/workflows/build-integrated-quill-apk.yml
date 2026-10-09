@@ -8,6 +8,7 @@ on:
       - iconos-electricos-50
       - prestamos-herramientas
       - desarrollo-edicion-multiple
+      - desarrollo-editor-svg
     paths:
       - "flutter/lib/**"
       - "flutter/test/**"
@@ -98,7 +99,7 @@ jobs:
         run: flutter pub get
 
       - name: Analyze integrated test
-        run: flutter analyze --no-fatal-infos lib/main_quill_integrated_test.dart lib/button_feedback.dart lib/tool_ai.dart lib/tool_ai_ui.dart lib/tool_management.dart lib/tool_management_ui.dart lib/tool_inventory.dart lib/tool_inventory_ui.dart lib/tool_details.dart lib/tool_codes.dart lib/tool_trash.dart lib/backup_import.dart lib/backup_import_ui.dart
+        run: flutter analyze --no-fatal-infos lib/main_quill_integrated_test.dart lib/button_feedback.dart lib/tool_ai.dart lib/tool_ai_ui.dart lib/tool_management.dart lib/tool_management_ui.dart lib/tool_inventory.dart lib/tool_inventory_ui.dart lib/tool_details.dart lib/tool_codes.dart lib/tool_trash.dart lib/backup_import.dart lib/backup_import_ui.dart lib/tool_bulk_edit.dart lib/svg_editor_model.dart lib/svg_editor_ui.dart test/svg_editor_test.dart test/svg_editor_widget_test.dart test/svg_editor_security_test.dart
 
       - name: Verify native startup installation
         run: python3 -m unittest discover -s startup_android -p "test_*.py"
@@ -135,14 +136,6 @@ jobs:
             exit 1
           fi
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: gestor-quill-integrado-apk
-          path: flutter/build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
-          retention-days: 14
-
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -150,7 +143,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Check Android startup and back navigation
-        timeout-minutes: 8
+        timeout-minutes: 15
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
@@ -158,15 +151,27 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back emulated -camera-front emulated
           working-directory: flutter
-          script: python3 startup_android/smoke_test.py ${{ contains(github.event.head_commit.message, '[ai-check]') && '--ai-only' || contains(github.event.head_commit.message, '[feedback-check]') && '--feedback-only' || contains(github.event.head_commit.message, '[trash-check]') && '--trash-only' || '' }}
+          script: |
+            python3 startup_android/smoke_test.py ${{ contains(github.event.head_commit.message, '[ai-check]') && '--ai-only' || contains(github.event.head_commit.message, '[feedback-check]') && '--feedback-only' || contains(github.event.head_commit.message, '[trash-check]') && '--trash-only' || '' }}
+            python3 startup_android/smoke_test.py --svg-only
 
       - name: Upload startup screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: startup-check
-          path: flutter/startup-check/
+          path: |
+            flutter/startup-check/
+            flutter/build/svg-editor-evidence/
           if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: gestor-quill-integrado-apk
+          path: flutter/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
           retention-days: 14
 
       - name: Check feedback and startup on legacy Android

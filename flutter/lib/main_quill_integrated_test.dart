@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'svg_editor_model.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart' as ms;
 import 'package:pdf/pdf.dart' as pdf;
@@ -35,6 +36,7 @@ part 'button_feedback.dart';
 part 'tool_ai.dart';
 part 'tool_ai_ui.dart';
 part 'tool_bulk_edit.dart';
+part 'svg_editor_ui.dart';
 
 void main() {
   runApp(const GestorHerramientasApp());
@@ -981,6 +983,23 @@ bool isEditableSvgIcon(String key) =>
     isCustomIconKey(key) &&
     p.extension(customIconPathFromKey(key)).toLowerCase() == '.svg';
 
+bool canOpenSvgEditor(String key) => isEditableSvgIcon(key) || isElectricCollectionKey(key);
+
+// Exported SVGs keep their real multicolor artwork until the user explicitly
+// chooses the existing representation-only color customization.
+bool isSvgEditorCopy(String key) {
+  if (!isEditableSvgIcon(key)) return false;
+  try {
+    final file = File(customIconPathFromKey(key));
+    if (!file.existsSync() || file.lengthSync() > svgEditorMaxBytes) return false;
+    return file.readAsStringSync().contains('data-gestor-svg="1"');
+  } on FileSystemException {
+    return false;
+  } on FormatException {
+    return false;
+  }
+}
+
 bool canEditIconColors(String key) =>
     isEditableSvgIcon(key) ||
     (!isCustomIconKey(key) && !isToolArtworkKey(key));
@@ -1002,8 +1021,8 @@ IconAppearance iconAppearance(String key) =>
     _iconAppearances[iconNameStorageKey(key)] ??
     IconAppearance(
       isCustomIconKey(key) ? 0xFF31678F : appIconChoiceFor(key).defaultColorValue,
-      (isCustomIconKey(key) ? const Color(0xFF31678F) :
-          appIconChoiceFor(key).defaultColor).withValues(alpha: 0.12).toARGB32(),
+      (isSvgEditorCopy(key) ? const Color(0x00000000) : isCustomIconKey(key) ? const Color(0xFF31678F) :
+          appIconChoiceFor(key).defaultColor).withValues(alpha: isSvgEditorCopy(key) ? 0 : 0.12).toARGB32(),
     );
 
 class IconSvgColorMapper extends ColorMapper {
@@ -1013,7 +1032,7 @@ class IconSvgColorMapper extends ColorMapper {
   @override
   Color substitute(String? id, String elementName, String attributeName, Color color) {
     if (color.a == 0) return color;
-    if (id == 'fondo' && attributeName == 'fill') return background;
+    if ((id == 'fondo' || id == 'svg_editor_background') && attributeName == 'fill') return background;
     return lines;
   }
   @override
@@ -1109,7 +1128,8 @@ Widget iconWidgetForKey(
       child: SvgPicture.file(
         file,
         fit: fit,
-        colorMapper: IconSvgColorMapper(color, circleColor ?? iconAppearance(key).circle),
+        colorMapper: isSvgEditorCopy(key) && !_iconAppearances.containsKey(iconNameStorageKey(key))
+            ? null : IconSvgColorMapper(color, circleColor ?? iconAppearance(key).circle),
         placeholderBuilder: (_) =>
             Icon(Icons.image_outlined, color: color, size: size),
       ),
@@ -4064,7 +4084,9 @@ Future<List<String>> importCustomIcons({String group = 'Mis iconos', IconImportR
       imported.addAll(await importIconArchive(await source.readAsBytes(), group: group, report: report, contentIndex: index));
       continue;
     }
+    if (await source.length() > 5 * 1024 * 1024) throw const FormatException('Un icono es demasiado grande');
     final content = await source.readAsBytes();
+    if (extension == '.svg') validateSvgSource(utf8.decode(content));
     final duplicate = await index.matchingKey(content);
     if (duplicate != null) {
       if (report != null) {
@@ -4158,6 +4180,18 @@ class _IconPickerPageState extends State<IconPickerPage> {
     }
   }
 
+
+  Future<void> _svgActions(String key) async {
+    if (!canOpenSvgEditor(key)) { await _editColors(key); return; }
+    final action = await showDialog<String>(context: context, builder: (context) => SimpleDialog(
+      title: Text(appIconLabel(key)), children: [
+        SimpleDialogOption(onPressed: withButtonFeedback(() => Navigator.pop(context, 'svg')), child: const Text('Editar SVG')),
+        SimpleDialogOption(onPressed: withButtonFeedback(() => Navigator.pop(context, 'colors')), child: const Text('Cambiar colores')),
+      ]));
+    if (!mounted) return;
+    if (action == 'colors') await _editColors(key);
+    if (action == 'svg') { await openSvgEditor(context, key); if (mounted) await _loadCustom(); }
+  }
 
   Future<void> _select(String key) async {
     if (_selecting) return;
@@ -4283,6 +4317,10 @@ class _IconPickerPageState extends State<IconPickerPage> {
                 },
               ),
             ),
+            if (canOpenSvgEditor(widget.currentKey))
+              TextButton.icon(onPressed: withButtonFeedback(() async {
+                await openSvgEditor(context, widget.currentKey); if (mounted) await _loadCustom();
+              }), icon: const Icon(Icons.draw_outlined), label: const Text('Editar SVG del icono actual')),
             if (canEditIconColors(widget.currentKey))
               TextButton.icon(
                 key: const ValueKey('picker_edit_current_colors'),
@@ -4343,6 +4381,7 @@ class _IconPickerPageState extends State<IconPickerPage> {
                       onColors: canEditIconColors(key) ? () => _editColors(key) : null,
                       onFavorite: () => _favorite(key),
                       onSelect: () => _select(key),
+                      onManage: canOpenSvgEditor(key) ? () => _svgActions(key) : null,
                     );
                   }
                   if (_view == 'list') {
@@ -4636,6 +4675,10 @@ Future<List<String>> importIconArchive(List<int> bytes,
     ['.svg', '.png', '.jpg', '.jpeg', '.webp']
         .contains(p.posix.extension(file.name).toLowerCase())).toList();
   if (candidates.length > 512) throw const FormatException('Demasiados iconos');
+  for (final candidate in candidates) {
+    if (candidate.size > 5 * 1024 * 1024) throw const FormatException('Un icono es demasiado grande');
+    if (p.posix.extension(candidate.name).toLowerCase() == '.svg') validateSvgSource(utf8.decode(candidate.content));
+  }
   final index = contentIndex ?? await _IconContentIndex.load();
   final directory = await customIconsDirectory();
   final imported = <String>[];
@@ -4672,7 +4715,7 @@ Future<List<String>> importIconArchive(List<int> bytes,
       if (value is! String || !RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(value)) return null;
       return int.parse('ff${value.substring(1)}', radix: 16);
     }
-    if (extension == '.svg') {
+    if (extension == '.svg' && (!isSvgEditorCopy(key) || entry?['color_lineas'] != null || entry?['color_fondo'] != null)) {
       final current = iconAppearance(key);
       await saveIconAppearance(key, IconAppearance(
         parseColor(entry?['color_lineas']) ?? current.lineValue,
@@ -4806,7 +4849,9 @@ class _IconManagementPageState extends State<IconManagementPage> {
     if (_saving) return;
     _saving = true;
     try {
-      if (action == 'rename') {
+      if (action == 'svg') {
+        await openSvgEditor(context, key);
+      } else if (action == 'rename') {
         if (!await showIconRename(context, key)) return;
       } else if (action == 'colors') {
         final result = await showDialog<IconAppearance>(
@@ -4991,6 +5036,8 @@ class _IconManagementPageState extends State<IconManagementPage> {
                                           ),
                                         ]
                                       : [
+                                          if (canOpenSvgEditor(key))
+                                            const PopupMenuItem(value: 'svg', child: Text('Editar SVG')),
                                           if (canEditIconColors(key))
                                             const PopupMenuItem(
                                               value: 'colors',
@@ -5021,6 +5068,7 @@ class _IconManagementPageState extends State<IconManagementPage> {
   Map<String, String> _actions(String key) => _trash
       ? {'restore': 'Restaurar'}
       : {
+          if (canOpenSvgEditor(key)) 'svg': 'Editar SVG',
           if (canEditIconColors(key)) 'colors': 'Cambiar colores',
           'rename': 'Cambiar nombre',
           'favorite': isIconFavorite(key) ? 'Quitar de favoritos' : 'Añadir a favoritos',
