@@ -455,6 +455,22 @@ class SvgEditorDocument {
           e.setAttribute('stroke-width', '${edits.strokeWidth}');
       }
     }
+    // Editor-generated backgrounds stay on the canvas when a saved copy is
+    // reopened. Do not include them in art bounds or transform them again.
+    String? previousBackground;
+    for (final element
+        in root.descendants
+            .whereType<XmlElement>()
+            .where(
+              (e) =>
+                  e.name.local == 'circle' &&
+                  e.getAttribute('id') == 'svg_editor_background',
+            )
+            .toList()) {
+      previousBackground ??= element.getAttribute('fill');
+      element.parent?.children.remove(element);
+    }
+    final outputBackground = edits.background ?? previousBackground;
     final v = root.getAttribute('viewBox');
     final values = v == null
         ? [
@@ -621,14 +637,14 @@ class SvgEditorDocument {
         element.parent?.children.remove(element);
       }
     }
-    if (edits.background != null && edits.background != 'none')
+    if (outputBackground != null && outputBackground != 'none')
       root.children.add(
         XmlElement(XmlName.parts('circle'), [
           XmlAttribute(XmlName.parts('id'), 'svg_editor_background'),
           XmlAttribute(XmlName.parts('cx'), '${output.center.dx}'),
           XmlAttribute(XmlName.parts('cy'), '${output.center.dy}'),
           XmlAttribute(XmlName.parts('r'), '${side * .49}'),
-          XmlAttribute(XmlName.parts('fill'), edits.background!),
+          XmlAttribute(XmlName.parts('fill'), outputBackground),
         ]),
       );
     root.children.add(wrapper);

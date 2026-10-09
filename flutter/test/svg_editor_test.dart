@@ -91,6 +91,26 @@ void main() {
       );
     },
   );
+  test('Reopening a centered copy never shrinks art by fitting its background', () {
+    const input =
+        '<svg viewBox="0 0 20 20"><rect width="20" height="20" stroke-width="0"/></svg>';
+    final first = SvgEditorDocument.parse(input)
+        .export(const SvgEdits(fit: true, background: '#ffffff'));
+    final second = SvgEditorDocument.parse(first)
+        .export(const SvgEdits(fit: true));
+    final root = XmlDocument.parse(second).rootElement;
+    final wrapper = root.findElements('g').first.getAttribute('transform')!;
+    expect(wrapper, 'matrix(1.0 0.0 0.0 1.0 0.0 0.0)');
+    final background = root.findElements('circle').single;
+    expect(background.getAttribute('r'), '49.0');
+    expect(background.getAttribute('fill'), '#ffffff');
+    final cleared = SvgEditorDocument.parse(first)
+        .export(const SvgEdits(background: 'none'));
+    expect(
+      XmlDocument.parse(cleared).rootElement.findElements('circle'),
+      isEmpty,
+    );
+  });
   test('Unselected colors, inline styles, fundo and group transforms preserved', () async {
     const input =
         '<svg viewBox="0 0 80 80"><circle id="fondo" cx="40" cy="40" r="35" fill="#abcdef"/><g transform="translate(20 10) rotate(25)" style="fill:none;stroke:#123456;stroke-width:2"><path d="M0 0L30 30"/></g></svg>';
