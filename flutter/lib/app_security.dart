@@ -14,6 +14,8 @@ class AppSecurityService extends ChangeNotifier {
   final _auth = LocalAuthentication();
   bool ready = false;
   bool enabled = false;
+  // Se guarda aparte del propietario para poder pausar la protección sin borrarlo.
+  bool protectionActive = false;
   bool locked = false;
   bool biometricEnabled = false;
   bool hasPin = false;
@@ -25,11 +27,17 @@ class AppSecurityService extends ChangeNotifier {
   int _failures = 0;
   DateTime? _blockedUntil;
 
+  // Las instalaciones anteriores no tenían access_active: siguen protegidas.
+  static bool protectionFromStoredValue(bool configured, String? value) =>
+      configured && value != 'no';
+
   Future<void> initialize() async {
     if (ready) return;
     try {
       // 'configured' is written last, after the first credentials are saved.
       enabled = (await _store.read(key: 'access_configured')) == 'yes';
+      protectionActive = protectionFromStoredValue(
+        enabled, await _store.read(key: 'access_active'));
       username = await _store.read(key: 'access_username') ?? '';
       hasPin = (await _store.read(key: 'access_pin')) != null;
       hasPattern = (await _store.read(key: 'access_pattern')) != null;
@@ -38,7 +46,7 @@ class AppSecurityService extends ChangeNotifier {
       _failures = int.tryParse(await _store.read(key: 'access_failures') ?? '') ?? 0;
       final block = int.tryParse(await _store.read(key: 'access_block_until') ?? '');
       _blockedUntil = block == null ? null : DateTime.fromMillisecondsSinceEpoch(block);
-      locked = enabled;
+      locked = protectionActive;
     } catch (_) {
       // Never reveal the inventory if the configured secure vault is unreadable.
       error = 'No se pudo abrir el almacén seguro de Android. No se han borrado tus herramientas.';
@@ -82,9 +90,11 @@ class AppSecurityService extends ChangeNotifier {
     await _store.write(key: 'access_username', value: user.trim());
     await _store.write(key: 'access_password', value: record);
     await _store.write(key: 'access_timeout', value: '5');
+    await _store.write(key: 'access_active', value: 'yes');
     await _store.write(key: 'access_configured', value: 'yes');
     username = user.trim();
     enabled = true;
+    protectionActive = true;
     locked = false;
     notifyListeners();
   }
@@ -154,17 +164,31 @@ class AppSecurityService extends ChangeNotifier {
     notifyListeners();
   }
   void lock() {
-    if (!enabled) return;
+    if (!protectionActive) return;
     locked = true;
     notifyListeners();
   }
   Future<void> resumeFromBackground() async {
     final started = backgroundAt;
     backgroundAt = null;
-    if (!enabled || started == null) return;
+    if (!protectionActive || started == null) return;
     if (lockAfterMinutes == 0 || DateTime.now().difference(started) >= Duration(minutes: lockAfterMinutes)) lock();
   }
-  void markBackground() { if (enabled) backgroundAt ??= DateTime.now(); }
+  void markBackground() { if (protectionActive) backgroundAt ??= DateTime.now(); }
+
+  // No borra usuario, contraseña, PIN, patrón ni preferencias.
+  // Se exige la contraseña incluso para desactivar la protección.
+  Future<bool> setProtectionActive(bool active, String ownerPassword) async {
+    if (!enabled) throw StateError('Primero debes configurar un usuario');
+    if (!await validatePassword(ownerPassword)) return false;
+    await _store.write(key: 'access_active', value: active ? 'yes' : 'no');
+    protectionActive = active;
+    // La contraseña ya ha sido comprobada. No bloquear de nuevo esta sesión.
+    locked = false;
+    backgroundAt = null;
+    notifyListeners();
+    return true;
+  }
 
   Future<void> changePassword(String newPassword) async {
     if (newPassword.length < 10) throw ArgumentError('Mínimo 10 caracteres');
@@ -414,6 +438,39 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
     if (!good) _message(service.temporaryLockMessage ?? 'Contraseña incorrecta');
     return good;
   }
+  Future<void> _toggleProtection(bool active) async {
+    if (busy || !mounted) return;
+    final controller = TextEditingController();
+    final password = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(
+      title: Text(active ? 'Activar protección' : 'Desactivar protección'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(active
+          ? 'Se volverá a solicitar el desbloqueo al entrar a la aplicación.'
+          : 'Podrás entrar directamente, sin PIN, patrón, huella ni contraseña. Se conservarán tus métodos configurados.'),
+        const SizedBox(height: 14),
+        TextField(controller: controller, obscureText: true, autofocus: true,
+          decoration: const InputDecoration(labelText: 'Contraseña del propietario')),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, controller.text), child: const Text('Confirmar')),
+      ],
+    ));
+    controller.dispose();
+    if (password == null || !mounted) return;
+    setState(() => busy = true);
+    try {
+      final changed = await service.setProtectionActive(active, password);
+      if (!changed) {
+        _message(service.temporaryLockMessage ?? 'Contraseña incorrecta');
+      } else {
+        _message(active ? 'Protección activada' : 'Protección desactivada: acceso directo');
+      }
+    } catch (_) {
+      _message('No se pudo cambiar la protección. Inténtalo de nuevo.');
+    } finally { if (mounted) setState(() => busy = false); }
+  }
+
   Future<String?> _promptSecret(String title, {bool numeric = false}) async {
     final c = TextEditingController();
     final result = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(
@@ -490,7 +547,23 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
         const Text('Importante: guarda tu contraseña. No existe recuperación mediante correo o servidor.', style: TextStyle(color: Colors.black54)),
       ] else ...[
         ListTile(leading: const Icon(Icons.person_outline), title: Text('Propietario: ${service.username}'), subtitle: const Text('Cuenta local de este dispositivo')),
+        SwitchListTile(
+          key: const ValueKey('app_protection_switch'),
+          secondary: Icon(service.protectionActive ? Icons.lock_outline : Icons.lock_open_outlined),
+          title: const Text('Protección de la aplicación'),
+          subtitle: Text(service.protectionActive
+            ? 'Activada: se pedirá desbloqueo al entrar'
+            : 'Desactivada: acceso directo, sin contraseña ni PIN'),
+          value: service.protectionActive,
+          onChanged: busy ? null : _toggleProtection,
+        ),
+        if (!service.protectionActive) const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text('Tus métodos de acceso siguen guardados. Vuelve a activar el interruptor cuando quieras proteger la aplicación.',
+            style: TextStyle(color: Colors.black54)),
+        ),
         const Divider(),
+        if (service.protectionActive) ...[
         ListTile(leading: const Icon(Icons.key_outlined), title: const Text('Cambiar contraseña'), onTap: _changePassword),
         ListTile(leading: const Icon(Icons.pin_outlined), title: Text(service.hasPin ? 'Cambiar PIN' : 'Configurar PIN'), onTap: _setPin),
         if (service.hasPin) ListTile(leading: const Icon(Icons.remove_circle_outline), title: const Text('Quitar PIN'), onTap: () => _remove('pin')),
@@ -506,6 +579,7 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
             onChanged: (v) { if (v != null) service.setTimeoutMinutes(v); })),
         const SizedBox(height: 12),
         FilledButton.icon(onPressed: service.lock, icon: const Icon(Icons.lock_outline), label: const Text('Bloquear ahora')),
+        ],
         const SizedBox(height: 16),
         const Text('El bloqueo protege el acceso a la pantalla de la aplicación, pero no cifra todavía la base de datos ni las copias exportadas.',
           style: TextStyle(color: Colors.black54, fontSize: 12)),
