@@ -2,3 +2,7 @@
 .dart_tool/
 build/
 .flutter-plugins-dependencies
+
+# SDK, usuario, SQLite, cachés y logs locales del instalador reproducible.
+/.codex-v122/
+/scripts/__pycache__/
