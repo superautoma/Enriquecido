@@ -9,6 +9,7 @@ import 'package:barcode_widget/barcode_widget.dart' as bw;
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/gestures.dart' show EagerGestureRecognizer;
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -46,7 +47,10 @@ void main() {
 }
 
 class GestorHerramientasApp extends StatelessWidget {
-  const GestorHerramientasApp({super.key});
+  const GestorHerramientasApp({super.key, this.testBypassSecurity = false});
+
+  /// Widget tests for inventory behaviors opt out explicitly. Always enforced in release.
+  final bool testBypassSecurity;
 
   @override
   Widget build(BuildContext context) {
@@ -98,7 +102,9 @@ class GestorHerramientasApp extends StatelessWidget {
         FlutterQuillLocalizations.delegate,
       ],
       supportedLocales: const [Locale('es'), Locale('en')],
-      builder: (context, child) => AppSecurityGate(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => !kReleaseMode && testBypassSecurity
+          ? child ?? const SizedBox.shrink()
+          : AppSecurityGate(child: child ?? const SizedBox.shrink()),
       home: const ToolsHomePage(),
     );
   }
