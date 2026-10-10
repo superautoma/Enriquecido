@@ -91,7 +91,7 @@ def scroll_find(label, *, dialog=False, reverse=False):
                 if label in node.get('text', '') + node.get('content-desc', ''):
                     return node
             screen = next(root.iter('node'))
-            left, top, right, bottom = map(int, re.findall(r'\\d+', screen.attrib['bounds']))
+            left, top, right, bottom = map(int, re.findall(r'\d+', screen.attrib['bounds']))
             start_fraction, end_fraction = .8, .35
             if dialog:
                 # Keep gestures within the scrollable dialog body instead of
@@ -100,7 +100,7 @@ def scroll_find(label, *, dialog=False, reverse=False):
                 for node in root.iter('node'):
                     if node.get('scrollable') != 'true':
                         continue
-                    bounds = list(map(int, re.findall(r'\\d+', node.get('bounds', ''))))
+                    bounds = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
                     if len(bounds) == 4 and bounds[2] > bounds[0] and bounds[3] > bounds[1]:
                         viewports.append(bounds)
                 if viewports:
