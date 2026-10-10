@@ -1,54 +1,79 @@
-# Prueba Rich Text Kivy APK v2 — preparada para GitHub Actions
+# Gestor de Herramientas V122
 
-Este proyecto ya incluye un workflow de GitHub Actions que compila el APK por ti.
+La aplicación oficial Flutter arranca desde `flutter/lib/main.dart`. Ese archivo
+solo delega en `main_quill_integrated_test.dart`, que conserva la aplicación
+completa: Quill, SQLite, fotos, documentos, IA, préstamos, mantenimiento,
+conjuntos, QR y protección local. El nombre histórico del archivo integrado se
+conserva para no romper sus bibliotecas `part`, pruebas y referencias.
 
-## Qué tienes que hacer
+## Preparar y validar
 
-1. Crea un repositorio nuevo en GitHub.
-2. Sube **todo el contenido de esta carpeta**, incluida la carpeta oculta:
-   `.github/workflows/`
-3. Abre la pestaña **Actions** del repositorio.
-4. En la izquierda selecciona **Build Android APK**.
-5. Pulsa **Run workflow**.
-6. Espera a que termine la compilación.
-   - La primera compilación puede tardar bastante porque descarga Android SDK/NDK.
-7. Abre la ejecución terminada.
-8. Al final de la página, en **Artifacts**, descarga:
-   `richtext-kivy-apk`
-9. Descomprime el ZIP descargado.
-10. Dentro estará el archivo `.apk`.
-11. Pásalo al teléfono e instálalo.
+Desde la raíz de la copia V122, con Flutter 3.44.0 y Dart 3.12.0:
 
-## Qué debes probar
+```bash
+bash scripts/v122.sh setup
+bash scripts/v122.sh check
+source scripts/v122-env.sh
+```
 
-En la app:
+`check` ejecuta las 221 pruebas originales y una regresión que invoca el `main()`
+oficial y verifica la aplicación integrada con protección de acceso activa.
+También comprueba que la generación Android no sustituye las fuentes ni el
+lockfile. Los datos de prueba están aislados del inventario del usuario.
 
-1. Escribe un nombre.
-2. Pulsa **Editar formato**.
-3. Comprueba que el editor se abre **dentro de la propia app**.
-4. Prueba:
-   - negrita;
-   - cursiva;
-   - subrayado;
-   - tachado;
-   - color de texto;
-   - color de fondo/resaltado;
-   - tamaño;
-   - alineación;
-   - listas.
-5. Pulsa **GUARDAR**.
-6. Debe cerrarse el editor y volver a la pantalla Kivy.
-7. Pulsa **Guardar artículo**.
+## Ejecutar y compilar Android
 
-## Archivos importantes
+Este repositorio genera `flutter/android/`; no contiene un proyecto Android
+versionado. En la primera preparación, con el entorno anterior activado:
 
-- `main.py`: aplicación de prueba.
-- `buildozer.spec`: configuración Android.
-- `.github/workflows/build-apk.yml`: compilación automática.
-- `README.md`: estas instrucciones.
+```bash
+python3 scripts/prepare_v122_android.py
+cd flutter
+flutter run --no-pub
+# APK de prueba con la firma debug local, sin instalar ni modificar la clave estable:
+flutter build apk --debug --no-pub
+```
 
-## Si Actions falla
+Se necesita SDK Android y Java compatibles para compilar o ejecutar. El script
+conserva ambos puntos de entrada, pubspec y lockfile frente a `flutter create`,
+quita solo la prueba de plantilla que acaba de generar e instala los canales
+nativos existentes mediante `startup_android/install_startup.py`. Usa el mismo
+identificador Android que el workflow integrado. Al terminar guarda en Android
+un registro de integridad. En ejecuciones repetidas verifica ese registro,
+identificador, arranque, canales, recursos y dependencias antes de reutilizar
+el proyecto **sin escribir en él**. Permite cachés y salidas de compilación,
+propiedades locales conocidas y wrappers que coincidan con el SDK Flutter activo.
+Si faltan archivos, hay cambios o archivos inesperados, o no existe el registro,
+se detiene sin reparar ni sobrescribir nada. Los proyectos generados anteriormente
+y las modificaciones manuales de configuración o firma requieren revisión manual;
+no se adoptan automáticamente.
+Una generación fallida conserva las fuentes; revisa cualquier `android/` parcial
+antes de reintentar, sin borrar una configuración anterior.
 
-Abre la ejecución fallida y entra en el paso rojo **Build debug APK**.
-Copia las últimas líneas del error y tráelas al chat. Con eso podremos corregir
-el `buildozer.spec` o el workflow sin adivinar.
+Para release local se necesita `--no-tree-shake-icons`, por los iconos dinámicos.
+No utilices la firma debug local para sustituir una APK estable instalada.
+
+## APK con firma estable en GitHub Actions
+
+El workflow vigente es **Build Integrated Quill APK**
+(`.github/workflows/build-integrated-quill-apk.yml`). Tras publicar cambios
+revisados, selecciona en Actions **Run workflow** sobre `codex-desarrollo-v122`.
+Compila `lib/main.dart`, valida pruebas, conserva la firma existente y comprueba
+su certificado. El artefacto sigue siendo `gestor-quill-integrado-apk`.
+Ejecutarlo o descargar un artefacto no modifica ni fusiona `main`.
+
+## Flujos históricos
+
+**Build Flutter APK** conserva su generación histórica con otro identificador
+Android y sin los canales nativos de V122: no es el flujo de distribución V122.
+Ahora rechaza explícitamente checkouts con `scripts/v122.sh` antes de preparar
+Flutter o producir artefactos; las revisiones históricas sin ese marcador siguen
+su procedimiento original.
+Los workflows Kivy y Fleather siguen siendo históricos y no se modifican.
+El código básico anterior de main.dart puede consultarse en Git en el commit
+base `8baf7967041bb335e4ddbcb5ccb81f4de079c650`; no se duplica en otra aplicación.
+V101, etiquetas, keystore, migraciones y esquema SQLite permanecen intactos.
+
+La aplicación completa usa `dart:io` y canales Android. No se ofrece como una
+aplicación Web compatible. Consulta [FLUTTER_WEB_MOVIL.md](FLUTTER_WEB_MOVIL.md)
+y la [guía del entorno V122](docs/ENTORNO_V122.md).

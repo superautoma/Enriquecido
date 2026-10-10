@@ -1,14 +1,7 @@
 {
-  "name": "Gestor Herramientas Flutter Web",
+  "name": "Gestor Herramientas V122 Android",
   "image": "ghcr.io/cirruslabs/flutter:3.44.0",
-  "forwardPorts": [3000],
-  "portsAttributes": {
-    "3000": {
-      "label": "Flutter Web",
-      "onAutoForward": "openPreview"
-    }
-  },
-  "postCreateCommand": "cd flutter && cp pubspec.yaml /tmp/pubspec.yaml && cp lib/main.dart /tmp/main.dart && flutter create . --platforms=web --project-name gestor_herramientas --org org.gestorherramientas && cp /tmp/pubspec.yaml pubspec.yaml && cp /tmp/main.dart lib/main.dart && flutter pub get",
+  "postCreateCommand": "bash scripts/v122.sh setup && bash -c 'source scripts/v122-env.sh && python3 scripts/prepare_v122_android.py'",
   "customizations": {
     "vscode": {
       "extensions": [

@@ -39,7 +39,7 @@ realpath y una biblioteca SQLite Linux x64 disponible:
 
 ```bash
 bash scripts/v122.sh setup  # Preparar SDK, SQLite, usuario y dependencias fijadas.
-bash scripts/v122.sh check  # Preparar, analizar y comprobar las 221 pruebas.
+bash scripts/v122.sh check  # Preparar, analizar y comprobar las 222 pruebas.
 source scripts/v122-env.sh # Activar Flutter y Dart en esta terminal.
 ```
 
@@ -100,8 +100,9 @@ no restablece trabajo ni cambia automáticamente dependencias.
 
 `check` guarda `logs/analyze.log`, `logs/test.jsonl`, `logs/test.stderr.log` y
 `logs/summary.json` en la carpeta de estado. Cuenta eventos de pruebas visibles
-y exige **221 aprobadas, 0 fallidas y 0 omitidas**, además del éxito de análisis
-y del runner. Cuando se añadan pruebas legítimamente, revisar este número de
+y exige **222 aprobadas, 0 fallidas y 0 omitidas**, además del éxito de análisis
+y del runner. La referencia original tenía 221 pruebas; se añade una regresión del punto de entrada.
+Cuando se añadan pruebas legítimamente, revisar este número de
 referencia en el script. Los avisos informativos del análisis están permitidos.
 Los scripts serializan preparación y validación mediante un bloqueo local;
 no lanzar otros comandos Flutter simultáneamente sobre la misma copia.
