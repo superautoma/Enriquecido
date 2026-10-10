@@ -31,4 +31,41 @@ void main() {
     await tester.pump();
     expect(received, isNull);
   });
+
+  test('Instalaciones antiguas conservan la protección por defecto', () {
+    expect(AppSecurityService.protectionFromStoredValue(true, null), isTrue);
+    expect(AppSecurityService.protectionFromStoredValue(true, 'yes'), isTrue);
+    expect(AppSecurityService.protectionFromStoredValue(true, 'no'), isFalse);
+    expect(AppSecurityService.protectionFromStoredValue(false, 'yes'), isFalse);
+  });
+
+  test('El bloqueo manual se desactiva al pausar la protección', () async {
+    final service = AppSecurityService.instance;
+    final oldEnabled = service.enabled;
+    final oldActive = service.protectionActive;
+    final oldLocked = service.locked;
+    final oldBackground = service.backgroundAt;
+    final oldTimeout = service.lockAfterMinutes;
+    try {
+      service.enabled = true;
+      service.protectionActive = false;
+      service.locked = false;
+      service.lock();
+      expect(service.locked, isFalse);
+      service.markBackground();
+      expect(service.backgroundAt, isNull);
+      service.backgroundAt = DateTime.now().subtract(const Duration(minutes: 20));
+      await service.resumeFromBackground();
+      expect(service.locked, isFalse);
+      service.protectionActive = true;
+      service.lock();
+      expect(service.locked, isTrue);
+    } finally {
+      service.enabled = oldEnabled;
+      service.protectionActive = oldActive;
+      service.locked = oldLocked;
+      service.backgroundAt = oldBackground;
+      service.lockAfterMinutes = oldTimeout;
+    }
+  });
 }
