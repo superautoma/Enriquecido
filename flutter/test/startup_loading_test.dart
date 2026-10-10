@@ -49,7 +49,7 @@ void main() {
   }
 
   testWidgets('Startup loader disappears when tools are ready', (tester) async {
-    await tester.pumpWidget(const GestorHerramientasApp());
+    await tester.pumpWidget(const GestorHerramientasApp(testBypassSecurity: true));
     expect(find.text('Cargando…'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('Buscar herramientas'), findsNothing);
@@ -71,7 +71,7 @@ void main() {
       await invalidPath.writeAsString('occupied');
       await databaseFactory.setDatabasesPath(invalidPath.path);
     });
-    await tester.pumpWidget(const GestorHerramientasApp());
+    await tester.pumpWidget(const GestorHerramientasApp(testBypassSecurity: true));
     await finishDatabaseLoad(tester);
     await tester.pumpAndSettle();
     expect(find.text('No se pudieron cargar las herramientas.'), findsOneWidget);
@@ -130,7 +130,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
   testWidgets('Home opens the standalone icon manager directly', (tester) async {
-    await tester.pumpWidget(const GestorHerramientasApp());
+    await tester.pumpWidget(const GestorHerramientasApp(testBypassSecurity: true));
     await finishDatabaseLoad(tester);
     await tester.pumpAndSettle();
     await tester.runAsync(() async {
