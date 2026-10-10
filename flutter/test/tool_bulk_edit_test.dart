@@ -253,7 +253,7 @@ void main() {
   testWidgets(
     'Home selection survives searches and selects only visible results',
     (tester) async {
-      await tester.pumpWidget(const GestorHerramientasApp());
+      await tester.pumpWidget(const GestorHerramientasApp(testBypassSecurity: true));
       for (
         var i = 0;
         i < 30 && find.byType(CircularProgressIndicator).evaluate().isNotEmpty;
