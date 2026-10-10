@@ -1,0 +1,4 @@
+# Artefactos generados por Flutter y Dart. pubspec.lock se versiona.
+.dart_tool/
+build/
+.flutter-plugins-dependencies

@@ -1,0 +1,5 @@
+analyzer:
+  exclude:
+    # Prototipos históricos anteriores al editor actual con Flutter Quill.
+    - lib/richtext_appflowy_test.dart
+    - lib/richtext_fleather_test.dart
