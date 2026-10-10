@@ -11,6 +11,7 @@ on:
       - desarrollo-editor-svg
       - mejora-selector-colores
       - desarrollo-svg-fase-2
+      - seguridad-local-un-usuario
     paths:
       - "flutter/lib/**"
       - "flutter/test/**"
@@ -101,7 +102,7 @@ jobs:
         run: flutter pub get
 
       - name: Analyze integrated test
-        run: flutter analyze --no-fatal-infos lib/main_quill_integrated_test.dart lib/button_feedback.dart lib/tool_ai.dart lib/tool_ai_ui.dart lib/tool_management.dart lib/tool_management_ui.dart lib/tool_inventory.dart lib/tool_inventory_ui.dart lib/tool_details.dart lib/tool_codes.dart lib/tool_trash.dart lib/backup_import.dart lib/backup_import_ui.dart lib/tool_bulk_edit.dart lib/svg_editor_model.dart lib/svg_editor_ui.dart test/svg_editor_test.dart test/svg_editor_widget_test.dart test/svg_editor_security_test.dart test/svg_color_selector_test.dart lib/svg_advanced_model.dart lib/svg_advanced_ui.dart test/svg_advanced_test.dart test/svg_advanced_widget_test.dart
+        run: flutter analyze --no-fatal-infos lib/main_quill_integrated_test.dart lib/button_feedback.dart lib/tool_ai.dart lib/tool_ai_ui.dart lib/tool_management.dart lib/tool_management_ui.dart lib/tool_inventory.dart lib/tool_inventory_ui.dart lib/tool_details.dart lib/tool_codes.dart lib/tool_trash.dart lib/backup_import.dart lib/backup_import_ui.dart lib/tool_bulk_edit.dart lib/svg_editor_model.dart lib/svg_editor_ui.dart test/svg_editor_test.dart test/svg_editor_widget_test.dart test/svg_editor_security_test.dart test/svg_color_selector_test.dart lib/svg_advanced_model.dart lib/svg_advanced_ui.dart test/svg_advanced_test.dart test/svg_advanced_widget_test.dart lib/app_security.dart test/app_security_test.dart
 
       - name: Verify native startup installation
         run: python3 -m unittest discover -s startup_android -p "test_*.py"

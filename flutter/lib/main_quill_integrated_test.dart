@@ -15,6 +15,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'svg_editor_model.dart';
+import 'app_security.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart' as ms;
 import 'package:pdf/pdf.dart' as pdf;
@@ -97,6 +98,7 @@ class GestorHerramientasApp extends StatelessWidget {
         FlutterQuillLocalizations.delegate,
       ],
       supportedLocales: const [Locale('es'), Locale('en')],
+      builder: (context, child) => AppSecurityGate(child: child ?? const SizedBox.shrink()),
       home: const ToolsHomePage(),
     );
   }
@@ -3361,6 +3363,8 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                   _openAiPhoto();
                 case 'ai_settings':
                   Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ChatGptSettingsPage()));
+                case 'security':
+                  Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const SecuritySettingsPage()));
                 case 'button_feedback':
                   Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ButtonFeedbackPage()));
                 case 'trash':
@@ -3390,6 +3394,8 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                 leading: Icon(Icons.auto_awesome_outlined), title: Text('Crear ficha con IA'))),
               PopupMenuItem(value: 'ai_settings', child: ListTile(contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.manage_accounts_outlined), title: Text('Conexión con ChatGPT'))),
+              PopupMenuItem(value: 'security', child: ListTile(contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.lock_outline), title: Text('Seguridad y acceso'))),
               PopupMenuItem(value: 'button_feedback', child: ListTile(contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.touch_app_outlined), title: Text('Sonido y vibración'))),
               PopupMenuItem(value: 'trash', child: ListTile(contentPadding: EdgeInsets.zero,

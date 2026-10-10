@@ -27,7 +27,8 @@ manifest = tree.getroot()
 if not any(p.get(attr('name')) == 'android.permission.INTERNET' for p in manifest.findall('uses-permission')):
     ET.SubElement(manifest, 'uses-permission', {attr('name'): 'android.permission.INTERNET'})
 for permission in ['android.permission.POST_NOTIFICATIONS', 'android.permission.RECEIVE_BOOT_COMPLETED',
-                   'android.permission.CAMERA', 'android.permission.VIBRATE']:
+                   'android.permission.CAMERA', 'android.permission.VIBRATE',
+                   'android.permission.USE_BIOMETRIC', 'android.permission.USE_FINGERPRINT']:
     if not any(p.get(attr('name')) == permission for p in manifest.findall('uses-permission')):
         ET.SubElement(manifest, 'uses-permission', {attr('name'): permission})
 feature = next((f for f in manifest.findall('uses-feature')
