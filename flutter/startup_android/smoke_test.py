@@ -74,41 +74,54 @@ def tap(label, exclude_class=None):
 
 
 def scroll_find(label, *, dialog=False, reverse=False):
+    """Find a visible control, searching in both scroll directions.
+
+    After adding a shape in the advanced editor the scroll position varies
+    with text scaling and device height. A target can be *above* the previous
+    action. Only swiping upwards caused false negatives on Android 29.
+    """
     last_swipe = None
-    for _ in range(6):
-        adb('shell', 'uiautomator', 'dump', '/sdcard/startup-window.xml')
-        xml = adb('shell', 'cat', '/sdcard/startup-window.xml').decode()
-        (output / 'window.xml').write_text(xml)
-        root = ET.fromstring(xml)
-        for node in root.iter('node'):
-            if label in node.get('text', '') + node.get('content-desc', ''):
-                return node
-        screen = next(root.iter('node'))
-        left, top, right, bottom = map(int, re.findall(r'\d+', screen.attrib['bounds']))
-        start_fraction, end_fraction = .8, .35
-        if dialog:
-            # Dialog actions are outside the scrolling content. A whole-screen
-            # swipe starts on those fixed buttons and never scrolls the palette.
-            viewports = []
+    for backwards in (reverse, not reverse):
+        for _ in range(7):
+            adb('shell', 'uiautomator', 'dump', '/sdcard/startup-window.xml')
+            xml = adb('shell', 'cat', '/sdcard/startup-window.xml').decode()
+            (output / 'window.xml').write_text(xml)
+            root = ET.fromstring(xml)
             for node in root.iter('node'):
-                if node.get('scrollable') != 'true':
-                    continue
-                bounds = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
-                if len(bounds) == 4 and bounds[2] > bounds[0] and bounds[3] > bounds[1]:
-                    viewports.append(bounds)
-            if viewports:
-                left, top, right, bottom = max(viewports, key=lambda b: (b[2]-b[0])*(b[3]-b[1]))
-            else:
-                start_fraction, end_fraction = .55, .25
-        if reverse:
-            start_fraction, end_fraction = end_fraction, start_fraction
-        x = (left + right) // 2
-        start_y = top + int((bottom - top) * start_fraction)
-        end_y = top + int((bottom - top) * end_fraction)
-        last_swipe = (x, start_y, x, end_y)
-        adb('shell', 'input', 'swipe', str(x), str(start_y), str(x), str(end_y), '350')
+                if label in node.get('text', '') + node.get('content-desc', ''):
+                    return node
+            screen = next(root.iter('node'))
+            left, top, right, bottom = map(int, re.findall(r'\\d+', screen.attrib['bounds']))
+            start_fraction, end_fraction = .8, .35
+            if dialog:
+                # Keep gestures within the scrollable dialog body instead of
+                # accidentally pressing fixed bottom action buttons.
+                viewports = []
+                for node in root.iter('node'):
+                    if node.get('scrollable') != 'true':
+                        continue
+                    bounds = list(map(int, re.findall(r'\\d+', node.get('bounds', ''))))
+                    if len(bounds) == 4 and bounds[2] > bounds[0] and bounds[3] > bounds[1]:
+                        viewports.append(bounds)
+                if viewports:
+                    left, top, right, bottom = max(
+                        viewports,
+                        key=lambda b: (b[2]-b[0]) * (b[3]-b[1]),
+                    )
+                else:
+                    start_fraction, end_fraction = .55, .25
+            if backwards:
+                start_fraction, end_fraction = end_fraction, start_fraction
+            x = (left + right) // 2
+            start_y = top + int((bottom - top) * start_fraction)
+            end_y = top + int((bottom - top) * end_fraction)
+            last_swipe = (x, start_y, x, end_y)
+            adb('shell', 'input', 'swipe', str(x), str(start_y), str(x), str(end_y), '350')
     screenshot('scroll-failed.png')
-    raise AssertionError(f'Could not scroll to {label}; dialog={dialog}, last swipe={last_swipe}')
+    raise AssertionError(
+        f'Could not scroll to {label}; dialog={dialog}, both directions tried, '
+        f'last swipe={last_swipe}'
+    )
 
 
 def scroll_tap(label, *, dialog=False, reverse=False):
@@ -205,7 +218,7 @@ if '--svg-advanced-only' in sys.argv:
     wait_for('SVG avanzado')
     screenshot('svg-advanced-open.png')
     scroll_tap('Nuevo rectángulo', dialog=True)
-    scroll_tap('Relleno de selección', dialog=True)
+    scroll_tap('Relleno de selección', dialog=True, reverse=True)
     wait_for('Color: Relleno de selección')
     tap('Color #e91e63')
     tap('Seleccionar')
