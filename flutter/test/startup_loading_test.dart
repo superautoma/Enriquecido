@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../lib/main_quill_integrated_test.dart';
@@ -63,6 +62,49 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('Destornillador aislado'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Live combined search stays visible, opens the record and preserves SQLite data', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(393, 850));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    late List<Map<String, Object?>> before;
+    await tester.runAsync(() async {
+      for (var id = 1; id <= 141; id++) {
+        await ToolsDatabase.instance.saveTool(ToolItem.fromMap({
+          'id': id, 'name': id == 1 ? 'Taládro de prueba' : 'Herramienta $id',
+          'description': id == 1 ? 'Percusión para hormigón' : 'Descripción $id',
+          'voltage': id == 1 ? '18 V' : '', 'quantity': 1.0,
+        }));
+      }
+      before = (await ToolsDatabase.instance.loadTools()).map((tool) => tool.toMap()).toList();
+    });
+    await tester.pumpWidget(const GestorHerramientasApp(testBypassSecurity: true));
+    await finishDatabaseLoad(tester);
+    await tester.pumpAndSettle();
+    final search = find.byKey(const ValueKey('inventory_search'));
+    final position = tester.getTopLeft(search);
+    await tester.drag(find.byType(InventoryResults), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(search), position);
+    await tester.enterText(search, 'HORMIGON taladro 18V');
+    await tester.pumpAndSettle();
+    expect(find.byType(InventoryToolTile), findsOneWidget);
+    expect(find.text('Taládro de prueba'), findsOneWidget);
+    expect(tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Cámara')).onPressed, isNull);
+    expect(tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Galería')).onPressed, isNull);
+    await tester.tap(find.text('Taládro de prueba'));
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await tester.pumpAndSettle();
+    expect(find.byType(EditToolPage), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() async {
+      final after = (await ToolsDatabase.instance.loadTools()).map((tool) => tool.toMap()).toList();
+      expect(after, before);
+      expect(after, hasLength(141));
+    });
     expect(tester.takeException(), isNull);
   });
 

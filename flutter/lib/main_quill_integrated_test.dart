@@ -2929,6 +2929,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
   Future<void> _preferencesWrite = Future<void>.value();
   bool _refreshing = false;
   List<FieldOption> _conditionOptions = defaultFieldOptions('condition');
+  List<FieldOption> _inventoryTypeOptions = defaultFieldOptions('type');
   bool _loading = true;
   bool _loadError = false;
   String? _loadErrorDetails;
@@ -2965,6 +2966,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       final conditionOptions = await ToolsDatabase.instance.loadFieldOptions(
         'condition',
       );
+      final typeOptions = await ToolsDatabase.instance.loadFieldOptions('type');
       if (!mounted) return;
       setState(() {
         _items
@@ -2977,6 +2979,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
         _conditionOptions = conditionOptions.isEmpty
             ? defaultFieldOptions('condition')
             : conditionOptions;
+        _inventoryTypeOptions = typeOptions.isEmpty ? defaultFieldOptions('type') : typeOptions;
         _loading = false;
       });
     } catch (error) {
@@ -3379,6 +3382,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
               child: TextField(
+                key: const ValueKey('inventory_search'),
                 controller: _searchController,
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
@@ -3400,6 +3404,15 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                 ),
               ),
             ),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Wrap(spacing: 8, runSpacing: 4, children: [
+                Tooltip(message: 'Búsqueda visual con cámara · Próximamente',
+                  child: OutlinedButton.icon(onPressed: null,
+                    icon: const Icon(Icons.camera_alt_outlined), label: const Text('Cámara'))),
+                Tooltip(message: 'Búsqueda visual desde galería · Próximamente',
+                  child: OutlinedButton.icon(onPressed: null,
+                    icon: const Icon(Icons.photo_library_outlined), label: const Text('Galería'))),
+              ])),
             Padding(padding: const EdgeInsets.fromLTRB(18, 4, 12, 8),
               child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center,
                 spacing: 12, runSpacing: 4, children: [
@@ -3426,6 +3439,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
                   child: const Text('Limpiar filtros')))),
             Expanded(child: InventoryResults(items: visible, view: _inventoryPreferences.view,
               facts: _inventoryFacts, conditionOptions: _conditionOptions,
+              typeOptions: _inventoryTypeOptions,
               selecting: _selectingTools, selectedIds: _bulkSelection,
               onSelect: (item) => setState(() {
                 if (!_bulkSelection.add(item.id)) _bulkSelection.remove(item.id);

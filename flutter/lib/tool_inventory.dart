@@ -14,8 +14,15 @@ String inventorySearchText(String value) {
   for (var index = 0; index < accented.length; index++) {
     result = result.replaceAll(accented[index], plain[index]);
   }
-  return result;
+  // Also accept decomposed accents (for example text pasted from a keyboard).
+  return result.replaceAll(RegExp(r'[\u0300-\u036f]'), '');
 }
+
+List<String> inventorySearchTerms(String value) => inventorySearchText(value)
+  // Treat the usual voltage spellings as the same term: 18V, 18 V, 18 v.
+  .replaceAllMapped(RegExp(r'(\d+(?:[.,]\d+)?)\s*v\b'),
+    (match) => '${match[1]!.replaceAll(',', '.')}v')
+  .trim().split(RegExp(r'\s+')).where((term) => term.isNotEmpty).toList();
 
 class InventoryPreferences {
   const InventoryPreferences({this.view = InventoryView.cards,
@@ -107,7 +114,7 @@ class InventoryFacts {
 
 List<ToolItem> selectInventoryTools(List<ToolItem> items, InventoryPreferences preferences,
     InventoryFacts facts, {String query = '', DateTime? today}) {
-  final text = inventorySearchText(query.trim());
+  final terms = inventorySearchTerms(query);
   final day = loanDay(today ?? DateTime.now());
   final visible = items.where((item) {
     if (item.isDeleted) return false;
@@ -124,7 +131,8 @@ List<ToolItem> selectInventoryTools(List<ToolItem> items, InventoryPreferences p
     if (preferences.containers.isNotEmpty && !preferences.containers.contains(location.container)) return false;
     if (preferences.brands.isNotEmpty && !preferences.brands.contains(item.brand)) return false;
     final state = item.activeLoans.isNotEmpty || item.activeLoan != null ? 'Prestado' : item.condition;
-    if (preferences.conditions.isNotEmpty && !preferences.conditions.contains(state)) return false;
+    if (preferences.conditions.isNotEmpty && !preferences.conditions.contains(item.condition) &&
+        !preferences.conditions.contains(state)) return false;
     if (preferences.voltages.isNotEmpty && !preferences.voltages.contains(item.voltage)) return false;
     final loans = item.activeLoans.isEmpty && item.activeLoan != null ? [item.activeLoan!] : item.activeLoans;
     final borrowed = loans.isNotEmpty;
@@ -146,13 +154,22 @@ List<ToolItem> selectInventoryTools(List<ToolItem> items, InventoryPreferences p
         !facts.hasRelated(item, facts.pendingMaintenanceTools)) return false;
     if (preferences.maintenance == InventoryMaintenance.overdue &&
         !facts.hasRelated(item, facts.overdueMaintenanceTools)) return false;
-    if (text.isNotEmpty) {
+    if (terms.isNotEmpty) {
       final search = [item.name, item.description, item.barcode, item.labelCode, item.type, item.voltage,
-        item.condition, item.brand, item.model, item.serialNumber, location.label, ...loans.map((loan) => loan.borrower),
+        item.condition, state, item.brand, item.model, item.serialNumber, location.label,
+        item.serviceNotes, item.unit, formatNumber(item.quantity), formatNumber(item.minimumStock),
+        formatNumber(item.purchasePrice),
+        if (facts.serviceBlocked(item)) 'Fuera de servicio',
+        ...loans.expand((loan) => [loan.borrower, loan.notes, loan.contact,
+          loan.deliveryCondition, loan.accessories]),
         ...facts.children[item.id]?.map((tool) =>
-          [tool.name, tool.barcode, tool.labelCode, tool.brand, tool.model, tool.serialNumber, facts.locationFor(tool).label].join(' ')) ?? <String>[],
+          [tool.name, tool.description, tool.barcode, tool.labelCode, tool.type,
+            tool.voltage, tool.condition, tool.brand, tool.model, tool.serialNumber,
+            tool.serviceNotes, facts.locationFor(tool).label].join(' ')) ?? <String>[],
         if (item.parentId != null) facts.byId[item.parentId]?.name ?? ''].join(' ');
-      if (!inventorySearchText(search).contains(text)) return false;
+      final normalized = inventorySearchTerms(search).join(' ');
+      // All terms must match, in any order and across the available fields.
+      if (!terms.every(normalized.contains)) return false;
     }
     return true;
   }).toList();

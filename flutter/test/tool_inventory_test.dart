@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../lib/main_quill_integrated_test.dart';
 
@@ -23,6 +22,52 @@ ToolLoan loan(int id, int toolId, String borrower, {bool overdue = false}) => To
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('Combined search matches terms across fields in any order and voltage spelling', () {
+    final tools = [item(1, name: 'TALÁDRO inalámbrico'),
+      item(2, name: 'Taladro', voltage: '230 V'), item(3, name: 'Sierra')];
+    tools[0].description = 'Percusión para hormigón';
+    tools[0].brand = 'Bosch';
+    final facts = InventoryFacts(tools);
+    for (final query in ['taladro 18V', '18 v TALADRO',
+        'bosch hormigon 18V', '  taladro\t18V  ', 'tala\u0301dro 18V']) {
+      expect(selectInventoryTools(tools, const InventoryPreferences(), facts,
+        query: query).map((tool) => tool.id), [1], reason: query);
+    }
+    expect(selectInventoryTools(tools, const InventoryPreferences(), facts,
+      query: 'taladro 18V inexistente'), isEmpty);
+    expect(selectInventoryTools(tools, const InventoryPreferences(), facts,
+      query: ' \t '), hasLength(3));
+  });
+
+  test('Physical condition combines with borrowed state and search without losing loans', () {
+    final tools = [item(1), item(2), item(3, type: 'Herramienta manual')];
+    for (final tool in tools) {
+      tool.activeLoans = [loan(tool.id, tool.id, 'Lucía')];
+      tool.availableQuantity = 0;
+    }
+    tools[1].condition = 'Revisar';
+    final prefs = InventoryPreferences(types: {'Herramienta eléctrica'},
+      conditions: {'Bueno'}, voltages: {'18 V'}, availability: InventoryAvailability.borrowed);
+    expect(selectInventoryTools(tools, prefs, InventoryFacts(tools),
+      query: 'lucia taladro 18V').map((tool) => tool.id), [1]);
+    expect(tools[0].condition, 'Bueno');
+    expect(tools[0].activeLoans.single.borrower, 'Lucía');
+    expect(selectInventoryTools(tools, prefs.copyWith(conditions: {'Prestado'}),
+      InventoryFacts(tools)), hasLength(2));
+  });
+
+  test('Search includes service notes and descriptions of kit components', () {
+    final tools = [item(1, name: 'Maletín', set: true), item(2, parent: 1), item(3)];
+    tools[1].description = 'Broca cerámica';
+    tools[1].voltage = '12,5 V';
+    tools[2].serviceNotes = 'Reparación del mandril';
+    final facts = InventoryFacts(tools);
+    expect(selectInventoryTools(tools, const InventoryPreferences(), facts,
+      query: 'ceramica 12.5V').single.id, 1);
+    expect(selectInventoryTools(tools, const InventoryPreferences(), facts,
+      query: 'mandril reparacion').single.id, 3);
+  });
+
   test('Type, voltage and availability combine; multiple choices are alternatives', () {
     final tools = [item(1), item(2, voltage: '230 V'), item(3, type: 'Herramienta manual', voltage: '')];
     tools[0].activeLoans = [loan(1, 1, 'Pedro')];

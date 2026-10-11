@@ -44,7 +44,8 @@ class _InventoryFilterSheetState extends State<InventoryFilterSheet> {
   @override
   Widget build(BuildContext context) {
     final types = {...widget.items.map((item) => item.type), ..._value.types}.toList()..sort();
-    final conditions = {...widget.conditionOptions.map((option) => option.label), ..._value.conditions}.toList();
+    final conditions = {...widget.conditionOptions.map((option) => option.label),
+      ...widget.items.map((item) => item.condition), ..._value.conditions}.toList();
     final voltages = {...widget.items.map((item) => item.voltage), ..._value.voltages}.toList()
       ..sort((a, b) {
         double number(String s) => double.tryParse(RegExp(r'\d+(?:[.,]\d+)?')
@@ -72,14 +73,14 @@ class _InventoryFilterSheetState extends State<InventoryFilterSheet> {
             items: inventorySortLabels.entries.map((entry) => DropdownMenuItem(
               value: entry.key, child: Text(entry.value))).toList(),
             onChanged: withControlFeedback((value) => setState(() => _value = _value.copyWith(sort: value)))),
-          _title('Disponibilidad'),
+          _title('Estado / disponibilidad'),
           _choices(const {InventoryAvailability.all: 'Todas', InventoryAvailability.available: 'Disponibles',
             InventoryAvailability.borrowed: 'Con préstamos', InventoryAvailability.overdue: 'Préstamo vencido',
             InventoryAvailability.outOfService: 'Fuera de servicio'}, _value.availability,
             (value) => _value = _value.copyWith(availability: value)),
           _title('Tipo · selección múltiple'),
           _multiple(types, _value.types, (value) => _value = _value.copyWith(types: value)),
-          _title('Estado · selección múltiple'),
+          _title('Condición · selección múltiple'),
           _multiple(conditions, _value.conditions, (value) => _value = _value.copyWith(conditions: value)),
           _title('Tensión · selección múltiple'),
           _multiple(voltages, _value.voltages, (value) => _value = _value.copyWith(voltages: value)),
@@ -130,11 +131,12 @@ class _InventoryFilterSheetState extends State<InventoryFilterSheet> {
 class InventoryToolTile extends StatelessWidget {
   const InventoryToolTile({super.key, required this.item, required this.facts,
     required this.conditionOptions, required this.onTap, this.view = InventoryView.cards,
-    this.selecting = false, this.selected = false});
+    this.selecting = false, this.selected = false, this.typeOptions = const []});
   final bool selecting, selected;
   final ToolItem item;
   final InventoryFacts facts;
   final List<FieldOption> conditionOptions;
+  final List<FieldOption> typeOptions;
   final VoidCallback onTap;
   final InventoryView view;
 
@@ -143,8 +145,10 @@ class InventoryToolTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(12)),
     child: item.imagePath.isNotEmpty && File(item.imagePath).existsSync() ?
       Image.file(File(item.imagePath), fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined)) :
-      Icon(item.isSet ? Icons.widgets_outlined : Icons.handyman_outlined,
-        color: const Color(0xFF168BD2), size: size > 60 ? 42 : 26));
+      item.isSet ? Icon(Icons.widgets_outlined, color: const Color(0xFF168BD2),
+        size: size > 60 ? 42 : 26) : Center(child: fieldOptionIconWidget(optionForValue(
+        typeOptions.isEmpty ? defaultFieldOptions('type') : typeOptions,
+        item.type, fieldKey: 'type'), size: size > 60 ? 42 : 26)));
 
   @override
   Widget build(BuildContext context) {
@@ -171,6 +175,13 @@ class InventoryToolTile extends StatelessWidget {
       if (!compact && item.voltage.isNotEmpty) Text(item.voltage, style: const TextStyle(fontSize: 13, color: managementColor)),
       const SizedBox(height: 5),
       Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        if (item.type.isNotEmpty && (item.isSet ||
+            (item.imagePath.isNotEmpty && File(item.imagePath).existsSync())))
+          Tooltip(message: item.type, child: fieldOptionIconWidget(optionForValue(
+          typeOptions.isEmpty ? defaultFieldOptions('type') : typeOptions,
+          item.type, fieldKey: 'type'), size: compact ? 18 : 22)),
+        if (borrowed && item.condition != 'Prestado') Text('Condición: ${item.condition}',
+          style: const TextStyle(fontSize: 12, color: managementColor)),
         if (blocked) Text(facts.ownServiceBlock(item) ? 'Fuera de servicio' : 'Pieza fuera de servicio',
           style: const TextStyle(color: Color(0xFFBF3434), fontSize: 12)),
         Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -206,7 +217,8 @@ class InventoryResults extends StatelessWidget {
   const InventoryResults({super.key, required this.items, required this.view,
     required this.facts, required this.conditionOptions, required this.onOpen,
     required this.onRefresh, required this.onClear, this.hasFilters = false,
-    this.selecting = false, this.selectedIds = const {}, this.onSelect});
+    this.selecting = false, this.selectedIds = const {}, this.onSelect,
+    this.typeOptions = const []});
   final bool selecting;
   final Set<int> selectedIds;
   final ValueChanged<ToolItem>? onSelect;
@@ -214,6 +226,7 @@ class InventoryResults extends StatelessWidget {
   final InventoryView view;
   final InventoryFacts facts;
   final List<FieldOption> conditionOptions;
+  final List<FieldOption> typeOptions;
   final ValueChanged<ToolItem> onOpen;
   final Future<void> Function() onRefresh;
   final VoidCallback onClear;
@@ -222,7 +235,8 @@ class InventoryResults extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget tile(int index) => InventoryToolTile(item: items[index], facts: facts, view: view,
       selecting: selecting, selected: selectedIds.contains(items[index].id),
-      conditionOptions: conditionOptions, onTap: () => selecting ? onSelect?.call(items[index]) : onOpen(items[index]));
+      conditionOptions: conditionOptions, typeOptions: typeOptions,
+      onTap: () => selecting ? onSelect?.call(items[index]) : onOpen(items[index]));
     Widget results;
     if (items.isEmpty) {
       results = ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(24),
