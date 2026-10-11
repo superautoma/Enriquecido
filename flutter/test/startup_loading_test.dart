@@ -91,8 +91,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(InventoryToolTile), findsOneWidget);
     expect(find.text('Taládro de prueba'), findsOneWidget);
-    expect(tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Cámara')).onPressed, isNull);
-    expect(tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Galería')).onPressed, isNull);
+    expect(tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Cámara')).onPressed, isNotNull);
+    expect(tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Galería')).onPressed, isNotNull);
     await tester.tap(find.text('Taládro de prueba'));
     await tester.runAsync(() async {
       await Future<void>.delayed(const Duration(milliseconds: 100));

@@ -18,6 +18,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'svg_editor_model.dart';
 import 'app_security.dart';
+import 'visual_search.dart';
 import 'tools_main_menu.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart' as ms;
@@ -35,6 +36,7 @@ part 'tool_details.dart';
 part 'tool_codes.dart';
 part 'tool_trash.dart';
 part 'tool_inventory_ui.dart';
+part 'tool_visual_ui.dart';
 part 'backup_import.dart';
 part 'backup_import_ui.dart';
 part 'backup_restore.dart';
@@ -2892,6 +2894,14 @@ class ToolsHomePage extends StatefulWidget {
 
 class _ToolsHomePageState extends State<ToolsHomePage> {
   final _searchController = TextEditingController();
+  final _visualEngine = LocalVisualSearch();
+  ImageSource? _visualSource;
+  int _visualRequest = 0;
+
+  void _openVisualSearch(ImageSource source) => setState(() {
+    _visualSource = source;
+    _visualRequest++;
+  });
 
   final List<ToolItem> _defaultItems = [
     ToolItem(
@@ -3317,6 +3327,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _visualEngine.clear();
     super.dispose();
   }
 
@@ -3417,12 +3428,12 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
             ),
             Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Wrap(spacing: 8, runSpacing: 4, children: [
-                Tooltip(message: 'Búsqueda visual con cámara · Próximamente',
-                  child: OutlinedButton.icon(onPressed: null,
-                    icon: const Icon(Icons.camera_alt_outlined), label: const Text('Cámara'))),
-                Tooltip(message: 'Búsqueda visual desde galería · Próximamente',
-                  child: OutlinedButton.icon(onPressed: null,
-                    icon: const Icon(Icons.photo_library_outlined), label: const Text('Galería'))),
+                OutlinedButton.icon(key: const ValueKey('visual_camera'),
+                  onPressed: withButtonFeedback(_loading ? null : () => _openVisualSearch(ImageSource.camera)),
+                  icon: const Icon(Icons.camera_alt_outlined), label: const Text('Cámara')),
+                OutlinedButton.icon(key: const ValueKey('visual_gallery'),
+                  onPressed: withButtonFeedback(_loading ? null : () => _openVisualSearch(ImageSource.gallery)),
+                  icon: const Icon(Icons.photo_library_outlined), label: const Text('Galería')),
               ])),
             Padding(padding: const EdgeInsets.fromLTRB(18, 4, 12, 8),
               child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center,
@@ -3448,7 +3459,11 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
               Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(left: 12),
                 child: TextButton(onPressed: withButtonFeedback(() => _setInventoryPreferences(_inventoryPreferences.clearFilters())),
                   child: const Text('Limpiar filtros')))),
-            Expanded(child: InventoryResults(items: visible, view: _inventoryPreferences.view,
+            Expanded(child: _visualSource != null ? VisualInventoryResults(
+              key: ValueKey(_visualRequest), source: _visualSource!,
+              items: List.of(_items), eligibleItems: visible, engine: _visualEngine,
+              onOpen: (item) => _openEditor(item: item),
+              onClose: () => setState(() => _visualSource = null)) : InventoryResults(items: visible, view: _inventoryPreferences.view,
               facts: _inventoryFacts, conditionOptions: _conditionOptions,
               typeOptions: _inventoryTypeOptions,
               selecting: _selectingTools, selectedIds: _bulkSelection,
