@@ -722,7 +722,7 @@ if '--scanner-only' not in sys.argv:
         '-d','file:///sdcard/Download/demo_100_v9.zip')
     tap('Opciones')
     # The long options menu can put import below the emulator viewport.
-    scroll_tap('Importar y añadir')
+    scroll_tap('Importar datos')
     select_import_zip()
     wait_for('Para añadir: 100 herramientas y 40 piezas')
     screenshot('import-preview.png')
@@ -749,7 +749,7 @@ if '--scanner-only' not in sys.argv:
     wait_for('103 artículos')
     tap('Opciones')
     # The long options menu can put import below the emulator viewport.
-    scroll_tap('Importar y añadir')
+    scroll_tap('Importar datos')
     select_import_zip()
     wait_for('Este ZIP ya se ha importado')
     screenshot('import-duplicate.png')
