@@ -225,8 +225,8 @@ def check(project, state):
     print(json.dumps(summary, ensure_ascii=False), flush=True)
     print(f"Resultados completos: {logs}", flush=True)
     require(analysis.returncode == 0 and tests.returncode == 0 and done and
-            counts == {"passed": 222, "failed": 0, "skipped": 0},
-            "La validación no coincide con 222 aprobadas, 0 fallidas y 0 omitidas; revisar logs.")
+            counts == {"passed": 226, "failed": 0, "skipped": 0},
+            "La validación no coincide con 226 aprobadas, 0 fallidas y 0 omitidas; revisar logs.")
 
 
 def main():

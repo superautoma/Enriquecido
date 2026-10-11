@@ -17,6 +17,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'svg_editor_model.dart';
 import 'app_security.dart';
+import 'tools_main_menu.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart' as ms;
 import 'package:pdf/pdf.dart' as pdf;
@@ -3327,6 +3328,41 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     }
   }
 
+  void _selectMainMenuOption(String value) {
+    switch (value) {
+      case 'inventory':
+        return;
+      case 'ai_photo':
+        _openAiPhoto();
+      case 'ai_settings':
+        Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ChatGptSettingsPage()));
+      case 'security':
+        Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const SecuritySettingsPage()));
+      case 'button_feedback':
+        Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ButtonFeedbackPage()));
+      case 'trash':
+        _openTrash();
+      case 'management':
+        Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ManagementHubPage())).then((_) { if (mounted) _loadItems(); });
+      case 'maintenance':
+        Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const MaintenancePage())).then((_) { if (mounted) _loadItems(); });
+      case 'loans':
+        _openLoans();
+      case 'icons':
+        _openIconManager();
+      case 'database':
+        _openDatabaseManager();
+      case 'fields':
+        _openFieldOptionsManager();
+      case 'backup':
+        _createBackup();
+      case 'import':
+        _importBackup();
+      case 'restore':
+        _restoreBackup();
+    }
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -3360,106 +3396,18 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
             icon: const Icon(Icons.image_outlined),
             onPressed: withButtonFeedback(_openIconManager),
           ),
-          PopupMenuButton<String>(onOpened: () => ButtonFeedbackController.instance.tap(),
+          Builder(builder: (menuContext) => IconButton(
+            key: const ValueKey('open_tools_menu'),
             tooltip: 'Opciones',
-            icon: const Icon(Icons.more_vert),
-            onSelected: withControlFeedback((value) {
-              switch (value) {
-                case 'ai_photo':
-                  _openAiPhoto();
-                case 'ai_settings':
-                  Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ChatGptSettingsPage()));
-                case 'security':
-                  Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const SecuritySettingsPage()));
-                case 'button_feedback':
-                  Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ButtonFeedbackPage()));
-                case 'trash':
-                  _openTrash();
-                case 'management':
-                  Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const ManagementHubPage())).then((_) { if (mounted) _loadItems(); });
-                case 'maintenance':
-                  Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const MaintenancePage())).then((_) { if (mounted) _loadItems(); });
-                case 'loans':
-                  _openLoans();
-                case 'icons':
-                  _openIconManager();
-                case 'database':
-                  _openDatabaseManager();
-                case 'fields':
-                  _openFieldOptionsManager();
-                case 'backup':
-                  _createBackup();
-                case 'import':
-                  _importBackup();
-                case 'restore':
-                  _restoreBackup();
-              }
-            }),
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'ai_photo', child: ListTile(contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.auto_awesome_outlined), title: Text('Crear ficha con IA'))),
-              PopupMenuItem(value: 'ai_settings', child: ListTile(contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.manage_accounts_outlined), title: Text('Conexión con ChatGPT'))),
-              PopupMenuItem(value: 'security', child: ListTile(contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.lock_outline), title: Text('Seguridad y acceso'))),
-              PopupMenuItem(value: 'button_feedback', child: ListTile(contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.touch_app_outlined), title: Text('Sonido y vibración'))),
-              PopupMenuItem(value: 'trash', child: ListTile(contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.delete_outline), title: Text('Papelera de artículos'))),
-              PopupMenuItem(value: 'management', child: ListTile(contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.dashboard_outlined), title: Text('Gestión de herramientas'))),
-              PopupMenuItem(value: 'maintenance', child: ListTile(contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.build_outlined), title: Text('Mantenimientos'))),
-              PopupMenuItem(value: 'loans', child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.handshake_outlined), title: Text('Préstamos'))),
-              PopupMenuItem(
-                value: 'icons',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.image_outlined),
-                  title: Text('Gestor de iconos'),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'database',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.storage_outlined),
-                  title: Text('Gestión de base de datos'),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'fields',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.tune_outlined),
-                  title: Text('Configurar Tipo y Estado'),
-                ),
-              ),
-              PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'backup',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.backup_outlined),
-                  title: Text('Crear copia de seguridad'),
-                ),
-              ),
-              PopupMenuItem(value: 'import', child: ListTile(contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.playlist_add), title: Text('Importar y añadir'))),
-              PopupMenuItem(
-                value: 'restore',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.restore),
-                  title: Text('Restaurar y sustituir'),
-                ),
-              ),
-            ],
-          ),
+            icon: const Icon(Icons.menu_rounded),
+            onPressed: withButtonFeedback(() => Scaffold.of(menuContext).openEndDrawer()),
+          )),
         ],
       ),
+      endDrawer: ToolsMainMenu(onSelected: withControlFeedback((String value) {
+        Navigator.of(context).pop();
+        _selectMainMenuOption(value);
+      })!),
       floatingActionButton: FloatingActionButton(
         onPressed: withButtonFeedback(() => _openEditor()),
         backgroundColor: const Color(0xFF168BD2),

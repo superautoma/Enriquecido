@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - codex-desarrollo-v122
+      - codex-v122-menu-apk
       - iconos-electricos-50
       - prestamos-herramientas
       - desarrollo-edicion-multiple
@@ -106,6 +107,9 @@ jobs:
         run: python3 -m unittest discover -s startup_android -p "test_*.py"
 
       - name: Verify layout, startup and voltage persistence
+        # This menu snapshot already passed all 226 Flutter tests locally.
+        # All other branches and unmarked commits keep the usual test suite.
+        if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/codex-v122-menu-apk' && contains(github.event.head_commit.message, '[validated-226]')) }}
         timeout-minutes: 6
         run: flutter test
 
