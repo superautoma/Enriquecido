@@ -108,6 +108,39 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Narrow Android grid reveals the oldest tool by scrolling and opens its record', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const GestorHerramientasApp(testBypassSecurity: true));
+    await finishDatabaseLoad(tester);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Cambiar vista'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lista compacta'));
+    await tester.pumpAndSettle();
+    expect(find.text('Destornillador aislado'), findsOneWidget);
+    await tester.tap(find.byTooltip('Cambiar vista'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cuadrícula'));
+    await tester.pumpAndSettle();
+    expect(find.text('3 artículos'), findsOneWidget);
+    // Reproduce #128: the last article is below the visible one-column grid.
+    expect(find.text('Destornillador aislado').hitTestable(), findsNothing);
+    await tester.scrollUntilVisible(find.text('Destornillador aislado'), 150,
+      scrollable: find.descendant(of: find.byType(InventoryResults), matching: find.byType(Scrollable)));
+    await tester.pumpAndSettle();
+    expect(find.text('Destornillador aislado').hitTestable(), findsOneWidget);
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Destornillador aislado'));
+      await tester.pumpAndSettle();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    });
+    await tester.pumpAndSettle();
+    expect(find.byType(EditToolPage), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('Failed startup offers a retry and then opens the tools',
       (tester) async {
     final invalidPath = File('${directory.path}/not_a_directory');

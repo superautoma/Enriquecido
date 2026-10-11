@@ -685,11 +685,13 @@ if '--scanner-only' not in sys.argv:
     wait_for('Mis herramientas')
     tap('Cambiar vista')
     tap('Lista compacta')
-    wait_for('Destornillador aislado')
+    scroll_find('Destornillador aislado')
     screenshot('inventory-compact.png')
     tap('Cambiar vista')
     tap('Cuadrícula')
-    wait_for('Destornillador aislado')
+    # On narrow screens the grid has one column. The oldest seeded tool can
+    # be below the viewport; waiting alone never makes a lazy list reveal it.
+    scroll_find('Destornillador aislado')
     screenshot('inventory-grid.png')
     tap('Filtrar')
     wait_for('Filtrar y ordenar')
@@ -715,7 +717,7 @@ if '--scanner-only' not in sys.argv:
     tap('Limpiar filtros')
     wait_for('3 artículos')
     tap('Actualizar herramientas')
-    wait_for('Destornillador aislado')
+    scroll_find('Destornillador aislado')
     adb('shell','mkdir','-p','/sdcard/Download')
     adb('push','test/fixtures/demo_100_v9.zip','/sdcard/Download/demo_100_v9.zip')
     adb('shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE',
