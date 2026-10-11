@@ -1,0 +1,608 @@
+{
+  "provenance": {
+    "source": "Existing completed Linux validation report; not rerun",
+    "source_sha256": "fb195feef2bfd272254519a7c3b255f9d00653954907f86e64fc384e54a53dec",
+    "redactions": [
+      "Temporary directory paths",
+      "Log file paths",
+      "Process identifiers"
+    ]
+  },
+  "base_commit": "e2cb20cc12f63fbfa84fa1754c85e7ee33e8591a",
+  "passed": 15,
+  "failed": 0,
+  "worker_executions": 60,
+  "intentional_sigkill": 15,
+  "scenarios": [
+    {
+      "scenario": "valid_zip",
+      "result": "passed",
+      "seconds": 11.33
+    },
+    {
+      "scenario": "corrupt_zip",
+      "result": "passed",
+      "seconds": 10.74
+    },
+    {
+      "scenario": "insufficient_space",
+      "result": "passed",
+      "seconds": 10.75
+    },
+    {
+      "scenario": "death_sqlite_removed",
+      "result": "passed",
+      "seconds": 15.4
+    },
+    {
+      "scenario": "death_during_photo_copy",
+      "result": "passed",
+      "seconds": 15.1
+    },
+    {
+      "scenario": "death_during_document_copy",
+      "result": "passed",
+      "seconds": 16.05
+    },
+    {
+      "scenario": "death_during_svg_copy",
+      "result": "passed",
+      "seconds": 15.1
+    },
+    {
+      "scenario": "unexpected_death_after_sqlite",
+      "result": "passed",
+      "seconds": 15.85
+    },
+    {
+      "scenario": "second_death_recovery_sqlite",
+      "result": "passed",
+      "seconds": 18.45
+    },
+    {
+      "scenario": "second_death_recovery_photos",
+      "result": "passed",
+      "seconds": 19.31
+    },
+    {
+      "scenario": "second_death_recovery_documents",
+      "result": "passed",
+      "seconds": 19.35
+    },
+    {
+      "scenario": "blocked_recovery_preserves_rescue",
+      "result": "passed",
+      "seconds": 15.55
+    },
+    {
+      "scenario": "space_failure_during_recovery",
+      "result": "passed",
+      "seconds": 14.85
+    },
+    {
+      "scenario": "death_before_application",
+      "result": "passed",
+      "seconds": 14.5
+    },
+    {
+      "scenario": "death_after_confirmation",
+      "result": "passed",
+      "seconds": 15.24
+    }
+  ],
+  "worker_runs": [
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "",
+      "exit": 0,
+      "verified": "new"
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "new"
+    },
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "corrupt",
+      "exit": 0,
+      "verified": "old"
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": false,
+        "needs_notice": false
+      }
+    },
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "space",
+      "exit": 0,
+      "verified": "old"
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": false,
+        "needs_notice": false
+      }
+    },
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "removed_database",
+      "exit": 79,
+      "point": "removed_database",
+      "phase": "applying",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "copy_photo",
+      "exit": 79,
+      "point": "partial_tool_images/photo.jpg",
+      "phase": "applying",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "copy_document",
+      "exit": 79,
+      "point": "partial_tool_documents/manual.pdf",
+      "phase": "applying",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "copy_icon",
+      "exit": 79,
+      "point": "partial_tool_images/custom_icons/icon.svg",
+      "phase": "applying",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "applied_database",
+      "exit": 79,
+      "point": "applied_database",
+      "phase": "applying",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "removed_database",
+      "exit": 79,
+      "point": "removed_database",
+      "phase": "applying",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "restart",
+      "fault": "recovered_database",
+      "exit": 79,
+      "point": "recovered_database",
+      "phase": "recovering",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "removed_database",
+      "exit": 79,
+      "point": "removed_database",
+      "phase": "applying",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "restart",
+      "fault": "removed_tool_images",
+      "exit": 79,
+      "point": "removed_tool_images",
+      "phase": "recovering",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "removed_database",
+      "exit": 79,
+      "point": "removed_database",
+      "phase": "applying",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "restart",
+      "fault": "removed_tool_documents",
+      "exit": 79,
+      "point": "removed_tool_documents",
+      "phase": "recovering",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "removed_database",
+      "exit": 79,
+      "point": "removed_database",
+      "phase": "applying",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "recover_blocked",
+      "fault": "recovery_error",
+      "exit": 0,
+      "blocked": true,
+      "rescue_hashes": {
+        "tool_documents/manual.pdf": "5704287640458d093430dfde3ab0a97c54a08c4de6a12b0fdbc8f5f39ba7f813",
+        "tool_images/custom_icons/icon.svg": "c7d241d851611605803456900afcd2fc49267a016b12118e47089e9622408fdd",
+        "tool_images/custom_icons/icon.svg.group.json": "bc6362b5c3903734babd8b67787e06b6d73d28e6115dcb6e46b744ca7cbbd981",
+        "tool_images/photo.jpg": "1f67ab330143121af5bc9b619c4f903135ddd1b32d20909cd9e3b770acc499e1",
+        "tool_images/icon_names.json": "89f0d47f1a20b21c98d39346c7e85865a0185cce3efab029c1a4cc6087305fa3",
+        "tool_images/icon_settings.json": "7ebcb4b4524f41439925935b43337338fc1e72f168732a769d31058a503ca3de",
+        "database": "da98c55c02bbbc53ce3a7b08518c8c00450d9b64cbfe52ff8574377068f38173"
+      }
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "removed_database",
+      "exit": 79,
+      "point": "removed_database",
+      "phase": "applying",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "recover_blocked",
+      "fault": "space",
+      "exit": 0,
+      "blocked": true,
+      "rescue_hashes": {
+        "tool_documents/manual.pdf": "5704287640458d093430dfde3ab0a97c54a08c4de6a12b0fdbc8f5f39ba7f813",
+        "tool_images/custom_icons/icon.svg": "c7d241d851611605803456900afcd2fc49267a016b12118e47089e9622408fdd",
+        "tool_images/custom_icons/icon.svg.group.json": "bc6362b5c3903734babd8b67787e06b6d73d28e6115dcb6e46b744ca7cbbd981",
+        "tool_images/photo.jpg": "1f67ab330143121af5bc9b619c4f903135ddd1b32d20909cd9e3b770acc499e1",
+        "tool_images/icon_names.json": "89f0d47f1a20b21c98d39346c7e85865a0185cce3efab029c1a4cc6087305fa3",
+        "tool_images/icon_settings.json": "7ebcb4b4524f41439925935b43337338fc1e72f168732a769d31058a503ca3de",
+        "database": "7a9f486a7993e79d5ddd3c804a84414e43358efde2c0ff2f0533397a56307eaa"
+      }
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": true,
+        "needs_notice": true
+      }
+    },
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "prepared_incoming",
+      "exit": 79,
+      "point": "prepared_incoming",
+      "phase": "preparing",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": false,
+        "needs_notice": false
+      }
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "old",
+      "notice": {
+        "recovered": false,
+        "needs_notice": false
+      }
+    },
+    {
+      "action": "seed",
+      "fault": "",
+      "exit": 0,
+      "seeded": true
+    },
+    {
+      "action": "restore",
+      "fault": "confirmed",
+      "exit": 79,
+      "point": "confirmed",
+      "phase": "confirmed",
+      "signal": "SIGKILL",
+      "signal_sent_by_parent": true
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "new"
+    },
+    {
+      "action": "restart",
+      "fault": "",
+      "exit": 0,
+      "verified": "new"
+    }
+  ],
+  "android": "not available locally; Android integration not executed",
+  "production_files_modified": false
+}
