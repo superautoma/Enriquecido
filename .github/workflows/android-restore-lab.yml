@@ -59,7 +59,7 @@ jobs:
           sdkmanager --version
           sdkmanager --list_installed
           adb version
-          "$ANDROID_HOME/emulator/emulator" -version
+          "$ANDROID_HOME/emulator/emulator" -no-window -noaudio -version
           "$ANDROID_HOME/emulator/emulator" -accel-check
           date +%s > "$RUNNER_TEMP/android-lab-start.txt"
           SCRIPT
@@ -75,7 +75,21 @@ jobs:
           test "$BOOT" = 1
           test "$API" = 29
           test "$(timeout 15s adb -s "$LAB_SERIAL" shell echo android-lab-ok | tr -d '\r')" = android-lab-ok
-          SECONDS_TO_PROBE=$(( $(date +%s) - $(cat "$RUNNER_TEMP/android-lab-start.txt") ))
+          # The action can continue after a failed prelaunch hook: never report success then.
+          if ! START="$(cat "$RUNNER_TEMP/android-lab-start.txt")"; then
+            echo 'La comprobación previa al arranque no terminó; falta el registro de tiempo.' >&2
+            exit 1
+          fi
+          NOW="$(date +%s)"
+          if [[ ! "$START" =~ ^[0-9]{1,12}$ ]] || [[ ! "$NOW" =~ ^[0-9]{1,12}$ ]]; then
+            echo 'Registro de tiempo inválido; no se puede medir el arranque.' >&2
+            exit 1
+          fi
+          SECONDS_TO_PROBE=$(( 10#$NOW - 10#$START ))
+          if (( SECONDS_TO_PROBE < 0 )); then
+            echo 'El reloj retrocedió durante el arranque.' >&2
+            exit 1
+          fi
           printf 'LAB_BOOT=completed LAB_ADB=operational LAB_API=%s LAB_ANDROID=%s LAB_BOOT_SECONDS=%s\n' "$API" "$RELEASE" "$SECONDS_TO_PROBE"
           {
             echo '### Infraestructura Android'
@@ -117,25 +131,32 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # The pinned action already requests shutdown on success and failure.
+          # The action already requests shutdown; ADB may briefly retain a stale serial.
           if command -v adb >/dev/null 2>&1; then
-            if adb devices | grep -q "^${LAB_SERIAL}[[:space:]]"; then
-              timeout 15s adb -s "$LAB_SERIAL" emu kill
+            devices="$(timeout 3s adb devices)"
+            if grep -q "^${LAB_SERIAL}[[:space:]]" <<< "$devices"; then
+              # A closed console during shutdown is harmless only if disappearance is verified.
+              if ! timeout 15s adb -s "$LAB_SERIAL" emu kill; then
+                echo 'Consola no disponible; esperando a verificar el apagado.'
+              fi
             fi
             for attempt in $(seq 1 15); do
-              if ! adb devices | grep -q "^${LAB_SERIAL}[[:space:]]"; then break; fi
+              devices="$(timeout 3s adb devices)"
+              if ! grep -q "^${LAB_SERIAL}[[:space:]]" <<< "$devices"; then break; fi
               sleep 2
             done
-            adb devices -l
-            if adb devices | grep -q "^${LAB_SERIAL}[[:space:]]"; then
+            timeout 3s adb devices -l
+            devices="$(timeout 3s adb devices)"
+            if grep -q "^${LAB_SERIAL}[[:space:]]" <<< "$devices"; then
               echo 'LAB_SHUTDOWN=failed'
-              echo 'El emulador sigue visible tras solicitar el apagado.' >> "$GITHUB_STEP_SUMMARY"
+              echo 'El emulador sigue visible; se conserva el AVD sin eliminarlo.' >> "$GITHUB_STEP_SUMMARY"
               exit 1
             fi
           fi
           if command -v avdmanager >/dev/null 2>&1; then
-            if avdmanager list avd | grep -Fq "Name: $LAB_AVD"; then
-              avdmanager delete avd -n "$LAB_AVD"
+            avds="$(timeout 15s avdmanager list avd)"
+            if grep -Eq "^[[:space:]]*Name: ${LAB_AVD}$" <<< "$avds"; then
+              timeout 15s avdmanager delete avd -n "$LAB_AVD"
             fi
           fi
           echo 'LAB_SHUTDOWN=verified LAB_CLEANUP=completed'
