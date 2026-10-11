@@ -95,6 +95,14 @@ if properties.exists() and gradle.exists() and 'android.builtInKotlin=false' in 
 if not gradle.exists():
     raise SystemExit('No se encontró android/app/build.gradle.kts')
 text = gradle.read_text()
+# Keep this branch installable over #129 even if Flutter supplies an older
+# build number. Higher workflow build numbers continue to take precedence.
+version_code = 'versionCode = maxOf(130, flutter.versionCode)'
+text, count = re.subn(
+    r'versionCode\s*=\s*(?:flutter\.versionCode|maxOf\(130,\s*flutter\.versionCode\))',
+    version_code, text)
+if count != 1:
+    raise SystemExit('No se encontró un único versionCode de Flutter en build.gradle.kts')
 marker = 'release {'
 if text.count(marker) != 1:
     raise SystemExit('No se encontró un único bloque release en build.gradle.kts')

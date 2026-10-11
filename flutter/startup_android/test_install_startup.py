@@ -36,6 +36,11 @@ class StartupInstallTest(unittest.TestCase):
                 id("com.android.application")
             }
             android {
+                defaultConfig {
+                    applicationId = "org.gestorherramientas.gestor_herramientas_quill_test"
+                    versionCode = flutter.versionCode
+                    versionName = flutter.versionName
+                }
                 buildTypes {
                     release {
                         isMinifyEnabled = true
@@ -54,6 +59,9 @@ class StartupInstallTest(unittest.TestCase):
             subprocess.run(command, check=True)
             self.assertEqual(hashlib.sha256(manifest.read_bytes()).digest(), first)
             self.assertEqual(gradle.read_text(), first_gradle)
+            self.assertEqual(first_gradle.count('versionCode = maxOf(130, flutter.versionCode)'), 1)
+            self.assertIn('versionName = flutter.versionName', first_gradle)
+            self.assertIn('applicationId = "org.gestorherramientas.gestor_herramientas_quill_test"', first_gradle)
             self.assertEqual(first_gradle.count('isMinifyEnabled = false'), 1)
             self.assertEqual(first_gradle.count('isShrinkResources = false'), 1)
             self.assertNotIn('isMinifyEnabled = true', first_gradle)
