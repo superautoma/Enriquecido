@@ -1,0 +1,142 @@
+name: Android Restore Laboratory
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-restore-infrastructure-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  infrastructure:
+    if: github.ref == 'refs/heads/codex-v122-laboratorio-android'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      LAB_AVD: v122-infra-${{ github.run_id }}-${{ github.run_attempt }}
+      LAB_SERIAL: emulator-5554
+    steps:
+      # No checkout: this job never reads application sources, backups or keys.
+      - name: Inspect runner and allow scoped KVM access
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          uname -srm
+          cat /etc/os-release
+          nproc
+          free -h
+          df -h "$RUNNER_TEMP"
+          java -version
+          printf 'Runner: %s / %s / %s\n' "$RUNNER_ENVIRONMENT" "$RUNNER_OS" "$RUNNER_ARCH"
+          if [ ! -c /dev/kvm ]; then
+            echo 'LAB_KVM=unavailable'
+            echo 'KVM no disponible; se detiene la fase de infraestructura.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          ls -l /dev/kvm
+          # Only if needed: grant this disposable runner access to one device.
+          # No chmod 666, global udev changes, package installs or privileged container.
+          if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then
+            sudo chown "$(id -u):$(id -g)" /dev/kvm
+          fi
+          test -r /dev/kvm && test -w /dev/kvm
+          echo 'LAB_KVM=available'
+          echo 'KVM: dispositivo presente y accesible; aceleración se comprobará antes del arranque.' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare read-only probes
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/android-lab-prelaunch.sh" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          java -version
+          sdkmanager --version
+          sdkmanager --list_installed
+          adb version
+          "$ANDROID_HOME/emulator/emulator" -version
+          "$ANDROID_HOME/emulator/emulator" -accel-check
+          date +%s > "$RUNNER_TEMP/android-lab-start.txt"
+          SCRIPT
+          cat > "$RUNNER_TEMP/android-lab-probe.sh" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          test "$ANDROID_SERIAL" = "$LAB_SERIAL"
+          adb devices -l
+          test "$(timeout 15s adb -s "$LAB_SERIAL" get-state)" = device
+          BOOT="$(timeout 15s adb -s "$LAB_SERIAL" shell getprop sys.boot_completed | tr -d '\r')"
+          API="$(timeout 15s adb -s "$LAB_SERIAL" shell getprop ro.build.version.sdk | tr -d '\r')"
+          RELEASE="$(timeout 15s adb -s "$LAB_SERIAL" shell getprop ro.build.version.release | tr -d '\r')"
+          test "$BOOT" = 1
+          test "$API" = 29
+          test "$(timeout 15s adb -s "$LAB_SERIAL" shell echo android-lab-ok | tr -d '\r')" = android-lab-ok
+          SECONDS_TO_PROBE=$(( $(date +%s) - $(cat "$RUNNER_TEMP/android-lab-start.txt") ))
+          printf 'LAB_BOOT=completed LAB_ADB=operational LAB_API=%s LAB_ANDROID=%s LAB_BOOT_SECONDS=%s\n' "$API" "$RELEASE" "$SECONDS_TO_PROBE"
+          {
+            echo '### Infraestructura Android'
+            echo '- KVM: comprobación de aceleración superada.'
+            echo "- Android: $RELEASE; API: $API; serial: $LAB_SERIAL."
+            echo '- ADB: conectado y comando shell verificado.'
+            echo "- Tiempo aproximado hasta la sonda ADB: $SECONDS_TO_PROBE segundos."
+            echo '- No se instaló ninguna aplicación ni se ejecutó una restauración.'
+          } >> "$GITHUB_STEP_SUMMARY"
+          SCRIPT
+
+      - name: Start disposable Android emulator and probe ADB
+        id: emulator
+        timeout-minutes: 12
+        # ReactiveCircus/android-emulator-runner: v2 resolved to this immutable commit.
+        # Provenance and behavior reviewed in docs/LABORATORIO_ANDROID_INFRAESTRUCTURA_V122.md.
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          channel: stable
+          cores: 2
+          ram-size: 2048M
+          disk-size: 2048M
+          avd-name: ${{ env.LAB_AVD }}
+          force-avd-creation: false
+          emulator-port: 5554
+          emulator-boot-timeout: 300
+          disable-linux-hw-accel: false
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -accel on -camera-back none -camera-front none
+          pre-emulator-launch-script: bash "$RUNNER_TEMP/android-lab-prelaunch.sh"
+          script: bash "$RUNNER_TEMP/android-lab-probe.sh"
+
+      - name: Verify shutdown and remove only this lab AVD
+        if: always()
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The pinned action already requests shutdown on success and failure.
+          if command -v adb >/dev/null 2>&1; then
+            if adb devices | grep -q "^${LAB_SERIAL}[[:space:]]"; then
+              timeout 15s adb -s "$LAB_SERIAL" emu kill
+            fi
+            for attempt in $(seq 1 15); do
+              if ! adb devices | grep -q "^${LAB_SERIAL}[[:space:]]"; then break; fi
+              sleep 2
+            done
+            adb devices -l
+            if adb devices | grep -q "^${LAB_SERIAL}[[:space:]]"; then
+              echo 'LAB_SHUTDOWN=failed'
+              echo 'El emulador sigue visible tras solicitar el apagado.' >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+          fi
+          if command -v avdmanager >/dev/null 2>&1; then
+            if avdmanager list avd | grep -Fq "Name: $LAB_AVD"; then
+              avdmanager delete avd -n "$LAB_AVD"
+            fi
+          fi
+          echo 'LAB_SHUTDOWN=verified LAB_CLEANUP=completed'
+          echo 'Limpieza: emulador ausente de ADB; AVD de esta ejecución retirado si llegó a crearse. El runner hospedado es desechable.' >> "$GITHUB_STEP_SUMMARY"
