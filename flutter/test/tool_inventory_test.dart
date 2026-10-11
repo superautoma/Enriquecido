@@ -22,6 +22,24 @@ ToolLoan loan(int id, int toolId, String borrower, {bool overdue = false}) => To
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('Active pieces combine with advanced search and all requested filters', () {
+    final tools = [item(1, name: 'Maletín', set: true),
+      item(2, name: 'Taládro', parent: 1), item(3, name: 'Taladro', parent: 1, voltage: '230 V'),
+      item(4, name: 'Taladro', parent: 1)..deletedAt = '2026-10-11'];
+    tools[1].description = 'Percusión';
+    tools[1].activeLoans = [loan(1, 2, 'Ana')];
+    final prefs = InventoryPreferences(includePieces: true, types: {'Herramienta eléctrica'},
+      conditions: {'Bueno'}, voltages: {'18 V'}, availability: InventoryAvailability.borrowed);
+    final facts = InventoryFacts(tools);
+    expect(selectInventoryTools(tools, prefs, facts, query: 'percusion taladro 18V').single.id, 2);
+    expect(selectInventoryTools(tools, prefs.copyWith(includePieces: false), facts,
+      query: 'percusion taladro 18V'), isEmpty);
+    expect(selectInventoryTools(tools, const InventoryPreferences(includePieces: true), facts)
+      .map((tool) => tool.id), [3, 2, 1]);
+    expect(selectInventoryTools(tools, prefs.clearFilters(), facts).single.id, 1);
+    expect(tools[1].parentId, 1);
+  });
+
   test('Combined search matches terms across fields in any order and voltage spelling', () {
     final tools = [item(1, name: 'TALÁDRO inalámbrico'),
       item(2, name: 'Taladro', voltage: '230 V'), item(3, name: 'Sierra')];
@@ -206,6 +224,36 @@ void main() {
     expect(selected, isNull);
     await tester.tap(find.text('Ver 1 resultados')); await tester.pumpAndSettle();
     expect(selected!.types, {'Herramienta eléctrica'});
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Named pieces switch applies and each result identifies its set', (tester) async {
+    final tools = [item(1, name: 'Maletín', set: true), item(2, name: 'Taladro', parent: 1)];
+    InventoryPreferences? selected;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (context) => TextButton(
+      onPressed: () async { selected = await showModalBottomSheet<InventoryPreferences>(
+        context: context, isScrollControlled: true, builder: (_) => InventoryFilterSheet(
+          initial: const InventoryPreferences(), items: tools, facts: InventoryFacts(tools),
+          conditionOptions: defaultFieldOptions('condition'))); }, child: const Text('Abrir'))))));
+    await tester.tap(find.text('Abrir')); await tester.pumpAndSettle();
+    final toggle = find.byKey(const ValueKey('inventory_include_pieces'));
+    await tester.scrollUntilVisible(toggle, 150,
+      scrollable: find.descendant(of: find.byType(InventoryFilterSheet), matching: find.byType(Scrollable)));
+    await Scrollable.ensureVisible(tester.element(toggle), alignment: .25);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(toggle).value, false);
+    expect(find.text('Mostrar piezas de conjuntos'), findsOneWidget);
+    await tester.tap(toggle); await tester.pumpAndSettle();
+    await tester.tap(find.text('Ver 2 resultados')); await tester.pumpAndSettle();
+    expect(selected!.includePieces, true);
+    final persisted = InventoryPreferences.fromMap(selected!.toMap());
+    expect(persisted.includePieces, true);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: InventoryResults(
+      items: selectInventoryTools(tools, persisted, InventoryFacts(tools)), view: InventoryView.cards,
+      facts: InventoryFacts(tools), conditionOptions: defaultFieldOptions('condition'),
+      onOpen: (_) {}, onRefresh: () async {}, onClear: () {}))));
+    expect(find.text('Pieza de Maletín'), findsOneWidget);
+    expect(find.text('Taladro'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

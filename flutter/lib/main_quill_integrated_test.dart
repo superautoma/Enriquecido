@@ -1851,12 +1851,16 @@ class ToolItem {
 class DatabaseStats {
   const DatabaseStats({
     required this.tools,
+    required this.activeMainTools,
+    required this.activePieces,
+    required this.trashTools,
     required this.images,
     required this.databaseBytes,
     required this.imagesBytes,
   });
 
   final int tools;
+  final int activeMainTools, activePieces, trashTools;
   final int images;
   final int databaseBytes;
   final int imagesBytes;
@@ -2553,11 +2557,15 @@ class ToolsDatabase with ToolManagementDatabase, ToolTrashDatabase {
   Future<DatabaseStats> getStats() async {
     final db = await database;
 
-    final toolsCount =
-        Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM tools'),
-        ) ??
-        0;
+    // One read gives an exclusive, consistent partition of every tool record.
+    // A parent reference identifies a piece; counting never changes relations.
+    final counts = (await db.rawQuery('''
+      SELECT COUNT(*) AS total,
+        COUNT(CASE WHEN deleted_at='' AND parent_id IS NULL THEN 1 END) AS main_active,
+        COUNT(CASE WHEN deleted_at='' AND parent_id IS NOT NULL THEN 1 END) AS pieces_active,
+        COUNT(CASE WHEN deleted_at<>'' THEN 1 END) AS trash
+      FROM tools
+    ''')).single;
     final imagesCount =
         Sqflite.firstIntValue(
           await db.rawQuery('SELECT COUNT(*) FROM tool_images'),
@@ -2573,7 +2581,10 @@ class ToolsDatabase with ToolManagementDatabase, ToolTrashDatabase {
     final imagesBytes = await _directorySize(imagesDir);
 
     return DatabaseStats(
-      tools: toolsCount,
+      tools: counts['total'] as int,
+      activeMainTools: counts['main_active'] as int,
+      activePieces: counts['pieces_active'] as int,
+      trashTools: counts['trash'] as int,
       images: imagesCount,
       databaseBytes: databaseBytes,
       imagesBytes: imagesBytes,
@@ -6125,7 +6136,7 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
                       Expanded(
                         child: _DatabaseStatCard(
                           icon: Icons.handyman_outlined,
-                          label: 'Herramientas',
+                          label: 'Total de registros de herramientas',
                           value: stats == null ? '—' : '${stats.tools}',
                         ),
                       ),
@@ -6139,6 +6150,26 @@ class _DatabaseManagementPageState extends State<DatabaseManagementPage> {
                       ),
                     ],
                   );
+                },
+              ),
+              const SizedBox(height: 10),
+              FutureBuilder<DatabaseStats>(
+                future: _stats,
+                builder: (context, snapshot) {
+                  final stats = snapshot.data;
+                  return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    _DatabaseStatCard(icon: Icons.handyman_outlined,
+                      label: 'Artículos principales activos',
+                      value: stats == null ? '—' : '${stats.activeMainTools}'),
+                    const SizedBox(height: 10),
+                    _DatabaseStatCard(icon: Icons.widgets_outlined,
+                      label: 'Piezas activas pertenecientes a conjuntos',
+                      value: stats == null ? '—' : '${stats.activePieces}'),
+                    const SizedBox(height: 10),
+                    _DatabaseStatCard(icon: Icons.delete_outline,
+                      label: 'Registros en la papelera',
+                      value: stats == null ? '—' : '${stats.trashTools}'),
+                  ]);
                 },
               ),
               const SizedBox(height: 10),
