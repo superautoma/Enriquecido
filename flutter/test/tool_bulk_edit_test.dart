@@ -43,6 +43,7 @@ void main() {
           const MethodChannel('plugins.flutter.io/path_provider'),
           (_) async => root.path,
         );
+    await SafeRestore.ensureReady();
   });
   tearDown(() async {
     await db.closeForBackup();

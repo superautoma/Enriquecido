@@ -25,6 +25,8 @@ void main() {
           const MethodChannel('plugins.flutter.io/path_provider'),
           (_) async => directory.path,
         );
+    // Complete the new persistent recovery preflight outside the widget fake clock.
+    await SafeRestore.ensureReady();
   });
 
   tearDown(() async {
@@ -70,6 +72,7 @@ void main() {
     await tester.runAsync(() async {
       await invalidPath.writeAsString('occupied');
       await databaseFactory.setDatabasesPath(invalidPath.path);
+      await SafeRestore.ensureReady();
     });
     await tester.pumpWidget(const GestorHerramientasApp(testBypassSecurity: true));
     await finishDatabaseLoad(tester);
@@ -100,6 +103,7 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
 
     await databaseFactory.setDatabasesPath(directory.path);
+    await tester.runAsync(SafeRestore.ensureReady);
     await tester.tap(find.text('Reintentar'));
     await tester.pump();
     expect(find.text('Cargando…'), findsOneWidget);

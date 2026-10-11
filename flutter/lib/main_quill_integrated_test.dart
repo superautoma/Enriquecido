@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:io' as restore_io show ZLibDecoder;
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -36,6 +37,8 @@ part 'tool_trash.dart';
 part 'tool_inventory_ui.dart';
 part 'backup_import.dart';
 part 'backup_import_ui.dart';
+part 'backup_restore.dart';
+part 'backup_restore_ui.dart';
 part 'button_feedback.dart';
 part 'tool_ai.dart';
 part 'tool_ai_ui.dart';
@@ -104,8 +107,8 @@ class GestorHerramientasApp extends StatelessWidget {
       ],
       supportedLocales: const [Locale('es'), Locale('en')],
       builder: (context, child) => !kReleaseMode && testBypassSecurity
-          ? child ?? const SizedBox.shrink()
-          : AppSecurityGate(child: child ?? const SizedBox.shrink()),
+          ? RestoreGate(child: child ?? const SizedBox.shrink())
+          : AppSecurityGate(child: RestoreGate(child: child ?? const SizedBox.shrink())),
       home: const ToolsHomePage(),
     );
   }
@@ -1864,10 +1867,28 @@ class ToolsDatabase with ToolManagementDatabase, ToolTrashDatabase {
 
   static final ToolsDatabase instance = ToolsDatabase._();
   Database? _database;
+  Future<Database>? _opening;
 
   Future<Database> get database async {
+    if (!SafeRestore.internal && (SafeRestore._running || SafeRestore.blocked)) {
+      throw const RestoreFailure('El inventario está protegido durante la restauración.', blocked: true);
+    }
     if (_database != null) return _database!;
+    await SafeRestore.beforeDatabaseOpen();
+    if (!SafeRestore.internal && (SafeRestore._running || SafeRestore.blocked)) {
+      throw const RestoreFailure('El inventario está protegido durante la restauración.', blocked: true);
+    }
+    if (_opening != null) return _opening!;
+    final opening = _openDatabase();
+    _opening = opening;
+    try {
+      return await opening;
+    } finally {
+      if (identical(_opening, opening)) _opening = null;
+    }
+  }
 
+  Future<Database> _openDatabase() async {
     final base = await getDatabasesPath();
     final path = p.join(base, 'gestor_herramientas.db');
 
@@ -1877,7 +1898,14 @@ class ToolsDatabase with ToolManagementDatabase, ToolTrashDatabase {
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
-      onCreate: (db, version) async {
+      onCreate: _createSchema,
+      onUpgrade: _upgradeSchema,
+    );
+
+    return _database!;
+  }
+
+  static Future<void> _createSchema(Database db, int version) async {
         await db.execute('''
           CREATE TABLE tools (
             id INTEGER PRIMARY KEY,
@@ -1904,11 +1932,6 @@ class ToolsDatabase with ToolManagementDatabase, ToolTrashDatabase {
         await ensureToolTrashColumns(db);
         await _createFieldOptionsTable(db);
         await _seedDefaultFieldOptions(db);
-      },
-      onUpgrade: _upgradeSchema,
-    );
-
-    return _database!;
   }
 
   static Future<void> _upgradeSchema(Database db, int oldVersion, int newVersion) async {
@@ -2616,6 +2639,19 @@ class ToolsDatabase with ToolManagementDatabase, ToolTrashDatabase {
   Future<void> reopen() async {
     await database;
   }
+
+  Future<void> closeForRestore() async {
+    final opening = _opening;
+    if (opening != null) await opening;
+    final db = _database;
+    if (db == null) return;
+    final checkpoint = await db.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
+    if (checkpoint.isNotEmpty && checkpoint.first.values.first != 0) {
+      throw const RestoreFailure('No se pudo cerrar una escritura SQLite pendiente.');
+    }
+    await db.close();
+    _database = null;
+  }
 }
 
 class BackupManager {
@@ -2701,112 +2737,7 @@ class BackupManager {
     }
   }
 
-  static Future<void> restoreBackup(String zipPath) async {
-    final zipFile = File(zipPath);
-    if (!await zipFile.exists()) {
-      throw StateError('No se encuentra el archivo de copia');
-    }
-
-    final temp = await getTemporaryDirectory();
-    final stamp = _stamp();
-    final restoreDir = Directory(p.join(temp.path, 'gh_restore_$stamp'));
-    if (await restoreDir.exists()) {
-      await restoreDir.delete(recursive: true);
-    }
-    await restoreDir.create(recursive: true);
-
-    try {
-      final bytes = await zipFile.readAsBytes();
-      final archive = ZipDecoder().decodeBytes(bytes, verify: true);
-
-      for (final entry in archive) {
-        final normalized = p.normalize(entry.name);
-        if (p.isAbsolute(normalized) ||
-            normalized == '..' ||
-            normalized.startsWith('../') ||
-            normalized.contains('/../')) {
-          throw const FormatException('La copia contiene una ruta no válida');
-        }
-
-        final targetPath = p.join(restoreDir.path, normalized);
-        if (entry.isFile) {
-          final output = File(targetPath);
-          await output.parent.create(recursive: true);
-          await output.writeAsBytes(entry.content as List<int>, flush: true);
-        } else {
-          await Directory(targetPath).create(recursive: true);
-        }
-      }
-
-      final manifestFile = File(p.join(restoreDir.path, 'manifest.json'));
-      final restoredDb = File(
-        p.join(restoreDir.path, 'database', 'gestor_herramientas.db'),
-      );
-
-      if (!await manifestFile.exists() || !await restoredDb.exists()) {
-        throw const FormatException(
-          'El archivo no es una copia válida del Gestor de Herramientas',
-        );
-      }
-
-      final manifestRaw = jsonDecode(await manifestFile.readAsString());
-      if (manifestRaw is! Map ||
-          manifestRaw['format'] != 'gestor_herramientas_backup') {
-        throw const FormatException('Formato de copia no reconocido');
-      }
-
-      final version = (manifestRaw['format_version'] as num?)?.toInt() ?? 0;
-      if (version > formatVersion) {
-        throw const FormatException(
-          'La copia fue creada por una versión más nueva de la aplicación',
-        );
-      }
-
-      final dbDestination = await ToolsDatabase.instance.databasePath;
-      final imagesDestination = await _imagesDirectory();
-      final restoredImages = Directory(p.join(restoreDir.path, 'tool_images'));
-      final documentsDestination = await toolDocumentsDirectory();
-
-      await ToolsDatabase.instance.closeForBackup();
-
-      try {
-        final destinationDbFile = File(dbDestination);
-        await destinationDbFile.parent.create(recursive: true);
-        await restoredDb.copy(dbDestination);
-
-        if (await imagesDestination.exists()) {
-          await imagesDestination.delete(recursive: true);
-        }
-
-        if (await restoredImages.exists()) {
-          await _copyDirectory(restoredImages, imagesDestination);
-        } else {
-          await imagesDestination.create(recursive: true);
-        }
-        if (await documentsDestination.exists()) await documentsDestination.delete(recursive: true);
-        final sourceDocuments = Directory(p.join(restoreDir.path, 'tool_documents'));
-        if (await sourceDocuments.exists()) {
-          await _copyDirectory(sourceDocuments, documentsDestination);
-        } else { await documentsDestination.create(recursive: true); }
-      } finally {
-        await ToolsDatabase.instance.reopen();
-      }
-      final db = await ToolsDatabase.instance.database;
-      final images = await db.query('tool_images');
-      for (final image in images) {
-        final path = p.join(imagesDestination.path, p.basename(image['path'] as String));
-        if (await File(path).exists()) await db.update('tool_images', {'path': path},
-          where: 'id=?', whereArgs: [image['id']]);
-      }
-      await syncManagementReminders();
-    } finally {
-      if (await restoreDir.exists()) {
-        try {
-          await restoreDir.delete(recursive: true);
-        } catch (_) {}
-      }
-    }
-  }
+  static Future<void> restoreBackup(String zipPath) => SafeRestore.restore(zipPath);
 
   static Future<void> _copyDirectory(
     Directory source,
@@ -3278,7 +3209,7 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
         content: const Text(
           'Esta opción sustituye tu inventario completo por el de la copia. '
           'Para conservarlo y añadir datos, utiliza Importar y añadir. '
-          'Guarda una copia de tus datos actuales antes de sustituirlos.',
+          'Antes de sustituirlos, protegeremos automáticamente tus datos actuales para recuperarlos si ocurre un fallo.',
         ),
         actions: [
           TextButton(
@@ -3294,9 +3225,11 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
     );
 
     if (confirmed != true) return false;
+    await _preferencesWrite;
 
     try {
       await BackupManager.restoreBackup(path);
+      if (!mounted) return true;
       await _loadItems();
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3304,10 +3237,14 @@ class _ToolsHomePageState extends State<ToolsHomePage> {
       );
       return true;
     } catch (error) {
-      if (!mounted) return false;
+      if (error is RestoreFailure && error.recovered && mounted) await _loadItems();
+      if (!mounted || SafeRestore.blocked) return false;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo restaurar la copia: $error')),
+        SnackBar(content: Text(error is RestoreFailure ? error.message : 'No se pudo restaurar la copia. El inventario no se ha sustituido.')),
       );
+      if (error is RestoreFailure && error.recovered) {
+        await SafeRestore.acknowledgeRecovery();
+      }
       return false;
     }
   }

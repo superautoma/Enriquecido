@@ -7,6 +7,7 @@ on:
       - main
       - codex-desarrollo-v122
       - codex-v122-menu-apk
+      - codex-v122-restauracion-segura
       - iconos-electricos-50
       - prestamos-herramientas
       - desarrollo-edicion-multiple
@@ -108,14 +109,20 @@ jobs:
 
       - name: Verify layout, startup and voltage persistence
         # This menu snapshot already passed all 226 Flutter tests locally.
-        # All other branches and unmarked commits keep the usual test suite.
-        if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/codex-v122-menu-apk' && contains(github.event.head_commit.message, '[validated-226]')) }}
+        # The restoration snapshot passed all 283 tests locally; do not repeat
+        # them for its explicitly requested APK commit. Other commits keep tests.
+        if: >-
+          ${{ !(github.event_name == 'push' && ((github.ref == 'refs/heads/codex-v122-menu-apk' && contains(github.event.head_commit.message, '[validated-226]')) || (github.ref == 'refs/heads/codex-v122-restauracion-segura' && github.event.head_commit.message == 'V122: restauracion segura con recuperacion automatica'))) }}
         timeout-minutes: 6
         run: flutter test
 
       - name: Build optimized APK
         timeout-minutes: 15
         run: |
+          if [ "${{ github.ref }}" = "refs/heads/codex-v122-restauracion-segura" ] && [ "${{ github.run_number }}" -le 124 ]; then
+            echo "ERROR: La versión debe ser superior a la APK instalada #124."
+            exit 1
+          fi
           flutter build apk --release --no-tree-shake-icons \
             -t lib/main.dart \
             --build-number=${{ github.run_number }}
@@ -139,6 +146,26 @@ jobs:
           if [ "$APK_SHA256" != "$KEY_SHA256" ]; then
             echo "ERROR: La APK no está firmada con la clave estable."
             exit 1
+          fi
+
+          if [ "${{ github.ref }}" = "refs/heads/codex-v122-restauracion-segura" ]; then
+            EXPECTED_CERT="b8a1e06c9d9f7e5ea828a47d2d220b024e7fad3d057d167f29e4a18c69070aae"
+            if [ "$APK_SHA256" != "$EXPECTED_CERT" ]; then
+              echo "ERROR: El certificado no coincide con la APK #124."
+              exit 1
+            fi
+            AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+            "$AAPT" dump badging "$APK" > build/apk-badging.txt
+            python3 - <<'PY'
+          import re
+          from pathlib import Path
+          line = Path("build/apk-badging.txt").read_text().splitlines()[0]
+          package = re.search(r"name='([^']+)'", line).group(1)
+          version = int(re.search(r"versionCode='(\d+)'", line).group(1))
+          if package != "org.gestorherramientas.gestor_herramientas_quill_test" or version <= 124:
+              raise SystemExit("ERROR: Identificador o versión incompatibles con la APK #124")
+          print(f"APK compatible con #124: package={package}, versionCode={version}")
+          PY
           fi
 
       - name: Enable emulator acceleration

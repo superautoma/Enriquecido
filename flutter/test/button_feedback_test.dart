@@ -23,6 +23,11 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('button_feedback_');
     await databaseFactory.setDatabasesPath(directory.path);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (_) async => directory.path,
+        );
     calls.clear();
     diagnosticCalls.clear();
     deviceStatus = {'hasVibrator': true, 'permissionGranted': true,
@@ -43,6 +48,10 @@ void main() {
   });
   tearDown(() async {
     await ToolsDatabase.instance.closeForBackup();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'), null,
+        );
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(buttonFeedbackChannel, null);
     await directory.delete(recursive: true);

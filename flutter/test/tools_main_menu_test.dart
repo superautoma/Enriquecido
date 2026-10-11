@@ -101,6 +101,7 @@ void main() {
       const MethodChannel('plugins.flutter.io/path_provider'),
       (_) async => directory.path,
     );
+    await SafeRestore.ensureReady();
     messenger.setMockMethodCallHandler(
       buttonFeedbackChannel,
       (_) async => {'hasVibrator': true},

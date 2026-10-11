@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -35,10 +36,19 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('tool_voltage_');
     await databaseFactory.setDatabasesPath(directory.path);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (_) async => directory.path,
+        );
   });
 
   tearDown(() async {
     await ToolsDatabase.instance.closeForBackup();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'), null,
+        );
     await directory.delete(recursive: true);
   });
 

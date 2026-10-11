@@ -19,7 +19,9 @@ source scripts/v122-env.sh
 `check` ejecuta las 221 pruebas originales y una regresión que invoca el `main()`
 oficial y verifica la aplicación integrada con protección de acceso activa.
 Incluye además cuatro pruebas del menú derecho: opciones, diseño adaptable,
-navegación y acciones de datos; el total actual es de 226 pruebas Flutter.
+navegación y acciones de datos; la versión del menú contiene 226 pruebas Flutter.
+La [restauración segura](docs/RESTAURACION_SEGURA_V122.md) añade 57 pruebas de
+validación, sustitución, recuperación automática e interrupciones: 283 en total.
 También comprueba que la generación Android no sustituye las fuentes ni el
 lockfile. Los datos de prueba están aislados del inventario del usuario.
 

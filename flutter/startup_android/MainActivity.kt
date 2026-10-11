@@ -15,12 +15,18 @@ import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.android.RenderMode
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.renderer.FlutterUiDisplayListener
+import io.flutter.plugin.common.MethodChannel
+import android.os.StatFs
+import android.system.Os
+import android.system.OsConstants
+import java.io.File
 
 class MainActivity : FlutterFragmentActivity() {
     private var loadingView: View? = null
     private var flutterVisible = false
     private var buttonFeedback: ButtonFeedback? = null
     private var toolAi: ToolAi? = null
+    private var restoreStorage: MethodChannel? = null
 
     private val uiListener = object : FlutterUiDisplayListener {
         override fun onFlutterUiDisplayed() {
@@ -95,6 +101,27 @@ class MainActivity : FlutterFragmentActivity() {
         ToolManagement.attach(this, flutterEngine)
         buttonFeedback = ButtonFeedback(this, flutterEngine)
         toolAi = ToolAi(this, flutterEngine)
+        restoreStorage = MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
+            "gestor_herramientas/restore_storage").apply {
+            setMethodCallHandler { call, result ->
+                try {
+                    val directory = File(call.argument<String>("path") ?: "").canonicalFile
+                    val privateRoot = File(applicationInfo.dataDir).canonicalFile
+                    require(directory.isDirectory && directory.path.startsWith(privateRoot.path + File.separator))
+                    when (call.method) {
+                        "freeBytes" -> result.success(StatFs(directory.path).availableBytes)
+                        "syncDirectory" -> {
+                            val fd = Os.open(directory.path, OsConstants.O_RDONLY or OsConstants.O_DIRECTORY, 0)
+                            try { Os.fsync(fd) } finally { Os.close(fd) }
+                            result.success(null)
+                        }
+                        else -> result.notImplemented()
+                    }
+                } catch (_: Exception) {
+                    result.error("restore_storage", "No se pudo verificar el almacenamiento privado", null)
+                }
+            }
+        }
         flutterEngine.renderer.addIsDisplayingFlutterUiListener(uiListener)
         if (flutterEngine.renderer.isDisplayingFlutterUi) {
             uiListener.onFlutterUiDisplayed()
@@ -102,6 +129,8 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        restoreStorage?.setMethodCallHandler(null)
+        restoreStorage = null
         buttonFeedback?.dispose()
         buttonFeedback = null
         toolAi?.dispose()
