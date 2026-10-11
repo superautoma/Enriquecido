@@ -111,8 +111,12 @@ class MainActivity : FlutterFragmentActivity() {
                     when (call.method) {
                         "freeBytes" -> result.success(StatFs(directory.path).availableBytes)
                         "syncDirectory" -> {
-                            val fd = Os.open(directory.path, OsConstants.O_RDONLY or OsConstants.O_DIRECTORY, 0)
-                            try { Os.fsync(fd) } finally { Os.close(fd) }
+                            val fd = Os.open(directory.path, OsConstants.O_RDONLY, 0)
+                            try {
+                                // Use public Android APIs and check the opened descriptor before syncing.
+                                require(OsConstants.S_ISDIR(Os.fstat(fd).st_mode))
+                                Os.fsync(fd)
+                            } finally { Os.close(fd) }
                             result.success(null)
                         }
                         else -> result.notImplemented()

@@ -75,6 +75,8 @@ class StartupInstallTest(unittest.TestCase):
             package = 'org/gestorherramientas/gestor_herramientas_quill_test'
             self.assertTrue((main / 'java' / package / 'StartupActivity.java').exists())
             self.assertTrue((main / 'kotlin' / package / 'MainActivity.kt').exists())
+            installed_activity = (main / 'kotlin' / package / 'MainActivity.kt').read_text()
+            self.assertEqual(installed_activity, (ROOT / 'MainActivity.kt').read_text())
             self.assertTrue((main / 'kotlin' / package / 'ButtonFeedback.kt').exists())
             self.assertTrue((main / 'kotlin' / package / 'ToolAi.kt').exists())
             links = [d for i in activities['.MainActivity'].findall('intent-filter') for d in i.findall('data')
@@ -98,6 +100,16 @@ class StartupInstallTest(unittest.TestCase):
             camera = next(f for f in root.findall('uses-feature')
                           if f.get(ANDROID + 'name') == 'android.hardware.camera')
             self.assertEqual(camera.get(ANDROID + 'required'), 'false')
+
+    def test_restore_directory_sync_uses_public_api_and_closes_on_failure(self):
+        source = (ROOT / 'MainActivity.kt').read_text()
+        handler = source.split('"syncDirectory" -> {', 1)[1].split('else -> result.notImplemented()', 1)[0]
+        self.assertNotIn('O_DIRECTORY', source)
+        self.assertIn('Os.open(directory.path, OsConstants.O_RDONLY, 0)', handler)
+        self.assertRegex(handler, r'try\s*\{\s*//[^\n]*\n\s*require\(OsConstants.S_ISDIR\(Os.fstat\(fd\).st_mode\)\)\s*Os.fsync\(fd\)\s*\}\s*finally\s*\{\s*Os.close\(fd\)\s*\}')
+        self.assertLess(handler.index('Os.close(fd)'), handler.index('result.success(null)'))
+        self.assertIn('require(directory.isDirectory && directory.path.startsWith(privateRoot.path + File.separator))', source)
+        self.assertIn('result.error("restore_storage", "No se pudo verificar el almacenamiento privado", null)', source)
 
 
 if __name__ == '__main__':

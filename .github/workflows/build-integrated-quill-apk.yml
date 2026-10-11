@@ -110,9 +110,10 @@ jobs:
       - name: Verify layout, startup and voltage persistence
         # This menu snapshot already passed all 226 Flutter tests locally.
         # The restoration snapshot passed all 283 tests locally; do not repeat
-        # them for its explicitly requested APK commit. Other commits keep tests.
+        # them for its APK commit or the native-only compilation correction.
+        # Other commits keep tests.
         if: >-
-          ${{ !(github.event_name == 'push' && ((github.ref == 'refs/heads/codex-v122-menu-apk' && contains(github.event.head_commit.message, '[validated-226]')) || (github.ref == 'refs/heads/codex-v122-restauracion-segura' && github.event.head_commit.message == 'V122: restauracion segura con recuperacion automatica'))) }}
+          ${{ !(github.event_name == 'push' && ((github.ref == 'refs/heads/codex-v122-menu-apk' && contains(github.event.head_commit.message, '[validated-226]')) || (github.ref == 'refs/heads/codex-v122-restauracion-segura' && (github.event.head_commit.message == 'V122: restauracion segura con recuperacion automatica' || github.event.head_commit.message == 'V122: corregir sincronizacion de directorios Android')))) }}
         timeout-minutes: 6
         run: flutter test
 
