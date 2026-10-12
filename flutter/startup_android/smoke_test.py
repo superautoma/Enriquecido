@@ -708,9 +708,12 @@ if '--scanner-only' not in sys.argv:
     wait_for('Filtrar (1)')
     wait_for('1 artículos')
     tap('Destornillador aislado')
+    # Reopening the editor starts in General; identification is in Técnica.
+    tap('Técnica')
     scroll_tap('SER-QA-001')
     wait_for('SER-QA-001')
     adb('shell', 'input', 'keyevent', '4')
+    tap('Inventario')
     scroll_tap('Caja azul')
     wait_for('Caja azul')
     screenshot('tool-details-reopened.png')
