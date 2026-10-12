@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../lib/main_quill_integrated_test.dart';
@@ -157,6 +156,8 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 100));
     });
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('editor_tab_1')));
+    await tester.pumpAndSettle();
     final voltageField = find.byKey(const ValueKey('tool_voltage'));
     expect(voltageField, findsOneWidget);
     expect(find.text('24 V'), findsOneWidget);
@@ -166,15 +167,23 @@ void main() {
       matching: find.byType(DropdownButton<String>),
     )).items!.map((item) => item.value).toList(), voltageOptionsFor('24 V'));
 
-    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
+    await tester.tap(find.byKey(const ValueKey('editor_tab_0')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tool_type')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Herramienta manual').last);
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('editor_tab_1')));
+    await tester.pumpAndSettle();
     expect(voltageField, findsNothing);
 
-    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
+    await tester.tap(find.byKey(const ValueKey('editor_tab_0')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tool_type')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Herramienta eléctrica').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('editor_tab_1')));
     await tester.pumpAndSettle();
     expect(find.text('24 V'), findsOneWidget);
     await tester.tap(voltageField);
@@ -184,11 +193,11 @@ void main() {
     expect(find.widgetWithText(VoltageBadge, '230'), findsOneWidget);
     expect(
       tester.state<FormFieldState<String>>(
-        find.byKey(const ValueKey('tool_type')),
+        find.byKey(const ValueKey('tool_type'), skipOffstage: false),
       ).value,
       'Herramienta eléctrica',
     );
-    expect(tester.widget<TextFormField>(find.byType(TextFormField).first)
+    expect(tester.widget<TextFormField>(find.byKey(const ValueKey('editor_name'), skipOffstage: false))
         .controller?.text, 'Taladro');
     await tester.tap(find.text('GUARDAR'));
     await tester.pumpAndSettle();

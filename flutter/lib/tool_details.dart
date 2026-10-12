@@ -25,9 +25,10 @@ class ToolLocation {
 class ToolDetailsForm extends StatelessWidget {
   const ToolDetailsForm({super.key, required this.brand, required this.model,
     required this.serialNumber, required this.site, required this.rack,
-    required this.shelf, required this.container, this.inheritedLocation = ''});
+    required this.shelf, required this.container, this.inheritedLocation = '', this.showIdentification = true, this.showLocation = true});
   final TextEditingController brand, model, serialNumber, site, rack, shelf, container;
   final String inheritedLocation;
+  final bool showIdentification, showLocation;
 
   Widget _field(String key, String label, TextEditingController controller, IconData icon) =>
     Padding(padding: const EdgeInsets.only(top: 10), child: TextFormField(
@@ -37,7 +38,7 @@ class ToolDetailsForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(children: [
-    ExpansionTile(key: const ValueKey('tool_identification'),
+    if (showIdentification) ExpansionTile(key: const ValueKey('tool_identification'),
       tilePadding: EdgeInsets.zero,
       leading: const Icon(Icons.badge_outlined, color: managementColor),
       title: const Text('Identificación'),
@@ -48,7 +49,7 @@ class ToolDetailsForm extends StatelessWidget {
         _field('serial_number', 'Número de serie', serialNumber, Icons.tag),
         const SizedBox(height: 10),
       ]),
-    ExpansionTile(key: const ValueKey('tool_location'),
+    if (showLocation) ExpansionTile(key: const ValueKey('tool_location'),
       tilePadding: EdgeInsets.zero,
       leading: const Icon(Icons.location_on_outlined, color: managementColor),
       title: const Text('Ubicación'),

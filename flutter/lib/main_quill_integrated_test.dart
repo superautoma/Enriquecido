@@ -6898,7 +6898,29 @@ class EditToolPage extends StatefulWidget {
   State<EditToolPage> createState() => _EditToolPageState();
 }
 
-class _EditToolPageState extends State<EditToolPage> {
+class _EditToolPageState extends State<EditToolPage> with SingleTickerProviderStateMixin {
+  late final TabController _editorTabs;
+  final _editorScroll = List.generate(5, (_) => ScrollController());
+  int _selectedEditorTab = 0;
+
+  void _onEditorTabChanged() {
+    if (_selectedEditorTab == _editorTabs.index) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _selectedEditorTab = _editorTabs.index);
+  }
+
+  bool _validateEditor() {
+    if (_formKey.currentState?.validate() ?? false) return true;
+    // All existing validators are in General. Hidden sections stay mounted.
+    _editorTabs.animateTo(0);
+    if (_editorScroll[0].hasClients) _editorScroll[0].jumpTo(0);
+    return false;
+  }
+
+  Widget _editorSection(int index, List<Widget> fields) => SingleChildScrollView(
+    key: ValueKey('editor_section_$index'), controller: _editorScroll[index],
+    padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: fields));
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _name;
@@ -6938,6 +6960,7 @@ class _EditToolPageState extends State<EditToolPage> {
   @override
   void initState() {
     super.initState();
+    _editorTabs = TabController(length: 5, vsync: this)..addListener(_onEditorTabChanged);
     final item = _currentItem;
     _isSet = item?.isSet ?? false;
 
@@ -7001,6 +7024,8 @@ class _EditToolPageState extends State<EditToolPage> {
 
   @override
   void dispose() {
+    _editorTabs.dispose();
+    for (final controller in _editorScroll) { controller.dispose(); }
     _name.dispose();
     _barcode.dispose();
     for (final controller in [_brand, _model, _serialNumber,
@@ -7064,12 +7089,12 @@ class _EditToolPageState extends State<EditToolPage> {
   }
 
   void _save() {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!_validateEditor()) return;
     Navigator.of(context).pop(_buildItem());
   }
 
   Future<void> _openManagement(String section) async {
-    if (_managementBusy || !(_formKey.currentState?.validate() ?? false)) return;
+    if (_managementBusy || !_validateEditor()) return;
     setState(() => _managementBusy = true);
     try {
       final item = _buildItem();
@@ -7109,7 +7134,7 @@ class _EditToolPageState extends State<EditToolPage> {
   }
 
   Future<void> _openOwnLabel() async {
-    if (_managementBusy || !(_formKey.currentState?.validate() ?? false)) return;
+    if (_managementBusy || !_validateEditor()) return;
     setState(() => _managementBusy = true);
     try {
       final item = _buildItem();
@@ -7130,7 +7155,7 @@ class _EditToolPageState extends State<EditToolPage> {
   }
 
   Future<void> _prepareLoan() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!_validateEditor()) return;
     final draft = await Navigator.of(context).push<LoanDraft>(MaterialPageRoute(
       builder: (_) => LoanFormPage(toolName: _name.text.trim(),
         quantity: _currentItem?.availableQuantity ?? _number(_quantity.text), unit: _unit.text.trim(),
@@ -7155,7 +7180,7 @@ class _EditToolPageState extends State<EditToolPage> {
   }
 
   Future<void> _prepareReturn() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!_validateEditor()) return;
     final loan = _currentItem?.activeLoan;
     if (loan == null) return;
     await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => LoanDetailsPage(loan: loan)));
@@ -7627,6 +7652,17 @@ class _EditToolPageState extends State<EditToolPage> {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
+        bottom: TabBar(controller: _editorTabs, isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          labelColor: const Color(0xFF168BD2), indicatorColor: const Color(0xFF168BD2),
+          unselectedLabelColor: const Color(0xFF72777D),
+          tabs: const [
+            Tab(key: ValueKey('editor_tab_0'), icon: Icon(Icons.info_outline), text: 'General'),
+            Tab(key: ValueKey('editor_tab_1'), icon: Icon(Icons.settings_outlined), text: 'Técnica'),
+            Tab(key: ValueKey('editor_tab_2'), icon: Icon(Icons.inventory_2_outlined), text: 'Inventario'),
+            Tab(key: ValueKey('editor_tab_3'), icon: Icon(Icons.photo_library_outlined), text: 'Imágenes'),
+            Tab(key: ValueKey('editor_tab_4'), icon: Icon(Icons.more_horiz), text: 'Otros'),
+          ]),
         actions: [
           LoanStatusButton(
             loan: _currentItem?.activeLoan,
@@ -7651,12 +7687,10 @@ class _EditToolPageState extends State<EditToolPage> {
           const SizedBox(width: 6),
         ],
       ),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
-            children: [
+      body: SafeArea(child: Column(children: [
+        Expanded(child: Form(key: _formKey,
+          child: IndexedStack(key: const ValueKey('editor_sections'), index: _selectedEditorTab, children: [
+            _editorSection(0, [
               if (!_isEditing && widget.aiDraft == null) ...[
                 OutlinedButton.icon(key: const ValueKey('create_with_ai'),
                   onPressed: withButtonFeedback(() async {
@@ -7681,11 +7715,11 @@ class _EditToolPageState extends State<EditToolPage> {
                 if (widget.aiDraft!.warnings.isNotEmpty) Text(widget.aiDraft!.warnings.join('\n')),
                 const SizedBox(height: 16),
               ],
-              if (widget.aiDraft == null) ManagementShortcuts(onOpen: _managementBusy ? null : _openManagement),
               const SizedBox(height: 16),
               const SectionTitle('Información básica'),
               const SizedBox(height: 10),
               TextFormField(
+                key: const ValueKey('editor_name'),
                 controller: _name,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(
@@ -7750,15 +7784,31 @@ class _EditToolPageState extends State<EditToolPage> {
                     ? 'Selecciona el tipo'
                     : null,
               ),
-              if (_currentItem?.parentId == null) SwitchListTile.adaptive(
-                key: const ValueKey('tool_is_set'), contentPadding: EdgeInsets.zero,
-                secondary: const Icon(Icons.widgets_outlined, color: managementColor),
-                title: const Text('Es un conjunto'),
-                subtitle: const Text('Gestionar sus piezas por separado'),
-                value: _isSet, onChanged: withControlFeedback((value) => setState(() => _isSet = value))),
-              if (_currentItem?.outOfService ?? false) const ListTile(
-                contentPadding: EdgeInsets.zero, leading: Icon(Icons.build_outlined, color: Colors.red),
-                title: Text('Fuera de servicio'), subtitle: Text('Consulta Mantenimiento para habilitarla')),
+              const SizedBox(height: 12),
+              DescriptionQuillCard(
+                text: _descriptionPlain,
+                deltaJson: _descriptionDelta,
+                onTap: _openQuillDescription,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const ValueKey('tool_barcode'),
+                controller: _barcode,
+                keyboardType: TextInputType.text,
+                decoration: InputDecoration(
+                  labelText: 'Código de barras',
+                  prefixIcon: const Icon(Icons.qr_code),
+                  suffixIcon: IconButton(tooltip: 'Leer código con cámara',
+                    onPressed: withButtonFeedback(_scanBarcode), icon: const Icon(Icons.camera_alt_outlined)),
+                ),
+              ),
+              Align(alignment: Alignment.centerLeft, child: TextButton.icon(
+                onPressed: withButtonFeedback(_managementBusy ? null : _openOwnLabel),
+                icon: const Icon(Icons.qr_code_2, size: 20), label: const Text('Etiqueta QR propia'))),
+              const SizedBox(height: 12),
+            ]),
+            _editorSection(1, [
+              const SectionTitle('Características técnicas'),
               if (_showVoltage) ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(onTap: () => ButtonFeedbackController.instance.tap(), enableFeedback: false,
@@ -7811,31 +7861,24 @@ class _EditToolPageState extends State<EditToolPage> {
                   }),
                 ),
               ],
-              const SizedBox(height: 12),
-              DescriptionQuillCard(
-                text: _descriptionPlain,
-                deltaJson: _descriptionDelta,
-                onTap: _openQuillDescription,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                key: const ValueKey('tool_barcode'),
-                controller: _barcode,
-                keyboardType: TextInputType.text,
-                decoration: InputDecoration(
-                  labelText: 'Código de barras',
-                  prefixIcon: const Icon(Icons.qr_code),
-                  suffixIcon: IconButton(tooltip: 'Leer código con cámara',
-                    onPressed: withButtonFeedback(_scanBarcode), icon: const Icon(Icons.camera_alt_outlined)),
-                ),
-              ),
-              Align(alignment: Alignment.centerLeft, child: TextButton.icon(
-                onPressed: withButtonFeedback(_managementBusy ? null : _openOwnLabel),
-                icon: const Icon(Icons.qr_code_2, size: 20), label: const Text('Etiqueta QR propia'))),
-              const SizedBox(height: 12),
               ToolDetailsForm(brand: _brand, model: _model, serialNumber: _serialNumber,
                 site: _locationSite, rack: _locationRack, shelf: _locationShelf, container: _locationContainer,
-                inheritedLocation: _inheritedLocation),
+                showLocation: false),
+            ]),
+            _editorSection(2, [
+              if (widget.aiDraft == null) ManagementShortcuts(onOpen: _managementBusy ? null : _openManagement),
+              if (_currentItem?.parentId == null) SwitchListTile.adaptive(
+                key: const ValueKey('tool_is_set'), contentPadding: EdgeInsets.zero,
+                secondary: const Icon(Icons.widgets_outlined, color: managementColor),
+                title: const Text('Es un conjunto'),
+                subtitle: const Text('Gestionar sus piezas por separado'),
+                value: _isSet, onChanged: withControlFeedback((value) => setState(() => _isSet = value))),
+              if (_currentItem?.outOfService ?? false) const ListTile(
+                contentPadding: EdgeInsets.zero, leading: Icon(Icons.build_outlined, color: Colors.red),
+                title: Text('Fuera de servicio'), subtitle: Text('Consulta Mantenimiento para habilitarla')),
+              ToolDetailsForm(brand: _brand, model: _model, serialNumber: _serialNumber,
+                site: _locationSite, rack: _locationRack, shelf: _locationShelf, container: _locationContainer,
+                inheritedLocation: _inheritedLocation, showIdentification: false),
               const SizedBox(height: 22),
               const SectionTitle('Existencias'),
               const SizedBox(height: 10),
@@ -7844,7 +7887,8 @@ class _EditToolPageState extends State<EditToolPage> {
                   Expanded(
                     flex: 2,
                     child: TextFormField(
-                      controller: _quantity,
+                      key: const ValueKey('editor_quantity'),
+                controller: _quantity,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
@@ -7854,7 +7898,8 @@ class _EditToolPageState extends State<EditToolPage> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: TextFormField(
-                      controller: _unit,
+                      key: const ValueKey('editor_unit'),
+                controller: _unit,
                       decoration: const InputDecoration(labelText: 'Unidad'),
                     ),
                   ),
@@ -7862,6 +7907,7 @@ class _EditToolPageState extends State<EditToolPage> {
               ),
               const SizedBox(height: 12),
               TextFormField(
+                key: const ValueKey('editor_minimumStock'),
                 controller: _minimumStock,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
@@ -7929,20 +7975,8 @@ class _EditToolPageState extends State<EditToolPage> {
                   }
                 }),
               ),
-              const SizedBox(height: 22),
-              const SectionTitle('Compra e imagen'),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: _purchasePrice,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Precio de compra (€)',
-                  prefixIcon: Icon(Icons.euro),
-                ),
-              ),
-              const SizedBox(height: 12),
+            ]),
+            _editorSection(3, [
               Row(
                 children: [
                   Text(
@@ -8015,7 +8049,31 @@ class _EditToolPageState extends State<EditToolPage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+            ]),
+            _editorSection(4, [
+              const SizedBox(height: 22),
+              const SectionTitle('Compra'),
+              const SizedBox(height: 10),
+              TextFormField(
+                key: const ValueKey('editor_purchasePrice'),
+                controller: _purchasePrice,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Precio de compra (€)',
+                  prefixIcon: Icon(Icons.euro),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const SectionTitle('Notas de mantenimiento'),
+              const SizedBox(height: 10),
+              Text((_currentItem?.serviceNotes ?? '').isEmpty ? 'Sin notas de mantenimiento.' : _currentItem!.serviceNotes),
+              const SizedBox(height: 8),
+              const Text('Las notas se gestionan desde Mantenimiento, en Inventario.'),
+            ]),
+          ]))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 12), child:
               FilledButton.icon(
                 onPressed: withButtonFeedback(_save),
                 icon: const Icon(Icons.save_outlined),
@@ -8033,10 +8091,8 @@ class _EditToolPageState extends State<EditToolPage> {
                   ),
                 ),
               ),
-            ],
-          ),
         ),
-      ),
+      ])),
     );
   }
 }
